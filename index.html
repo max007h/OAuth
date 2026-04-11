@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>POC OAuth2 + RAR sans PAR — Fuite authorization_details</title>
+</head>
+<body>
+  <h2>Initier un virement — OAuth2 + RAR (sans PAR)</h2>
+
+  <form id="form">
+    <label>IBAN bénéficiaire <input id="iban" value="FR7630006000011234567890189"></label><br>
+    <label>Montant (€)       <input id="amount" value="47500.00"></label><br>
+    <label>Bénéficiaire      <input id="benef" value="ACME Corp SAS"></label><br>
+    <label>IBAN débiteur     <input id="debit" value="FR7630004000031234567890143"></label><br>
+    <button type="submit">Autoriser le virement (RAR sans PAR)</button>
+  </form>
+
+  <div id="result" style="margin-top:2rem; font-family:monospace; white-space:pre-wrap;"></div>
+
+  <script>
+    const KC_URL    = "http://localhost:9090";
+    const REALM     = "banking-poc";
+    const CLIENT_ID = "wire-transfer-spa";
+    const REDIRECT  = "http://localhost:8000/index.html";
+
+    async function generateCodeVerifier() {
+      const arr = crypto.getRandomValues(new Uint8Array(32));
+      return btoa(String.fromCharCode(...arr))
+        .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+    }
+
+    async function generateCodeChallenge(verifier) {
+      const data = new TextEncoder().encode(verifier);
+      const hash = await crypto.subtle.digest('SHA-256', data);
+      return btoa(String.fromCharCode(...new Uint8Array(hash)))
+        .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+    }
+
+    document.getElementById('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const verifier  = await generateCodeVerifier();
+      const challenge = await generateCodeChallenge(verifier);
+      const state     = crypto.randomUUID();
+
+      sessionStorage.setItem('pkce_verifier', verifier);
+      sessionStorage.setItem('oauth_state',   state);
+
+      // ⚠️ RAR (RFC 9396) — authorization_details structuré et sémantiquement correct
+      // mais passé en clair dans l'URL faute de PAR
+      const authorizationDetails = JSON.stringify([
+        {
+          type:             "wire_transfer",       // type sémantique RAR
+          instructedAmount: {
+            currency: "EUR",
+            amount:   document.getElementById('amount').value
+          },
+          creditorAccount: {
+            iban: document.getElementById('iban').value
+          },
+          creditorName:    document.getElementById('benef').value,
+          debtorAccount: {
+            iban: document.getElementById('debit').value
+          },
+          remittanceInformation: "Facture 2024-089"
+        }
+      ]);
+
+      const params = new URLSearchParams({
+        response_type:          'code',
+        client_id:              CLIENT_ID,
+        redirect_uri:           REDIRECT,
+        // ⚠️ scope enrichi pour signaler le support RAR
+        scope:                  'openid wire_transfer',
+        state:                  state,
+        code_challenge:         challenge,
+        code_challenge_method:  'S256',
+        // ⚠️ authorization_details — valeur fonctionnelle avec RAR
+        //    mais visible en clair dans la barre d'adresse, logs proxy, logs Keycloak
+        authorization_details:  authorizationDetails,
+      });
+
+      const authUrl = `${KC_URL}/realms/${REALM}/protocol/openid-connect/auth?${params}`;
+
+      document.getElementById('result').textContent =
+        "⚠️  authorization_details en clair dans l'URL :\n\n" +
+        "authorization_details=" + authorizationDetails +
+        "\n\n→ Visible dans :\n" +
+        "  • Barre d'adresse navigateur\n" +
+        "  • Historique navigateur\n" +
+        "  • Logs proxy réseau\n" +
+        "  • Access logs Keycloak\n\n" +
+        "URL complète :\n" + authUrl;
+
+      setTimeout(() => { window.location.href = authUrl; }, 4000);
+    });
+
+    // Callback
+    if (location.search.includes('code=')) {
+      const params   = new URLSearchParams(location.search);
+      const code     = params.get('code');
+      const verifier = sessionStorage.getItem('pkce_verifier');
+
+      fetch(`${KC_URL}/realms/${REALM}/protocol/openid-connect/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type:    'authorization_code',
+          client_id:     CLIENT_ID,
+          code:          code,
+          redirect_uri:  REDIRECT,
+          code_verifier: verifier,
+        })
+      })
+      .then(r => r.json())
+      .then(token => {
+        // Décoder le token pour montrer que authorization_details
+        // peut être bindé dedans si Keycloak supporte RAR
+        const payload = JSON.parse(atob(token.access_token.split('.')[1]));
+        document.getElementById('result').textContent =
+          "✅ Token obtenu\n\n" +
+          "Access token décodé :\n" +
+          JSON.stringify(payload, null, 2) +
+          "\n\nToken brut :\n" +
+          JSON.stringify(token, null, 2);
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,235 @@
+{
+  "id": "banking-poc",
+  "realm": "banking-poc",
+  "displayName": "Banking POC — OAuth2 Vulnerability Demo",
+  "displayNameHtml": "<b>Banking POC</b> — OAuth2 Vulnerability Demo",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+
+  "clients": [
+    {
+      "clientId": "wire-transfer-spa",
+      "name": "Wire Transfer SPA (Public Client — POC)",
+      "description": "SPA cliente publique pour démontrer la fuite de claims OAuth2 sans PAR/RAR",
+      "enabled": true,
+      "publicClient": true,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "rootUrl": "http://localhost:8888",
+      "baseUrl": "http://localhost:8888",
+      "redirectUris": [
+        "http://localhost:8888/*",
+        "http://127.0.0.1:8888/*"
+      ],
+      "webOrigins": [
+        "http://localhost:8888",
+        "http://127.0.0.1:8888"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:8888/*"
+      },
+      "defaultClientScopes": [
+        "openid",
+        "profile",
+        "email",
+        "wire_transfer",
+        "accounts.read"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access"
+      ],
+      "protocolMappers": [
+        {
+          "name": "tx_amount_mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "tx_amount",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "tx_amount",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "tx_creditor_iban_mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "tx_creditor_iban",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "tx_creditor_iban",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "banking_role_mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "banking_roles",
+            "jsonType.label": "String",
+            "multivalued": "true"
+          }
+        }
+      ]
+    }
+  ],
+
+  "clientScopes": [
+    {
+      "name": "wire_transfer",
+      "description": "Scope grossier pour les virements — sans RAR, pas de granularité sur montant/IBAN",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true",
+        "consent.screen.text": "Accès aux virements bancaires"
+      }
+    },
+    {
+      "name": "accounts.read",
+      "description": "Lecture des comptes bancaires",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true",
+        "consent.screen.text": "Lecture de vos comptes"
+      }
+    }
+  ],
+
+  "roles": {
+    "realm": [
+      {
+        "name": "PAYER",
+        "description": "Peut initier des virements — accès au scope wire_transfer"
+      },
+      {
+        "name": "BENEFICIARY",
+        "description": "Peut recevoir des virements"
+      },
+      {
+        "name": "MANAGER",
+        "description": "Peut approuver des virements — accès étendu"
+      }
+    ]
+  },
+
+  "users": [
+    {
+      "username": "alice.dupont",
+      "email": "alice.dupont@banking-poc.local",
+      "firstName": "Alice",
+      "lastName": "Dupont",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password1!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["PAYER"],
+      "attributes": {
+        "account_iban": ["FR7630004000031234567890143"],
+        "account_balance": ["125000.00"],
+        "customer_id": ["CUS-001-ALICE"]
+      }
+    },
+    {
+      "username": "bob.martin",
+      "email": "bob.martin@banking-poc.local",
+      "firstName": "Bob",
+      "lastName": "Martin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password1!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["PAYER", "MANAGER"],
+      "attributes": {
+        "account_iban": ["FR7630006000011234567890189"],
+        "account_balance": ["890000.00"],
+        "customer_id": ["CUS-002-BOB"],
+        "transfer_limit_daily": ["50000"]
+      }
+    },
+    {
+      "username": "charlie.bernard",
+      "email": "charlie.bernard@banking-poc.local",
+      "firstName": "Charlie",
+      "lastName": "Bernard",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password1!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["BENEFICIARY"],
+      "attributes": {
+        "account_iban": ["FR7617569000703757676979C73"],
+        "customer_id": ["CUS-003-CHARLIE"]
+      }
+    }
+  ],
+
+  "browserSecurityHeaders": {
+    "contentSecurityPolicyReportOnly": "",
+    "xContentTypeOptions": "nosniff",
+    "xRobotsTag": "none",
+    "xFrameOptions": "SAMEORIGIN",
+    "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
+    "xXSSProtection": "1; mode=block",
+    "strictTransportSecurity": "max-age=31536000; includeSubDomains"
+  },
+
+  "smtpServer": {},
+
+  "eventsEnabled": true,
+  "eventsListeners": ["jboss-logging"],
+  "enabledEventTypes": [
+    "LOGIN",
+    "LOGIN_ERROR",
+    "LOGOUT",
+    "CODE_TO_TOKEN",
+    "CODE_TO_TOKEN_ERROR",
+    "REFRESH_TOKEN",
+    "REFRESH_TOKEN_ERROR"
+  ],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true
+}
