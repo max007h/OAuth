@@ -19,15 +19,17 @@ Note over AS: authorization_details type supported ?
 
 Note over SPA,AS: Phase 2 - Authentication and Consent
 
-U->>AS: Authenticate (credentials)
+    opt No active session
+        AS-->>U: Login page
+        U->>AS: Authenticate (credentials)
+    end
 
-AS-->>U: Consent screen<br/>"Authorize EUR 47,500.00 to ACME Corp SAS<br/>(FR7630006000011234567890189) ?"
-
-U->>AS: Confirm
+    AS-->>U: Consent screen<br/>"Authorize EUR 47,500.00 to ACME Corp SAS<br/>(FR7630006000011234567890189) ?"
+    U->>AS: Confirm
+    AS-->>U: 302 redirect ?code=AUTH_CODE
+    U->>SPA: Follow redirect (code=AUTH_CODE)
 
 Note over SPA,AS: Phase 3 - Token Issuance
-
-AS-->>SPA: 302 redirect ?code=AUTH_CODE
 
 SPA->>AS: POST /token<br/>(code + code_verifier)
 
