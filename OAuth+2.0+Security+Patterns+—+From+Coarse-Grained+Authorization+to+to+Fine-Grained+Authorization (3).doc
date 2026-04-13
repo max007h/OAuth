@@ -1,0 +1,2210 @@
+Date: Mon, 13 Apr 2026 08:51:40 +0000 (UTC)
+Message-ID: <604759675.161.1776070300600@e6b84e116c0a>
+Subject: Exported From Confluence
+MIME-Version: 1.0
+Content-Type: multipart/related; 
+	boundary="----=_Part_160_1739582117.1776070300600"
+
+------=_Part_160_1739582117.1776070300600
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: quoted-printable
+Content-Location: file:///C:/exported.html
+
+<html xmlns:o=3D'urn:schemas-microsoft-com:office:office'
+      xmlns:w=3D'urn:schemas-microsoft-com:office:word'
+      xmlns:v=3D'urn:schemas-microsoft-com:vml'
+      xmlns=3D'urn:w3-org-ns:HTML'>
+<head>
+    <meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dutf-8=
+">
+    <title>OAuth 2.0 Security Patterns =E2=80=94 From Coarse-Grained Author=
+ization to to Fine-Grained Authorization</title>
+    <!--[if gte mso 9]>
+    <xml>
+        <o:OfficeDocumentSettings>
+            <o:TargetScreenSize>1024x640</o:TargetScreenSize>
+            <o:PixelsPerInch>72</o:PixelsPerInch>
+            <o:AllowPNG/>
+        </o:OfficeDocumentSettings>
+        <w:WordDocument>
+            <w:View>Print</w:View>
+            <w:Zoom>90</w:Zoom>
+            <w:DoNotOptimizeForBrowser/>
+        </w:WordDocument>
+    </xml>
+    <![endif]-->
+    <style>
+                <!--
+        @page Section1 {
+            size: 8.5in 11.0in;
+            margin: 1.0in;
+            mso-header-margin: .5in;
+            mso-footer-margin: .5in;
+            mso-paper-source: 0;
+        }
+
+        table {
+            border: solid 1px;
+            border-collapse: collapse;
+        }
+
+        table td, table th {
+            border: solid 1px;
+            padding: 5px;
+        }
+
+        td {
+            page-break-inside: avoid;
+        }
+
+        tr {
+            page-break-after: avoid;
+        }
+
+        div.Section1 {
+            page: Section1;
+        }
+
+        /* Confluence print stylesheet. Common to all themes for print medi=
+a */
+/* Full of !important until we improve batching for print CSS */
+
+@media print {
+    #main {
+        padding-bottom: 1em !important; /* The default padding of 6em is to=
+o much for printouts */
+    }
+
+    body {
+        font: var(--ds-font-body-small, Arial, Helvetica, FreeSans, sans-se=
+rif);
+    }
+
+    body, #full-height-container, #main, #page, #content, .has-personal-sid=
+ebar #content {
+        background: var(--ds-surface, #fff) !important;
+        color: var(--ds-text, #000) !important;
+        border: 0 !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: block !important;
+    }
+
+    a, a:link, a:visited, a:focus, a:hover, a:active {
+        color: var(--ds-text, #000);
+    }
+
+    #content h1,
+    #content h2,
+    #content h3,
+    #content h4,
+    #content h5,
+    #content h6 {
+        page-break-after: avoid;
+    }
+
+    pre {
+        font: var(--ds-font-code, Monaco, "Courier New", monospace);
+    }
+
+    #header,
+    .aui-header-inner,
+    #navigation,
+    #sidebar,
+    .sidebar,
+    #personal-info-sidebar,
+    .ia-fixed-sidebar,
+    .page-actions,
+    .navmenu,
+    .ajs-menu-bar,
+    .noprint,
+    .inline-control-link,
+    .inline-control-link a,
+    a.show-labels-editor,
+    .global-comment-actions,
+    .comment-actions,
+    .quick-comment-container,
+    #addcomment {
+        display: none !important;
+    }
+
+    /* CONF-28544 cannot print multiple pages in IE */
+    #splitter-content {
+        position: relative !important;
+    }
+
+    .comment .date::before {
+        content: none !important; /* remove middot for print view */
+    }
+
+    h1.pagetitle img {
+        height: auto;
+        width: auto;
+    }
+
+    .print-only {
+        display: block;
+    }
+
+    #footer {
+        position: relative !important; /* CONF-17506 Place the footer at en=
+d of the content */
+        margin: 0;
+        padding: 0;
+        background: none;
+        clear: both;
+    }
+
+    #poweredby {
+        border-top: none;
+        background: none;
+    }
+
+    #poweredby li.print-only {
+        display: list-item;
+        font-style: italic;
+    }
+
+    #poweredby li.noprint {
+        display: none;
+    }
+
+    /* no width controls in print */
+    .wiki-content .table-wrap,
+    .wiki-content p,
+    .panel .codeContent,
+    .panel .codeContent pre,
+    .image-wrap {
+        overflow: visible !important;
+    }
+
+    /* TODO - should this work? */
+    #children-section,
+    #comments-section .comment,
+    #comments-section .comment .comment-body,
+    #comments-section .comment .comment-content,
+    #comments-section .comment p {
+        page-break-inside: avoid;
+    }
+
+    #page-children a {
+        text-decoration: none;
+    }
+
+    /**
+     hide twixies
+
+     the specificity here is a hack because print styles
+     are getting loaded before the base styles. */
+    #comments-section.pageSection .section-header,
+    #comments-section.pageSection .section-title,
+    #children-section.pageSection .section-header,
+    #children-section.pageSection .section-title,
+    .children-show-hide {
+        padding-left: 0;
+        margin-left: 0;
+    }
+
+    .children-show-hide.icon {
+        display: none;
+    }
+
+    /* personal sidebar */
+    .has-personal-sidebar #content {
+        margin-right: 0px;
+    }
+
+    .has-personal-sidebar #content .pageSection {
+        margin-right: 0px;
+    }
+
+    .no-print, .no-print * {
+        display: none !important;
+    }
+}
+-->
+    </style>
+</head>
+<body>
+    <h1>OAuth 2.0 Security Patterns =E2=80=94 From Coarse-Grained Authoriza=
+tion to to Fine-Grained Authorization</h1>
+    <div class=3D"Section1">
+        <style type=3D"text/css">/*<![CDATA[*/
+div.rbtoc1776070300557 {padding: 0px;}
+div.rbtoc1776070300557 ul {list-style: disc;margin-left: 0px;}
+div.rbtoc1776070300557 li {margin-left: 0px;padding-left: 0px;}
+
+/*]]>*/</style>
+<div class=3D"toc-macro rbtoc1776070300557">
+<style>[data-colorid=3Dvt0d1lmuw7]{color:#bf2600} html[data-color-mode=3Dda=
+rk] [data-colorid=3Dvt0d1lmuw7]{color:#ff6640}[data-colorid=3Dyaquh04w9n]{c=
+olor:#006644} html[data-color-mode=3Ddark] [data-colorid=3Dyaquh04w9n]{colo=
+r:#99ffdd}[data-colorid=3Dr07d7i7k7n]{color:#36b37e} html[data-color-mode=
+=3Ddark] [data-colorid=3Dr07d7i7k7n]{color:#4cc994}</style>
+<ul class=3D"toc-indentation">
+<li><a href=3D"#OAuth2.0SecurityPatterns=E2=80=94FromCoarse-GrainedAuthoriz=
+ationtotoFine-GrainedAuthorization-TableofContents">Table of Contents</a></=
+li>
+</ul>
+</div>
+<h2 local-id=3D"46848dee0854" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-TableofContents">Tab=
+le of Contents</h2>
+<ol start=3D"1" local-id=3D"15a254f1e2f3">
+<li local-id=3D"535bf3d74ebd">
+<p local-id=3D"891a77ad103d">Context</p></li>
+<li local-id=3D"ef76afe10324">
+<p local-id=3D"8ff9870b420d">Summary =E2=80=94 RAR, PAR, and PDP at a glanc=
+e</p></li>
+<li local-id=3D"fa5e015c644e">
+<p local-id=3D"9f903a639f70">Part 1 =E2=80=94 Classic OAuth 2.0 vs Rich Aut=
+horization Requests (RAR)</p>
+<ul local-id=3D"84e69516bf3b">
+<li local-id=3D"06ba19e8bb2d">
+<p local-id=3D"58e3a2aac8ad">1.1 The Problem with Classic OAuth 2.0 Scopes<=
+/p></li>
+<li local-id=3D"b3861137400d">
+<p local-id=3D"0fdf67af7ece">1.2 The Solution =E2=80=94 Rich Authorization =
+Requests (RFC 9396)</p></li>
+<li local-id=3D"83f59fcd3a61">
+<p local-id=3D"400bc13b2732">1.3 Comparison =E2=80=94 Classic OAuth 2.0 vs =
+RAR</p></li>
+</ul></li>
+<li local-id=3D"c100def82319">
+<p local-id=3D"c50c633b6157">Part 2 =E2=80=94 OAuth 2.0 + RAR without PAR</=
+p>
+<ul local-id=3D"b954cb874e32">
+<li local-id=3D"8b30bd565005">
+<p local-id=3D"596c0964fff1">2.1 The Problem =E2=80=94 RAR Solves Semantics=
+ but Not Transport</p></li>
+<li local-id=3D"b9d84cc18e4d">
+<p local-id=3D"dee810656943">2.2 Attack Surface =E2=80=94 Where the Data Le=
+aks</p></li>
+<li local-id=3D"097a9948cbcd">
+<p local-id=3D"2b4ac10f6eb6">2.3 The Solution =E2=80=94 Pushed Authorizatio=
+n Requests (RFC 9126)</p></li>
+<li local-id=3D"73e979d8e89b">
+<p local-id=3D"baefb577b72a">2.4 Why RAR and PAR Must Be Used Together</p><=
+/li>
+</ul></li>
+<li local-id=3D"d25610a4c205">
+<p local-id=3D"1b57159dca95">Part 3 =E2=80=94 Fine-Grained Authorization wi=
+th a Policy Decision Point (PDP)</p>
+<ul local-id=3D"fb1fcdcb8ccf">
+<li local-id=3D"af3d9cb6566f">
+<p local-id=3D"0cd854f8a4e4">3.1 The Remaining Gap =E2=80=94 Token Issuance=
+ is Not Authorization Enforcement</p></li>
+<li local-id=3D"03ce90af4bbc">
+<p local-id=3D"f74d318228f5">3.2 What a PDP Is and What It Does</p></li>
+<li local-id=3D"2f92e65a3673">
+<p local-id=3D"ef756107cb93">3.3 PDP in the Banking Wire Transfer Flow</p><=
+/li>
+<li local-id=3D"8a9cf7ba2ec5">
+<p local-id=3D"146dbb6883ca">3.4 What the PDP Evaluates =E2=80=94 Policy Ca=
+tegories</p></li>
+<li local-id=3D"74cd1059b9f3">
+<p local-id=3D"99fe9b7ec6dc">3.5 PDP Engines =E2=80=94 Available Implementa=
+tions</p></li>
+<li local-id=3D"b4546ce8e97c">
+<p local-id=3D"071d4fbbe708">3.6 Comparison =E2=80=94 Enforcement Levels</p=
+></li>
+<li local-id=3D"152c0a720c4f">
+<p local-id=3D"1537593fdfc7">3.7 Combined Architecture =E2=80=94 RAR + PAR =
++ PDP</p></li>
+</ul></li>
+<li local-id=3D"187f99544b43">
+<p local-id=3D"86820a55d7aa">Glossary</p></li>
+<li local-id=3D"dd4586334312">
+<p local-id=3D"631c3976292e">References</p></li>
+</ol>
+<p local-id=3D"1cba8d1f46a6"></p>
+<style type=3D"text/css">/*<![CDATA[*/
+div.rbtoc1776070300557 {padding: 0px;}
+div.rbtoc1776070300557 ul {list-style: disc;margin-left: 0px;}
+div.rbtoc1776070300557 li {margin-left: 0px;padding-left: 0px;}
+
+/*]]>*/</style>
+<div class=3D"toc-macro rbtoc1776070300557">
+<ul class=3D"toc-indentation">
+<li><a href=3D"#OAuth2.0SecurityPatterns=E2=80=94FromCoarse-GrainedAuthoriz=
+ationtotoFine-GrainedAuthorization-TableofContents">Table of Contents</a></=
+li>
+</ul>
+</div>
+<h2 local-id=3D"52c809ed8c60" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-Context{#context}">C=
+ontext {#context}</h2>
+<p local-id=3D"32ac3fa38fb3">Modern banking applications delegate authoriza=
+tion decisions to a dedicated <strong>Authorization Server (AS)</strong> us=
+ing the OAuth 2.0 framework (RFC 6749). In a typical Open Banking or PSD2-c=
+ompliant architecture, a client application =E2=80=94 whether a Single Page=
+ Application, a mobile app, or a third-party Payment Service Provider =E2=
+=80=94 must obtain an access token from the AS before calling protected bac=
+kend APIs to initiate wire transfers, read account data, or approve transac=
+tions.</p>
+<p local-id=3D"d90f965c6c64">OAuth 2.0 was originally designed for broad, c=
+oarse-grained delegation scenarios =E2=80=94 for instance, granting a third=
+-party application read access to a user's calendar or cloud storage. It wa=
+s not designed for the level of precision required by financial transaction=
+s, where authorization must be bound to a specific amount, a specific benef=
+iciary account, and a specific debtor account, all at the moment of user co=
+nsent.</p>
+<p local-id=3D"b890276c999f">Two key extensions to OAuth 2.0 address these =
+gaps:</p>
+<ul local-id=3D"6cf0b3f6-146a-4871-8ca9-470e5766b2d6">
+<li local-id=3D"b5fbf2e9-c34b-47bf-b84f-c02ac3c09237">
+<p local-id=3D"98fddf805cf9"><strong>RFC 9396 =E2=80=94 Rich Authorization =
+Requests (RAR):</strong> enables clients to describe precisely what they wa=
+nt to do, using a structured <code>authorization_details</code> object inst=
+ead of a simple scope string. The AS can then enforce fine-grained policies=
+ and render an informed consent screen.</p></li>
+<li local-id=3D"a1c3d70c-d75a-442e-b889-23e7839814cc">
+<p local-id=3D"f6bc117cd18c"><strong>RFC 9126 =E2=80=94 Pushed Authorizatio=
+n Requests (PAR):</strong> enables clients to send the Authorization Reques=
+t to the AS via an authenticated back-channel HTTP POST, rather than embedd=
+ing all parameters in a browser redirect URL. This keeps sensitive paramete=
+rs out of URLs and all systems that log them.</p></li>
+</ul>
+<p local-id=3D"21a54e076088">These two extensions are complementary. RAR so=
+lves the <strong>semantic</strong> problem (what is being authorized). PAR =
+solves the <strong>transport</strong> problem (how the authorization reques=
+t is transmitted securely). In a banking context, both are required togethe=
+r.</p>
+<hr local-id=3D"f416d62e-b15c-48d5-837d-3df882ee1872">
+<h2 local-id=3D"80474c29532f" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-Part1=E2=80=94Classi=
+cOAuth2.0vsRichAuthorizationRequests(RAR){#part-1}">Part 1 =E2=80=94 Classi=
+c OAuth 2.0 vs Rich Authorization Requests (RAR) {#part-1}</h2>
+<h3 local-id=3D"c6a895633922" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-1.1TheProblemwithCla=
+ssicOAuth2.0Scopes">1.1 The Problem with Classic OAuth 2.0 Scopes</h3>
+<p local-id=3D"680ce41e7afd">In classic OAuth 2.0, the authorization reques=
+t carries a <code>scope</code> parameter =E2=80=94 a space-separated list o=
+f string tokens that define what access is being requested. For a banking a=
+pplication initiating a wire transfer, a typical scope looks like:</p>
+<div class=3D"code panel pdl" style=3D"border-width: 1px;">
+<div class=3D"codeContent panelContent pdl">
+<pre class=3D"syntaxhighlighter-pre" data-syntaxhighlighter-params=3D"brush=
+: java; gutter: false; theme: Confluence" data-theme=3D"Confluence">scope=
+=3Dopenid wire_transfer accounts:read</pre>
+</div>
+</div>
+<p local-id=3D"0da3992c2a19">This approach has fundamental limitations in a=
+ financial context:</p>
+<ul local-id=3D"f8a9b282-85e0-47f4-94c8-cfaceb115f79">
+<li local-id=3D"2d6e602f-279d-41db-b391-a7f3b3fcea7c">
+<p local-id=3D"347f10937f0d"><strong>No transaction binding.</strong> The s=
+cope <code>wire_transfer</code> grants blanket permission to initiate any w=
+ire transfer, for any amount, to any beneficiary. There is no mechanism in =
+the standard scope system to restrict a token to a specific transaction. A =
+token issued in this flow is, by construction, reusable for any transfer th=
+e resource server permits for that user.</p></li>
+<li local-id=3D"1fd3363c-6aeb-4aeb-8662-d0bd23d6e4b3">
+<p local-id=3D"9b2554a748e4"><strong>Uninformed user consent.</strong> The =
+consent screen displayed by the AS can only show a generic label such as "W=
+ire Transfer Access". The end user cannot see that they are authorizing a t=
+ransfer of EUR 47,500.00 to a specific IBAN. This is in direct conflict wit=
+h PSD2 RTS Article 4, which requires explicit, transaction-specific consent=
+ for payment initiation.</p></li>
+<li local-id=3D"e9a412a6-e1ce-4b5e-a65d-01214cc8859a">
+<p local-id=3D"92926529cf79"><strong>No AS-level business rule enforcement.=
+</strong> Because the AS does not know the amount, the destination account,=
+ or the source account at authorization time, it cannot enforce rules such =
+as daily transfer limits, beneficiary whitelists or blacklists, dual-approv=
+al thresholds for high-value transactions, or currency restrictions. All va=
+lidation is deferred to the backend resource server =E2=80=94 after the tok=
+en has already been issued.</p></li>
+<li local-id=3D"e1b45939-81cd-484e-be41-4dd7094f000f">
+<p local-id=3D"c0b41e70edf9"><strong>Token reuse and replay risk.</strong> =
+A token issued for <code>scope=3Dwire_transfer</code> can be presented by a=
+n attacker (or a compromised client) to initiate a different transaction th=
+an the one the user consented to. The token carries no cryptographic bindin=
+g to the original transaction intent.</p></li>
+</ul>
+<p local-id=3D"4fbe28fdd336"><strong>Sequence diagram =E2=80=94 Classic OAu=
+th 2.0 (Authorization Code + PKCE)</strong></p>
+<div class=3D"code panel pdl" style=3D"border-width: 1px;">
+<div class=3D"codeContent panelContent pdl">
+<pre class=3D"syntaxhighlighter-pre" data-syntaxhighlighter-params=3D"brush=
+: java; gutter: false; theme: Confluence" data-theme=3D"Confluence">[REPLAC=
+E WITH MERMAID IMAGE]
+
+sequenceDiagram
+    participant U   as User
+    participant App as Client Application
+    participant AS  as Authorization Server
+    participant RS  as Resource Server (API)
+
+    U-&gt;&gt;App: Initiate wire transfer (amount, IBAN, beneficiary)
+    App-&gt;&gt;AS: GET /authorize?scope=3Dopenid+wire_transfer&amp;respons=
+e_type=3Dcode&amp;...
+    Note over AS: Receives only a scope string =E2=80=94 no transaction det=
+ail
+    AS--&gt;&gt;U: Login + consent screen ("Wire Transfer Access")
+    U-&gt;&gt;AS: Authenticate and approve
+    AS--&gt;&gt;App: 302 redirect =E2=80=94 ?code=3DAUTH_CODE
+    App-&gt;&gt;AS: POST /token (code + code_verifier)
+    AS--&gt;&gt;App: access_token { scope: "wire_transfer" }
+    App-&gt;&gt;RS: POST /transfers (Bearer token + transaction data in bod=
+y)
+    Note over RS: Validates token scope only =E2=80=94 no AS-level binding =
+to transaction
+    RS--&gt;&gt;App: 200 Transfer initiated</pre>
+</div>
+</div>
+<blockquote local-id=3D"0e650c89-0cf3-4574-9541-c7c622eb0680">
+<p local-id=3D"3c970448aadf">=E2=9A=A0=EF=B8=8F <strong>Key issue:</strong>=
+ The AS has no knowledge of the specific transaction being authorized. The =
+issued token is reusable for any transfer. Consent is generic and does not =
+satisfy transaction-level regulatory requirements.</p>
+</blockquote>
+<hr local-id=3D"3be21ce6-7abf-4c7e-bd89-ff7b79d692b2">
+<h3 local-id=3D"67903ead542c" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-1.2TheSolution=E2=80=
+=94RichAuthorizationRequests(RFC9396)">1.2 The Solution =E2=80=94 Rich Auth=
+orization Requests (RFC 9396)</h3>
+<p local-id=3D"1b8101698b74">RAR introduces the <code>authorization_details=
+</code> request parameter, which carries a structured JSON array describing=
+ exactly what the client is requesting authorization for. Instead of a vagu=
+e scope string, the AS receives a precise, machine-readable description of =
+the intended operation, typed according to a domain-specific schema.</p>
+<p local-id=3D"e2ec65ecd836">For a wire transfer use case, the <code>author=
+ization_details</code> object would be structured as follows:</p>
+<p local-id=3D"20168ff1a7eb">json</p>
+<div class=3D"code panel pdl" style=3D"border-width: 1px;">
+<div class=3D"codeContent panelContent pdl">
+<pre class=3D"syntaxhighlighter-pre" data-syntaxhighlighter-params=3D"brush=
+: java; gutter: false; theme: Confluence" data-theme=3D"Confluence">authori=
+zation_details=3D[
+  {
+    "type": "wire_transfer",
+    "instructedAmount": {
+      "currency": "EUR",
+      "amount": "47500.00"
+    },
+    "creditorAccount": {
+      "iban": "FR7630006000011234567890189"
+    },
+    "creditorName": "ACME Corp SAS",
+    "debtorAccount": {
+      "iban": "FR7630004000031234567890143"
+    },
+    "remittanceInformation": "Invoice 2024-089"
+  }
+]</pre>
+</div>
+</div>
+<p local-id=3D"88dd4132f1ea">The <code>type</code> field is a string that i=
+dentifies the authorization schema. The AS uses it to select the appropriat=
+e policy engine and consent template. All other fields are schema-specific =
+and defined by the authorization domain (e.g., Open Banking, Berlin Group N=
+extGenPSD2).</p>
+<p local-id=3D"b5311abb4fbf"><strong>What RAR enables at the AS level:</str=
+ong></p>
+<ul local-id=3D"c7411115-dba4-451d-98d7-b9aefe56ce39">
+<li local-id=3D"60bc9aae-aba8-4582-b1a1-b79d8367d1ba">
+<p local-id=3D"17d7b1c08c29"><strong>Informed user consent.</strong> The AS=
+ renders a consent screen showing the exact transaction details: "You are a=
+bout to authorize a wire transfer of EUR 47,500.00 to ACME Corp SAS (FR7630=
+006000011234567890189). Confirm?" The user signs off on the exact operation=
+, not a generic permission class.</p></li>
+<li local-id=3D"40caa456-7d5e-46ef-b717-4c8cc36745bf">
+<p local-id=3D"d9b372e3f78a"><strong>AS-level business rule enforcement.</s=
+trong> The AS can validate the <code>instructedAmount</code> against the us=
+er's configured daily limit, verify that the <code>debtorAccount</code> IBA=
+N belongs to the authenticated user, check the <code>creditorAccount</code>=
+ against a fraud watchlist, and enforce dual-approval workflows for high-va=
+lue transactions =E2=80=94 all before issuing any token.</p></li>
+<li local-id=3D"9ba1e9c7-cf83-4e12-837b-ce4efcabc3f0">
+<p local-id=3D"7141086f572e"><strong>Token binding to transaction intent.</=
+strong> The AS embeds the <code>authorization_details</code> object into th=
+e issued access token as a claim. The resource server verifies that the tok=
+en presented matches the transaction parameters in the request body. A stol=
+en token cannot be replayed for a different amount or a different IBAN.</p>=
+</li>
+<li local-id=3D"f1f93aac-1967-4c71-8ace-baf4cfe7bac8">
+<p local-id=3D"4168b30bd196"><strong>Regulatory compliance.</strong> Transa=
+ction-specific consent satisfies the PSD2 RTS requirements for Strong Custo=
+mer Authentication (SCA) and provides a traceable, non-repudiable consent r=
+ecord tied to the exact transaction parameters.</p></li>
+</ul>
+<p local-id=3D"8b8d7c147cd5"><strong>Sequence diagram =E2=80=94 OAuth 2.0 +=
+ RAR</strong></p>
+<div class=3D"code panel pdl" style=3D"border-width: 1px;">
+<div class=3D"codeContent panelContent pdl">
+<pre class=3D"syntaxhighlighter-pre" data-syntaxhighlighter-params=3D"brush=
+: java; gutter: false; theme: Confluence" data-theme=3D"Confluence">[REPLAC=
+E WITH MERMAID IMAGE]
+
+sequenceDiagram
+    participant U   as User
+    participant App as Client Application
+    participant AS  as Authorization Server
+    participant RS  as Resource Server (API)
+
+    U-&gt;&gt;App: Initiate wire transfer (amount, IBAN, beneficiary)
+    App-&gt;&gt;App: Build authorization_details JSON object
+    App-&gt;&gt;AS: GET /authorize?authorization_details=3D[{type:wire_tran=
+sfer, amount:47500, creditorIBAN:FR76...}]&amp;...
+    Note over AS: Parses authorization_details, selects policy and consent =
+template
+    AS--&gt;&gt;U: Consent: "Authorize EUR 47,500.00 to ACME Corp SAS (FR76=
+...)?"
+    U-&gt;&gt;AS: Authenticate and confirm
+    AS--&gt;&gt;App: 302 redirect =E2=80=94 ?code=3DAUTH_CODE
+    App-&gt;&gt;AS: POST /token
+    AS--&gt;&gt;App: access_token { authorization_details: [{type:wire_tran=
+sfer, amount:47500, ...}] }
+    App-&gt;&gt;RS: POST /transfers (Bearer token)
+    RS-&gt;&gt;RS: Verify token.authorization_details matches request body
+    RS--&gt;&gt;App: 200 Transfer initiated</pre>
+</div>
+</div>
+<hr local-id=3D"5c7218fb-845c-4206-a33d-073c862c3c8d">
+<h3 local-id=3D"e7b33b779875" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-1.3Comparison=E2=80=
+=94ClassicOAuth2.0vsRAR">1.3 Comparison =E2=80=94 Classic OAuth 2.0 vs RAR<=
+/h3>
+<div class=3D"table-wrap">
+<table data-table-width=3D"760" data-layout=3D"default" data-local-id=3D"69=
+0569d3-6c9b-45b4-94b7-d6d4a981b296" class=3D"confluenceTable">
+<tbody>
+<tr data-local-id=3D"340f7399-5dff-4498-9679-425008b57a02">
+<th data-local-id=3D"f837e294-0227-4e96-9f57-be9631c43e4f" class=3D"conflue=
+nceTh">
+<p local-id=3D"1b3f28e14f60">Criterion</p></th>
+<th data-local-id=3D"4a335e12-5764-418b-9b01-aee11c2bfdbc" class=3D"conflue=
+nceTh">
+<p local-id=3D"521b6140d642">Classic OAuth 2.0</p></th>
+<th data-local-id=3D"d50cf74b-f4bd-40e2-8e26-f71e452a7ef2" class=3D"conflue=
+nceTh">
+<p local-id=3D"76a3116d0e32">OAuth 2.0 + RAR</p></th>
+</tr>
+<tr data-local-id=3D"96e37c0e-1750-4c7b-8e4f-3b15cea346aa">
+<td data-local-id=3D"9112a6a1-660d-48c6-9d6f-69f8110fe58e" class=3D"conflue=
+nceTd">
+<p local-id=3D"a79e7dce181f">Authorization granularity</p></td>
+<td data-local-id=3D"f5858448-b698-4b56-bd4a-20a42556e69e" class=3D"conflue=
+nceTd">
+<p local-id=3D"abbc2bb1ecd7">Coarse =E2=80=94 scope string only</p></td>
+<td data-local-id=3D"4eebab57-e053-46e6-8e65-a7fb96deab8a" class=3D"conflue=
+nceTd">
+<p local-id=3D"547faddd079f">Fine =E2=80=94 structured <code>authorization_=
+details</code></p></td>
+</tr>
+<tr data-local-id=3D"cf5dd2e5-ad05-49c5-8c69-4ccff757b94c">
+<td data-local-id=3D"8590df3a-2a3e-4aae-a9ec-87cd2ec6e1f7" class=3D"conflue=
+nceTd">
+<p local-id=3D"bae4760eb6b7">User consent display</p></td>
+<td data-local-id=3D"f20cc5c5-f27b-4220-b8cc-9abeb4e9ba1d" class=3D"conflue=
+nceTd">
+<p local-id=3D"b54b1745dff7">Generic ("Wire Transfer Access")</p></td>
+<td data-local-id=3D"e9836fe0-0f10-47c3-8c4a-84378bf24f38" class=3D"conflue=
+nceTd">
+<p local-id=3D"ee6541429769">Specific (amount, IBAN, beneficiary name)</p><=
+/td>
+</tr>
+<tr data-local-id=3D"ae687880-2934-444a-bc26-33fa53b28e0b">
+<td data-local-id=3D"b6b9286d-9ebe-402e-9b0a-731801dd5736" class=3D"conflue=
+nceTd">
+<p local-id=3D"c1867385ef0b">AS-level validation</p></td>
+<td data-local-id=3D"0da3e3a6-a555-4aca-b25d-f3ffcd82f347" class=3D"conflue=
+nceTd">
+<p local-id=3D"9e6af84ad481">Not possible</p></td>
+<td data-local-id=3D"15e93f66-d7ab-4c0b-b88e-f7eae763b5ba" class=3D"conflue=
+nceTd">
+<p local-id=3D"0e706c0c6e7f">Amount limits, IBAN checks, dual approval</p><=
+/td>
+</tr>
+<tr data-local-id=3D"6826ee41-83e7-4e48-9796-6ab9b59fd75b">
+<td data-local-id=3D"0cfdc635-5168-40cf-b4b2-83de91be0525" class=3D"conflue=
+nceTd">
+<p local-id=3D"205e6070f4fe">Token binding to intent</p></td>
+<td data-local-id=3D"c10574f6-c96a-436d-906b-85e5562faa63" class=3D"conflue=
+nceTd">
+<p local-id=3D"476a182d6e39">None =E2=80=94 token reusable for any transfer=
+</p></td>
+<td data-local-id=3D"4b356059-93d5-4456-a44e-3a9b60fb4f60" class=3D"conflue=
+nceTd">
+<p local-id=3D"3aab543792d0">Token bound to exact transaction parameters</p=
+></td>
+</tr>
+<tr data-local-id=3D"07d55a99-4799-4074-a3bf-037ec53684e9">
+<td data-local-id=3D"0d477437-c50e-4f7d-8eb9-1e8dd215c5ff" class=3D"conflue=
+nceTd">
+<p local-id=3D"9d1ea9ddceaf">PSD2 RTS compliance</p></td>
+<td data-local-id=3D"8bf96848-5ebf-4d36-bf47-435c566e3b5f" class=3D"conflue=
+nceTd">
+<p local-id=3D"a1e66dfc71a9">Insufficient =E2=80=94 consent too generic</p>=
+</td>
+<td data-local-id=3D"cd96a624-6a96-46fa-a48e-5e96de5cf370" class=3D"conflue=
+nceTd">
+<p local-id=3D"67d649792bdf">Satisfies transaction-specific consent require=
+ment</p></td>
+</tr>
+<tr data-local-id=3D"f7a55720-cc28-4bbe-93b1-39cbfdbde8aa">
+<td data-local-id=3D"bbc2e256-7f1c-4a3b-ae35-43c0eff0ade9" class=3D"conflue=
+nceTd">
+<p local-id=3D"1e3f783b6291">Token content</p></td>
+<td data-local-id=3D"eed1d804-666e-4ebe-8dea-cc0e1a4b4c88" class=3D"conflue=
+nceTd">
+<p local-id=3D"d06e517aac07"><code>scope</code> claim only</p></td>
+<td data-local-id=3D"576c6a67-dba1-4bdf-bbff-99a4b5d44b48" class=3D"conflue=
+nceTd">
+<p local-id=3D"61263a323612"><code>authorization_details</code> claim embed=
+ded</p></td>
+</tr>
+<tr data-local-id=3D"14a49057-2bc5-4e5e-baca-c87b39b89349">
+<td data-local-id=3D"c7442bda-d3fc-4711-b9fd-34ccc4a004b9" class=3D"conflue=
+nceTd">
+<p local-id=3D"1027e24bf30f">AS policy enforcement point</p></td>
+<td data-local-id=3D"773baf70-9ac8-4da0-9691-6c5b04017311" class=3D"conflue=
+nceTd">
+<p local-id=3D"1fa314f782a7">None</p></td>
+<td data-local-id=3D"f22d81c1-106a-4198-9a7d-02a74f8392be" class=3D"conflue=
+nceTd">
+<p local-id=3D"a892550d0871">Full enforcement before token issuance</p></td=
+>
+</tr>
+</tbody>
+</table>
+</div>
+<hr local-id=3D"e61de0ac-303d-4ff4-9c19-cd2847fb9bff">
+<h2 local-id=3D"bf6da6253906" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-Part2=E2=80=94OAuth2=
+.0+RARwithoutPAR{#part-2}">Part 2 =E2=80=94 OAuth 2.0 + RAR without PAR {#p=
+art-2}</h2>
+<h3 local-id=3D"2e3c70778ca2" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-2.1TheProblem=E2=80=
+=94RARSolvesSemanticsbutNotTransport">2.1 The Problem =E2=80=94 RAR Solves =
+Semantics but Not Transport</h3>
+<p local-id=3D"9242764b13ef">RAR resolves the authorization granularity pro=
+blem. The AS now knows exactly what it is authorizing. However, RFC 9396 do=
+es not mandate or define any specific transport mechanism for the Authoriza=
+tion Request. Without PAR, the default transport remains a browser GET redi=
+rect, which means the <code>authorization_details</code> JSON object is URL=
+-encoded and appended as a query parameter to the Authorization Request URL=
+.</p>
+<p local-id=3D"dad82d6861c4">This creates a critical security exposure: the=
+ most sensitive data in the entire transaction =E2=80=94 the transfer amoun=
+t, the beneficiary IBAN, the debtor account identifier, and the remittance =
+reference =E2=80=94 is transmitted in cleartext as part of a URL. That URL =
+passes through every system between the user's browser and the Authorizatio=
+n Server.</p>
+<p local-id=3D"1dac42eb82e8"><strong>Concrete example =E2=80=94 Authorizati=
+on Request URL with RAR, without PAR:</strong></p>
+<p local-id=3D"cbd0a5b2f01a">The following is an example of an Authorizatio=
+n Request URL as it would appear in the browser address bar and in any HTTP=
+ log:</p>
+<div class=3D"code panel pdl" style=3D"border-width: 1px;">
+<div class=3D"codeContent panelContent pdl">
+<pre class=3D"syntaxhighlighter-pre" data-syntaxhighlighter-params=3D"brush=
+: java; gutter: false; theme: Confluence" data-theme=3D"Confluence">GET /re=
+alms/banking-poc/protocol/openid-connect/auth
+  ?response_type=3Dcode
+  &amp;client_id=3Dwire-transfer-spa
+  &amp;redirect_uri=3Dhttp%3A%2F%2Flocalhost%3A8000%2Findex.html
+  &amp;scope=3Dopenid+wire_transfer
+  &amp;state=3D57f5a653-ef18-474d-8541-87b6cf0fe817
+  &amp;code_challenge=3Ds8e5ePqzS7bwGPKPgRwp0m8iflXemf8Ryn9RJrvMiOI
+  &amp;code_challenge_method=3DS256
+  &amp;authorization_details=3D%5B%7B%22type%22%3A%22wire_transfer%22%2C
+    %22instructedAmount%22%3A%7B%22currency%22%3A%22EUR%22%2C
+    %22amount%22%3A%2247500.00%22%7D%2C           =E2=86=90 AMOUNT IN CLEAR=
+TEXT
+    %22creditorAccount%22%3A%7B
+    %22iban%22%3A%22FR7630006000011234567890189%22%7D%2C  =E2=86=90 BENEFIC=
+IARY IBAN
+    %22creditorName%22%3A%22ACME+Corp+SAS%22%2C          =E2=86=90 BENEFICI=
+ARY NAME
+    %22debtorAccount%22%3A%7B
+    %22iban%22%3A%22FR7630004000031234567890143%22%7D%2C  =E2=86=90 DEBTOR =
+IBAN
+    %22remittanceInformation%22%3A%22Invoice+2024-089%22
+  %7D%5D</pre>
+</div>
+</div>
+<p local-id=3D"6059306241d0">Once decoded (percent-decoding is trivial and =
+automatic in any HTTP tool or log viewer), the <code>authorization_details<=
+/code> value is:</p>
+<p local-id=3D"aad26469b3af">json</p>
+<div class=3D"code panel pdl" style=3D"border-width: 1px;">
+<div class=3D"codeContent panelContent pdl">
+<pre class=3D"syntaxhighlighter-pre" data-syntaxhighlighter-params=3D"brush=
+: java; gutter: false; theme: Confluence" data-theme=3D"Confluence">[{
+  "type": "wire_transfer",
+  "instructedAmount": { "currency": "EUR", "amount": "47500.00" },
+  "creditorAccount": { "iban": "FR7630006000011234567890189" },
+  "creditorName": "ACME Corp SAS",
+  "debtorAccount": { "iban": "FR7630004000031234567890143" },
+  "remittanceInformation": "Invoice 2024-089"
+}]</pre>
+</div>
+</div>
+<blockquote local-id=3D"265a2fe9-0c54-463f-8f8b-9c72ef11e070">
+<p local-id=3D"9bcd84904ac0">=E2=9A=A0=EF=B8=8F <strong>Important:</strong>=
+ Percent-encoding is a transport encoding for URL-unsafe characters. It is =
+not encryption and provides no confidentiality. Any system that records the=
+ URL records the complete, immediately decodable financial transaction data=
+.</p>
+</blockquote>
+<hr local-id=3D"1a82e605-05b6-48e3-9161-26f8407badae">
+<h3 local-id=3D"7b332ea1aeef" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-2.2AttackSurface=E2=
+=80=94WheretheDataLeaks">2.2 Attack Surface =E2=80=94 Where the Data Leaks<=
+/h3>
+<p local-id=3D"4150af8ddec6">The following exposure vectors are present in =
+any standard enterprise or cloud environment when RAR is used without PAR:<=
+/p>
+<ul local-id=3D"36e63747-6c26-4a2f-a5b3-e0f2c974f0cf">
+<li local-id=3D"dd568e13-ec02-44d9-b8be-49ff5afa1530">
+<p local-id=3D"1da6590cb71b"><strong>Browser navigation history.</strong> A=
+ll major browsers persist the full URL =E2=80=94 including all query parame=
+ters =E2=80=94 in the user's navigation history. Any person or software wit=
+h access to the browser profile (other users on a shared machine, malware, =
+browser sync services) can read the IBAN and transfer amount from history e=
+ntries.</p></li>
+<li local-id=3D"a7f0c6e2-bcfa-49a1-ab6d-43b7e5b7611c">
+<p local-id=3D"80a2e122ce80"><strong>Corporate TLS-inspecting proxy.</stron=
+g> Enterprise proxy solutions perform SSL/TLS interception and log the full=
+ URL of every HTTPS request. The <code>authorization_details</code> payload=
+ is stored in proxy access logs, typically retained for months and accessib=
+le to network operations teams without specific authorization controls.</p>=
+</li>
+<li local-id=3D"5cadf6a6-ca64-43a4-bc82-d725f06b71fe">
+<p local-id=3D"be577bfff18b"><strong>Authorization Server access logs.</str=
+ong> Most AS implementations =E2=80=94 including Keycloak, PingFederate, an=
+d ForgeRock AM =E2=80=94 log incoming requests to the <code>/authorize</cod=
+e> endpoint, including all query parameters, at INFO or DEBUG level by defa=
+ult. Every wire transfer attempted through the system creates a log entry c=
+ontaining the full financial details.</p></li>
+<li local-id=3D"87f1bccf-689a-4b8b-9154-1c1ed2cb2f7a">
+<p local-id=3D"22027b6bd04d"><strong>HTTP Referer header leakage.</strong> =
+If the AS page loads any external resource =E2=80=94 analytics scripts, web=
+ fonts, CDN-hosted assets, or error tracking SDKs =E2=80=94 the browser inc=
+ludes the current page URL in the <code>Referer</code> (or <code>Referrer-P=
+olicy</code>-controlled) header of those sub-requests. Transaction data may=
+ be transmitted to third-party servers outside the institution's control.</=
+p></li>
+<li local-id=3D"1df3ca6e-4d1f-4e26-9270-5ae9341836bc">
+<p local-id=3D"32800c88f735"><strong>SIEM and network monitoring infrastruc=
+ture.</strong> DNS logs, NetFlow records, and HTTP access logs collected by=
+ SIEM platforms record request URLs. In regulated environments, this data i=
+s retained for years, creating a long-lived, queryable record of financial =
+transaction details that may be accessible to a wider audience than intende=
+d.</p></li>
+<li local-id=3D"58582273-03f6-48e0-b50c-1f7b31252361">
+<p local-id=3D"70e47d567997"><strong>Browser extensions.</strong> Extension=
+s with the <code>tabs</code> or <code>webNavigation</code> permissions can =
+read and exfiltrate query parameters from any URL the user visits, includin=
+g Authorization Request URLs. Malicious or compromised extensions represent=
+ a realistic exfiltration vector for this data.</p></li>
+<li local-id=3D"be4e424e-d833-47ba-b0d8-389e11affca5">
+<p local-id=3D"80df27d0a4ee"><strong>Shared screen and shoulder surfing.</s=
+trong> In environments where users share screens during support calls, scre=
+en recordings, or remote assistance sessions, a browser address bar display=
+ing a transfer amount and full IBAN constitutes a direct, observable inform=
+ation disclosure.</p></li>
+</ul>
+<p local-id=3D"32dbacfffb23"><strong>Sequence diagram =E2=80=94 RAR without=
+ PAR: exposure points</strong></p>
+<div class=3D"code panel pdl" style=3D"border-width: 1px;">
+<div class=3D"codeContent panelContent pdl">
+<pre class=3D"syntaxhighlighter-pre" data-syntaxhighlighter-params=3D"brush=
+: java; gutter: false; theme: Confluence" data-theme=3D"Confluence">[REPLAC=
+E WITH MERMAID IMAGE]
+
+sequenceDiagram
+    participant U   as User Browser
+    participant P   as Corporate Proxy (TLS inspection)
+    participant AS  as Authorization Server
+    participant L3  as Third-party resource (font, analytics)
+
+    Note over U,AS: All authorization_details travel in the URL =E2=80=94 v=
+isible at every hop
+
+    U-&gt;&gt;P: GET /authorize?authorization_details=3D[amount=3D47500, IB=
+AN=3DFR76...]
+    Note over P: =E2=9A=A0 LOGGED =E2=80=94 full URL including IBAN and amo=
+unt stored in proxy logs
+    P-&gt;&gt;AS: Forwarded GET with full URL
+    Note over AS: =E2=9A=A0 LOGGED =E2=80=94 /authorize request recorded in=
+ AS access logs
+    AS--&gt;&gt;U: Login page served (URL already persisted in browser hist=
+ory)
+    Note over U: =E2=9A=A0 Browser history =E2=80=94 URL with IBAN and amou=
+nt persisted locally
+    AS-&gt;&gt;L3: Load external resource (font, analytics)
+    Note over L3: =E2=9A=A0 Referer header may carry Authorization Request =
+URL
+    U-&gt;&gt;AS: POST credentials
+    AS--&gt;&gt;U: 302 redirect to callback?code=3DAUTH_CODE</pre>
+</div>
+</div>
+<hr local-id=3D"581e2e13-7eab-4f1c-a124-f86f4c300a12">
+<h3 local-id=3D"ebfe2eccd68d" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-2.3TheSolution=E2=80=
+=94PushedAuthorizationRequests(RFC9126)">2.3 The Solution =E2=80=94 Pushed =
+Authorization Requests (RFC 9126)</h3>
+<p local-id=3D"11c02e51b0ab">PAR fundamentally changes the transport mechan=
+ism of the Authorization Request. Instead of embedding all parameters in a =
+browser GET redirect URL, the client first sends the full Authorization Req=
+uest to a dedicated <code>/par</code> endpoint at the AS via an authenticat=
+ed HTTPS POST. The parameters travel in the body of that POST request =E2=
+=80=94 never in a URL.</p>
+<p local-id=3D"49b9689297f6">The AS validates the request, stores it server=
+-side, and returns a short-lived, opaque <code>request_uri</code>. The clie=
+nt then initiates the browser redirect using only the <code>client_id</code=
+> and this <code>request_uri</code>. The URL visible in the browser contain=
+s no sensitive data.</p>
+<p local-id=3D"618e82ee4c2e"><strong>PAR flow =E2=80=94 concrete HTTP excha=
+nge:</strong></p>
+<div class=3D"code panel pdl" style=3D"border-width: 1px;">
+<div class=3D"codeContent panelContent pdl">
+<pre class=3D"syntaxhighlighter-pre" data-syntaxhighlighter-params=3D"brush=
+: java; gutter: false; theme: Confluence" data-theme=3D"Confluence">// Step=
+ 1 =E2=80=94 Client sends full Authorization Request via back-channel POST
+// Parameters are in the HTTPS request body =E2=80=94 never in a URL
+
+POST /realms/banking-poc/protocol/openid-connect/ext/par/request
+Content-Type: application/x-www-form-urlencoded
+Authorization: Basic &lt;client_credentials&gt;
+
+response_type=3Dcode
+&amp;client_id=3Dwire-transfer-spa
+&amp;redirect_uri=3Dhttps://app.example.com/callback
+&amp;scope=3Dopenid+wire_transfer
+&amp;code_challenge=3Ds8e5ePqzS7bwGPKPgRwp0m8iflXemf8Ryn9RJrvMiOI
+&amp;code_challenge_method=3DS256
+&amp;authorization_details=3D[{
+  "type":"wire_transfer",
+  "instructedAmount":{"currency":"EUR","amount":"47500.00"},
+  "creditorAccount":{"iban":"FR7630006000011234567890189"},
+  "creditorName":"ACME Corp SAS",
+  "debtorAccount":{"iban":"FR7630004000031234567890143"}
+}]
+
+
+// Step 2 =E2=80=94 AS responds with an opaque request_uri (valid ~60 secon=
+ds)
+
+HTTP/1.1 201 Created
+Content-Type: application/json
+
+{
+  "request_uri": "urn:ietf:params:oauth:request_uri:6esc_11ACC5bwc014ltc14e=
+Y22c",
+  "expires_in": 60
+}
+
+
+// Step 3 =E2=80=94 Browser redirect contains NO sensitive data
+
+GET /realms/banking-poc/protocol/openid-connect/auth
+  ?client_id=3Dwire-transfer-spa
+  &amp;request_uri=3Durn:ietf:params:oauth:request_uri:6esc_11ACC5bwc014ltc=
+14eY22c</pre>
+</div>
+</div>
+<p local-id=3D"f87f54f7dfa2">The browser address bar =E2=80=94 and every pr=
+oxy, log, SIEM, and monitoring system =E2=80=94 only ever sees the opaque <=
+code>request_uri</code>. The financial details are stored server-side at th=
+e AS, transmitted only over the already-authenticated, server-to-server HTT=
+PS back-channel.</p>
+<p local-id=3D"d72b69e781f7"><strong>Sequence diagram =E2=80=94 OAuth 2.0 +=
+ RAR + PAR (complete secure flow)</strong></p>
+<div class=3D"code panel pdl" style=3D"border-width: 1px;">
+<div class=3D"codeContent panelContent pdl">
+<pre class=3D"syntaxhighlighter-pre" data-syntaxhighlighter-params=3D"brush=
+: java; gutter: false; theme: Confluence" data-theme=3D"Confluence">[REPLAC=
+E WITH MERMAID IMAGE]
+
+sequenceDiagram
+    participant U   as User Browser
+    participant App as Client Application
+    participant AS  as Authorization Server (/par + /authorize)
+    participant RS  as Resource Server (API)
+
+    U-&gt;&gt;App: Initiate wire transfer (amount, IBAN, beneficiary)
+    App-&gt;&gt;App: Build authorization_details object
+
+    App-&gt;&gt;AS: POST /par (body: authorization_details + PKCE params + =
+scopes)
+    Note over AS: Validates client credentials, stores request server-side =
+securely
+    AS--&gt;&gt;App: { request_uri: "urn:ietf:...xyz", expires_in: 60 }
+
+    App-&gt;&gt;U: Redirect to /authorize?client_id=3D...&amp;request_uri=
+=3Durn:ietf:...xyz
+    Note over U: =E2=9C=94 URL contains no sensitive data =E2=80=94 safe in=
+ history, logs, proxies
+
+    AS--&gt;&gt;U: Consent: "Authorize EUR 47,500.00 to ACME Corp SAS (FR76=
+...)?"
+    U-&gt;&gt;AS: Authenticate and confirm
+    AS--&gt;&gt;U: 302 redirect =E2=80=94 callback?code=3DAUTH_CODE
+
+    App-&gt;&gt;AS: POST /token (code + code_verifier)
+    AS--&gt;&gt;App: access_token { authorization_details: [{...}] }
+
+    App-&gt;&gt;RS: POST /transfers (Bearer token)
+    RS-&gt;&gt;RS: Verify token.authorization_details matches request body
+    RS--&gt;&gt;App: 200 Transfer initiated</pre>
+</div>
+</div>
+<p local-id=3D"c51c8a8441e5">PAR also provides an important secondary benef=
+it: the AS can validate and reject a malformed or policy-violating Authoriz=
+ation Request at the <code>/par</code> step, before any browser redirect oc=
+curs. The user never sees an error page mid-flow, and the client receives a=
+ structured error response it can handle programmatically.</p>
+<hr local-id=3D"3d1d793b-a3f7-48d2-bd70-6d6ee95913b7">
+<h3 local-id=3D"8ab5a3e676b4" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-2.4WhyRARandPARMustB=
+eUsedTogether">2.4 Why RAR and PAR Must Be Used Together</h3>
+<p local-id=3D"46718b806f78">RAR and PAR address complementary and orthogon=
+al problems. Neither extension is sufficient alone in a financial services =
+context.</p>
+<div class=3D"table-wrap">
+<table data-table-width=3D"760" data-layout=3D"default" data-local-id=3D"ce=
+b0c9b2-0d3d-4607-b17a-84dadc5f3681" class=3D"confluenceTable">
+<tbody>
+<tr data-local-id=3D"211251f7-1b16-4835-919c-0439ae4cb3b5">
+<th data-local-id=3D"7f16bde3-517d-4ecf-b61c-dde09a23c121" class=3D"conflue=
+nceTh">
+<p local-id=3D"798d1684a55e">Criterion</p></th>
+<th data-local-id=3D"eb951421-38c2-47ab-80d4-63b0b8e1863d" class=3D"conflue=
+nceTh">
+<p local-id=3D"25789f08b8d6">Classic OAuth 2.0</p></th>
+<th data-local-id=3D"f2114458-879a-48fc-98fa-58f9820c1f0c" class=3D"conflue=
+nceTh">
+<p local-id=3D"842514ce50b2">RAR only</p></th>
+<th data-local-id=3D"1f8e323d-ee50-4270-bea3-581fabb20cda" class=3D"conflue=
+nceTh">
+<p local-id=3D"193559bba86f">PAR only</p></th>
+<th data-local-id=3D"ee6a3591-6819-4f4d-8eb0-42231ca9ad7b" class=3D"conflue=
+nceTh">
+<p local-id=3D"8113396714e0">RAR + PAR</p></th>
+</tr>
+<tr data-local-id=3D"166d25be-c98c-4fee-8e76-23f103fa2ad7">
+<td data-local-id=3D"136de000-f740-4da5-93dd-d458fe85e976" class=3D"conflue=
+nceTd">
+<p local-id=3D"b89ca0d554f0">Semantic precision</p></td>
+<td data-local-id=3D"700063b0-3919-41c4-868b-fc020c3eadc3" class=3D"conflue=
+nceTd">
+<p local-id=3D"19bf8791e33f">Coarse scope</p></td>
+<td data-local-id=3D"2422ae6c-c6c0-4214-8d8f-ec078cc080e1" class=3D"conflue=
+nceTd">
+<p local-id=3D"bfde84290acc">=E2=9C=94 <code>authorization_details</code></=
+p></td>
+<td data-local-id=3D"c5dbe738-83f1-4ba7-b3d2-6b96f539ad25" class=3D"conflue=
+nceTd">
+<p local-id=3D"38b48fa9af86">Coarse scope</p></td>
+<td data-local-id=3D"ee31e9e5-16fc-4b2c-ab3b-968b5d901904" class=3D"conflue=
+nceTd">
+<p local-id=3D"2bf224add523">=E2=9C=94 <code>authorization_details</code></=
+p></td>
+</tr>
+<tr data-local-id=3D"1c39047f-4747-4544-be2f-528e06f100e5">
+<td data-local-id=3D"3ca9a622-c0e5-421c-97a9-d5e99cd68927" class=3D"conflue=
+nceTd">
+<p local-id=3D"3376bdb88d7f">Informed user consent</p></td>
+<td data-local-id=3D"e4157e0e-4353-4e83-b613-4df533a4ba6a" class=3D"conflue=
+nceTd">
+<p local-id=3D"fcd6b54c2a0b">Generic</p></td>
+<td data-local-id=3D"7d08d5a2-4c02-4898-89b9-3d403cef7b04" class=3D"conflue=
+nceTd">
+<p local-id=3D"c62148197f05">=E2=9C=94 Transaction-specific</p></td>
+<td data-local-id=3D"779f4a4c-116a-4a3a-b512-6f2a1e43bfd4" class=3D"conflue=
+nceTd">
+<p local-id=3D"d095f90a2bfa">Generic</p></td>
+<td data-local-id=3D"0374a92b-eb24-442e-9a99-6938374c55c7" class=3D"conflue=
+nceTd">
+<p local-id=3D"69aca1c2b6ef">=E2=9C=94 Transaction-specific</p></td>
+</tr>
+<tr data-local-id=3D"5a9c8c9a-1752-42bf-bc8d-f62ef2a3e880">
+<td data-local-id=3D"cf60e15f-7264-406f-9957-c54cf6b81c1d" class=3D"conflue=
+nceTd">
+<p local-id=3D"28ec21ed81da">AS-level policy enforcement</p></td>
+<td data-local-id=3D"55957d39-dc12-440a-baed-4a5f2f80eabf" class=3D"conflue=
+nceTd">
+<p local-id=3D"14aa6e1fe414">Not possible</p></td>
+<td data-local-id=3D"13d92feb-4472-4c6b-8467-0a106e1b2772" class=3D"conflue=
+nceTd">
+<p local-id=3D"c38e12440cec">=E2=9C=94 Possible</p></td>
+<td data-local-id=3D"23bd5190-7087-4832-8892-8d222a3a39c0" class=3D"conflue=
+nceTd">
+<p local-id=3D"912e96120376">Not possible</p></td>
+<td data-local-id=3D"e33a6293-e1bf-4ac3-81ba-44388b4a8cb6" class=3D"conflue=
+nceTd">
+<p local-id=3D"790d447ac437">=E2=9C=94 Possible</p></td>
+</tr>
+<tr data-local-id=3D"50c68503-9d4a-4b6a-9597-11188957b340">
+<td data-local-id=3D"70028c15-c668-44f5-b9aa-993b421b326a" class=3D"conflue=
+nceTd">
+<p local-id=3D"fc85570362bf">Token binding to transaction</p></td>
+<td data-local-id=3D"0947b9ba-2684-40c3-8387-7026c59cfdc9" class=3D"conflue=
+nceTd">
+<p local-id=3D"bdb954e77a2e">None</p></td>
+<td data-local-id=3D"a03c4ada-7db4-4cbc-b672-fd1d0972fafc" class=3D"conflue=
+nceTd">
+<p local-id=3D"6a3d0e7fc51f">=E2=9C=94 <code>authorization_details</code> c=
+laim</p></td>
+<td data-local-id=3D"2bac3df9-e790-4ee6-8ae0-89e7c34eeef8" class=3D"conflue=
+nceTd">
+<p local-id=3D"0ae388a549de">None</p></td>
+<td data-local-id=3D"21cbbe27-0021-4689-bcf4-4248f21a6b2b" class=3D"conflue=
+nceTd">
+<p local-id=3D"c31eeea6acaa">=E2=9C=94 <code>authorization_details</code> c=
+laim</p></td>
+</tr>
+<tr data-local-id=3D"c6ddffc6-0c1a-4137-8ca6-0570dc4d28d5">
+<td data-local-id=3D"111d9582-4544-4c35-a53c-dfeceb5d8a4a" class=3D"conflue=
+nceTd">
+<p local-id=3D"527010f71bd5">Sensitive data safe in transit</p></td>
+<td data-local-id=3D"fd0f120c-e5e4-4bda-b3eb-ec7888fcc657" class=3D"conflue=
+nceTd">
+<p local-id=3D"880d0cacb5be">URL exposed</p></td>
+<td data-local-id=3D"5d250764-27de-447b-8053-957665240a7a" class=3D"conflue=
+nceTd">
+<p local-id=3D"42821823a7fd">=E2=9C=97 URL still exposed</p></td>
+<td data-local-id=3D"7bf4a0ed-b6ce-445d-81c0-aa4919b7f912" class=3D"conflue=
+nceTd">
+<p local-id=3D"f0af460847d7">=E2=9C=94 POST body only</p></td>
+<td data-local-id=3D"21804d23-6204-4e27-a0c2-a01c4639e28f" class=3D"conflue=
+nceTd">
+<p local-id=3D"7ecf92c1ffac">=E2=9C=94 POST body only</p></td>
+</tr>
+<tr data-local-id=3D"6bc4bde8-a4f5-4d22-b599-3d2f116927c6">
+<td data-local-id=3D"befa8824-cbb8-43aa-b1af-b4cd89ead039" class=3D"conflue=
+nceTd">
+<p local-id=3D"f7f44e7303c1">Data in browser history / proxy logs</p></td>
+<td data-local-id=3D"fcf24e48-a53f-478e-96ce-d77e13c99118" class=3D"conflue=
+nceTd">
+<p local-id=3D"457e40a40ba1">Scope only</p></td>
+<td data-local-id=3D"248ea0fe-4c98-4c56-bbeb-6ac2809dcf31" class=3D"conflue=
+nceTd">
+<p local-id=3D"9b017973b47e">=E2=9C=97 IBAN + amount exposed</p></td>
+<td data-local-id=3D"9c5a4747-694e-420c-b621-45c2c79949b0" class=3D"conflue=
+nceTd">
+<p local-id=3D"ef3e20019e6b">=E2=9C=94 Opaque <code>request_uri</code></p><=
+/td>
+<td data-local-id=3D"f0f4cc74-1fc9-44ed-923a-c6079438b89a" class=3D"conflue=
+nceTd">
+<p local-id=3D"3ef65666ffd6">=E2=9C=94 Opaque <code>request_uri</code></p><=
+/td>
+</tr>
+<tr data-local-id=3D"bdba1eda-c4f6-477d-bae2-eb5f95a690e5">
+<td data-local-id=3D"653cd553-751c-44dc-8735-f9c6b69c76b7" class=3D"conflue=
+nceTd">
+<p local-id=3D"7bb06df0848e">PSD2 RTS compliance</p></td>
+<td data-local-id=3D"9ecd9faf-65e9-4a9a-8694-66a1533acdb0" class=3D"conflue=
+nceTd">
+<p local-id=3D"92909e550085">Insufficient</p></td>
+<td data-local-id=3D"8a8aa56d-7b4f-4640-9b94-fc0c6ff836d3" class=3D"conflue=
+nceTd">
+<p local-id=3D"6263c8658af7">Partial</p></td>
+<td data-local-id=3D"8d10b257-ba1f-4eef-a476-476a89a69f4d" class=3D"conflue=
+nceTd">
+<p local-id=3D"e60472a6c98c">Insufficient</p></td>
+<td data-local-id=3D"bb4af5bc-aec2-4aff-8ae4-57bc46b17697" class=3D"conflue=
+nceTd">
+<p local-id=3D"832c47ab983d">=E2=9C=94 Full</p></td>
+</tr>
+<tr data-local-id=3D"d979f574-4101-44e5-aba4-0cf73b9a2096">
+<td data-local-id=3D"77b3eba7-5684-48ed-9566-6e2096e34e01" class=3D"conflue=
+nceTd">
+<p local-id=3D"912b083de2c4">Early request validation at AS</p></td>
+<td data-local-id=3D"ebe89413-45b3-40c9-b931-5864f78908e8" class=3D"conflue=
+nceTd">
+<p local-id=3D"61b37f3bdbb2">No</p></td>
+<td data-local-id=3D"b903d604-29c7-4fa1-bd9e-4fff038ed122" class=3D"conflue=
+nceTd">
+<p local-id=3D"1c1ebd752b51">No</p></td>
+<td data-local-id=3D"523b15f2-06f6-4803-8c6f-0357d5e29e4d" class=3D"conflue=
+nceTd">
+<p local-id=3D"01764771643d">=E2=9C=94 Yes (pre-redirect)</p></td>
+<td data-local-id=3D"6524de54-974a-4038-823d-53c3851db2f8" class=3D"conflue=
+nceTd">
+<p local-id=3D"2195d872b463">=E2=9C=94 Yes (pre-redirect)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<blockquote local-id=3D"3e6e13b7-eedd-497e-9c1f-f6ac534296a0">
+<p local-id=3D"2f6fe5b70a76">=E2=9C=94 <strong>Recommendation:</strong> Alw=
+ays deploy RAR (RFC 9396) and PAR (RFC 9126) together in financial applicat=
+ions. RAR provides the semantic precision required by PSD2 and Open Banking=
+ standards. PAR ensures that this semantically rich =E2=80=94 and therefore=
+ highly sensitive =E2=80=94 payload never appears in a browser URL, a proxy=
+ log, or a SIEM event. Either extension in isolation leaves a significant g=
+ap: RAR without PAR exposes detailed financial data in URLs; PAR without RA=
+R secures the transport of a payload that is still semantically insufficien=
+t for regulatory compliance.</p>
+</blockquote>
+<hr local-id=3D"b2dbdb9d-bdd6-4db1-a981-11a526574de6">
+<h2 local-id=3D"5bf41cd30b39" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-Part3=E2=80=94Fine-G=
+rainedAuthorizationwithaPolicyDecisionPoint(PDP)">Part 3 =E2=80=94 Fine-Gra=
+ined Authorization with a Policy Decision Point (PDP)</h2>
+<h3 local-id=3D"a44d6c6bb386" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-Part3=E2=80=94Fine-G=
+rainedAuthorizationwithaPolicyDecisionPoint(PDP).1">Part 3 =E2=80=94 Fine-G=
+rained Authorization with a Policy Decision Point (PDP)</h3>
+<h3 local-id=3D"069852babc40" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-3.1TheRemainingGap=
+=E2=80=94TokenIssuanceisNotAuthorizationEnforcement">3.1 The Remaining Gap =
+=E2=80=94 Token Issuance is Not Authorization Enforcement</h3>
+<p local-id=3D"b17fadf53262">RAR and PAR together solve three critical prob=
+lems in the authorization<br>
+chain:</p>
+<ul local-id=3D"d52da2020947">
+<li local-id=3D"576907765b17">
+<p local-id=3D"cf542518ff4f"><strong>Semantic precision (RAR):</strong> The=
+ AS receives the full transaction details<br>
+via <code>authorization_details</code> =E2=80=94 amount, beneficiary IBAN, =
+debtor account,<br>
+remittance reference. It knows exactly what operation is being requested.</=
+p></li>
+<li local-id=3D"caa982776f1b">
+<p local-id=3D"1f6158c9950a"><strong>User consent (RAR):</strong> Because t=
+he AS has the transaction details, it<br>
+renders an informed, transaction-specific consent screen. The user signs<br=
+>
+off on the exact operation, not a generic permission class. This satisfies<=
+br>
+PSD2 RTS Article 4 requirements for explicit, traceable consent.</p></li>
+<li local-id=3D"2d2634ae74de">
+<p local-id=3D"13e57250c462"><strong>Transport security (PAR):</strong> The=
+ authorization request body never appears<br>
+in a URL. Sensitive financial data is protected from proxy logs, browser<br=
+>
+history, SIEM infrastructure, and any intermediary system between the<br>
+browser and the AS.</p></li>
+</ul>
+<p local-id=3D"c8a645adebea">However, this combination does not solve a fou=
+rth problem that is equally<br>
+critical in a banking context: who is actually allowed to do what, under<br=
+>
+which conditions, at the moment of execution.</p>
+<p local-id=3D"f10586ccf9b0">When the Resource Server receives a Bearer tok=
+en containing<br><code>authorization_details</code>, it knows that the user=
+ authenticated successfully<br>
+and consented to a specific transfer. What the token alone cannot determine=
+<br>
+is whether that operation is currently permitted given the live state of th=
+e<br>
+system =E2=80=94 the user's role, their remaining daily limit, the current =
+risk score<br>
+of the transaction, or whether the destination account was flagged by the<b=
+r>
+fraud team an hour after consent was granted.</p>
+<hr local-id=3D"a41aea5cb48c">
+<h4 local-id=3D"667ca2d5c046" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-Level1=E2=80=94APIGa=
+tewayenforcement(surfacecontrol)">Level 1 =E2=80=94 API Gateway enforcement=
+ (surface control)</h4>
+<p local-id=3D"18485e2623c5">The API Gateway acts as the first Policy Enfor=
+cement Point (PEP). It<br>
+intercepts every inbound request and performs the following controls:</p>
+<ul local-id=3D"f89769260a5e">
+<li local-id=3D"30c0a0bd6e2b">
+<p local-id=3D"cc588e1bb7e3">Validate the JWT signature against the AS publ=
+ic key (JWKS endpoint)</p></li>
+<li local-id=3D"75ac3db8ea1e">
+<p local-id=3D"7a3e79830337">Verify the token has not expired (<code>exp</c=
+ode> claim)</p></li>
+<li local-id=3D"a701b5d7f9f4">
+<p local-id=3D"b389e545c8cf">Verify the token was issued by the expected AS=
+ (<code>iss</code> claim)</p></li>
+<li local-id=3D"07c4543ecd9d">
+<p local-id=3D"2e538ca7821c">Verify the audience matches the target service=
+ (<code>aud</code> claim)</p></li>
+<li local-id=3D"1a2af9dd66fc">
+<p local-id=3D"a99335174968">Verify the required scope is present (<code>wi=
+re_transfer</code>)</p></li>
+<li local-id=3D"28c3e0007b39">
+<p local-id=3D"74fe532280d4">Reject requests with missing or malformed Auth=
+orization headers</p></li>
+<li local-id=3D"e10484abd868">
+<p local-id=3D"3b2ad39679a5">Apply rate limiting per client and per token</=
+p></li>
+</ul>
+<p local-id=3D"297e38b87fe6">This level stops invalid, expired, and unsigne=
+d tokens. It is necessary<br>
+but it represents only surface-level enforcement:</p>
+<ul local-id=3D"2f2a73899abe">
+<li local-id=3D"64e934b50010">
+<p local-id=3D"42836df83d1d">It does not evaluate whether the authenticated=
+ user is allowed to perform<br>
+this specific operation given their role and attributes.</p></li>
+<li local-id=3D"4f5d3bd8dd86">
+<p local-id=3D"4a069b3c70c3">It does not check business rules such as trans=
+fer limits, approval<br>
+thresholds, or beneficiary restrictions.</p></li>
+<li local-id=3D"99b6ca9df3ad">
+<p local-id=3D"9d1911c44e19">It treats every valid token as equivalent, reg=
+ardless of who holds it<br>
+or what their current authorization context is.</p></li>
+</ul>
+<p local-id=3D"bc0386474168">Level 1 enforcement filters out technically in=
+valid requests. It enforces<br>
+no business policy.</p>
+<hr local-id=3D"31ede11a4097">
+<h4 local-id=3D"e59788762b88" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-Level2=E2=80=94Resou=
+rceServerenforcement(applicationcontrol)">Level 2 =E2=80=94 Resource Server=
+ enforcement (application control)</h4>
+<p local-id=3D"b9969224e4c7">The Resource Server implements a second enforc=
+ement layer before executing<br>
+any operation:</p>
+<ul local-id=3D"51acaa50eee3">
+<li local-id=3D"9d9f91aa11eb">
+<p local-id=3D"c678ffdcbe15">Re-validate the JWT signature independently (n=
+ever trust the gateway alone)</p></li>
+<li local-id=3D"198ef99e82b3">
+<p local-id=3D"11eb6f83f324">Verify the <code>authorization_details</code> =
+claim matches the request body exactly<br>
+=E2=80=94 amount, currency, creditor IBAN, debtor IBAN, remittance referenc=
+e</p></li>
+<li local-id=3D"8c9acc787404">
+<p local-id=3D"73b801d8fd59">Verify the <code>sub</code> claim matches the =
+authenticated user initiating the request</p></li>
+<li local-id=3D"4d40206d24d0">
+<p local-id=3D"5f16436f01e3">Verify the token was not issued before the con=
+sent session started<br>
+(replay protection)</p></li>
+<li local-id=3D"bdd0de351ce8">
+<p local-id=3D"23515f73f638">Check that the debtor account in <code>authori=
+zation_details</code> belongs to the<br>
+authenticated user</p></li>
+<li local-id=3D"71c8c5ee800f">
+<p local-id=3D"31161fcef5dc">Reject any request where a single field in <co=
+de>authorization_details</code> differs<br>
+from the request body</p></li>
+</ul>
+<p local-id=3D"5bcd2a2bafa0">This level enforces token binding =E2=80=94 th=
+e guarantee that the token presented<br>
+corresponds exactly to the transaction the user consented to.</p>
+<p local-id=3D"d7a133843f37">However, embedding all authorization logic at =
+this level introduces<br>
+structural problems that compound over time:</p>
+<ul local-id=3D"cbf7165f27c3">
+<li local-id=3D"e3faa8531ad0">
+<p local-id=3D"b50b0eddc74f">Authorization rules are scattered across multi=
+ple services and codebases,<br>
+with no single view of the full policy set.</p></li>
+<li local-id=3D"d3c068fa2a1d">
+<p local-id=3D"7c564dc0f282">Business rules change faster than application =
+release cycles allow,<br>
+creating drift between the intended policy and what is actually enforced.</=
+p></li>
+<li local-id=3D"28f26d1bd39b">
+<p local-id=3D"0c22da3dcf84">Vulnerabilities such as Broken Object Level Au=
+thorization (BOLA),<br>
+Insecure Direct Object Reference (IDOR), and privilege escalation bugs<br>
+are difficult to detect when enforcement logic is embedded in application<b=
+r>
+code =E2=80=94 particularly when that logic was not formally documented at =
+design<br>
+time and has evolved incrementally across development iterations.</p></li>
+<li local-id=3D"fb993442c6da">
+<p local-id=3D"c0b4871b5d6b">Testing and auditing authorization coverage re=
+quires deep knowledge of<br>
+each service implementation, making compliance audits expensive and<br>
+incomplete.</p></li>
+</ul>
+<p local-id=3D"26ff663553b4">Level 2 enforcement verifies token integrity a=
+nd basic binding. It does not<br>
+scale cleanly to complex, multi-attribute business policies.</p>
+<hr local-id=3D"19215dd3aec8">
+<h4 local-id=3D"36338ba7e2b8" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-Level3=E2=80=94Polic=
+yDecisionPoint(dedicatedauthorizationengine)">Level 3 =E2=80=94 Policy Deci=
+sion Point (dedicated authorization engine)</h4>
+<p local-id=3D"f663e1878b14">The architectural response to the limitations =
+of Levels 1 and 2 is to<br>
+externalize authorization decisions into a dedicated Policy Decision Point.=
+<br>
+Instead of each service implementing its own authorization logic, every<br>
+service calls a central PDP with the full request context and receives a<br=
+>
+structured permit or deny decision.</p>
+<p local-id=3D"bb8cf69cad91">Policies are written, versioned, tested, and a=
+udited in one place,<br>
+independently of application code and deployment cycles. This is the model<=
+br>
+that banking architectures aligned with FAPI 2.0 and zero-trust principles<=
+br>
+are converging toward.</p>
+<hr local-id=3D"a6dc90f76dc6">
+<h3 local-id=3D"cbe4d506bd5f" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-3.2WhataPDPIsandWhat=
+ItDoes">3.2 What a PDP Is and What It Does</h3>
+<p local-id=3D"40c4be1163da">A Policy Decision Point is a dedicated compone=
+nt in an access control<br>
+architecture that evaluates authorization requests and returns an access<br=
+>
+decision based on predefined policies.</p>
+<p local-id=3D"60f1ebbf2f8a">The PDP operates on three inputs:</p>
+<ul local-id=3D"7e39f4674f3d">
+<li local-id=3D"9922a1c21e32">
+<p local-id=3D"d23891ddfd2f"><strong>Subject:</strong> who is making the re=
+quest =E2=80=94 the authenticated user, their<br>
+roles, their attributes, their organizational context</p></li>
+<li local-id=3D"d622360f2fc6">
+<p local-id=3D"5a4b4c26014e"><strong>Resource:</strong> what is being acces=
+sed or modified =E2=80=94 the transfer endpoint,<br>
+the target account, the requested amount</p></li>
+<li local-id=3D"5047cc4f53ee">
+<p local-id=3D"53a982ffd099"><strong>Context:</strong> the current state of=
+ the environment =E2=80=94 time of day, remaining<br>
+daily limit, real-time risk score, account status, fraud watchlist state</p=
+></li>
+</ul>
+<p local-id=3D"22c1f5596354">The PDP evaluates these inputs against a polic=
+y set and returns a structured<br>
+decision =E2=80=94 permit or deny =E2=80=94 along with any obligations or a=
+dvice the PEP<br>
+must apply before executing the operation.</p>
+<p local-id=3D"fb659b30e9d9">Key architectural properties of the PDP:</p>
+<ul local-id=3D"43d8c60f58fb">
+<li local-id=3D"358ea33c38e3">
+<p local-id=3D"debc717381d2">It is stateless from the perspective of the ca=
+lling service =E2=80=94 the caller<br>
+provides all the context, the PDP evaluates and responds.</p></li>
+<li local-id=3D"c8b79852d5e6">
+<p local-id=3D"7a893d28b90d">It has no side effects =E2=80=94 it does not e=
+xecute the operation, it does not<br>
+modify data, it only decides.</p></li>
+<li local-id=3D"68925e5d9208">
+<p local-id=3D"69cfcea4ba8e">It is decoupled from the application =E2=80=94=
+ policy updates do not require<br>
+application redeployment.</p></li>
+<li local-id=3D"cf24d2baaddf">
+<p local-id=3D"c3533c565fdf">It provides a single, auditable point for all =
+authorization decisions<br>
+across the system.</p></li>
+</ul>
+<p local-id=3D"465ea35c8be9">The component that calls the PDP is called the=
+ <strong>Policy Enforcement Point</strong><br><strong>(PEP)</strong>. In a =
+banking architecture, the Resource Server acts as the PEP for<br>
+business operations. The API Gateway acts as a PEP for transport-level<br>
+controls. The AS acts as a PEP at consent time.</p>
+<hr local-id=3D"259b5fdc9cbe">
+<h3 local-id=3D"d77b34dd9128" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-3.3PDPintheBankingWi=
+reTransferFlow">3.3 PDP in the Banking Wire Transfer Flow</h3>
+<p local-id=3D"b7034289ec34">In a banking wire transfer architecture combin=
+ing RAR, PAR, and a PDP, the Resource Server does not execute the transfer =
+as soon as it receives a valid token. Before executing, it calls the PDP wi=
+th the full context of the request and waits for a permit decision.</p>
+<p local-id=3D"362dfc118230"></p>
+<div class=3D"code panel pdl" style=3D"border-width: 1px;">
+<div class=3D"codeContent panelContent pdl">
+<pre class=3D"syntaxhighlighter-pre" data-syntaxhighlighter-params=3D"brush=
+: java; gutter: false; theme: Confluence" data-theme=3D"Confluence">sequenc=
+eDiagram
+    autonumber
+    participant C   as Client (SPA)
+    participant AS  as Authorization Server
+    participant U   as User (Browser)
+    participant GW  as API Gateway (PEP Level 1)
+    participant RS  as Resource Server (PEP Level 2)
+    participant PDP as Policy Decision Point (Level 3)
+    C-&gt;&gt;AS: POST /par via fetch() =E2=80=94 body: authorization_detai=
+ls [{amount:47500, iban:FR76...}]
+    Note over AS: Stores request server-side =E2=80=94 returns opaque refer=
+ence
+    AS-&gt;&gt;C: { request_uri: urn:ietf:...xyz, expires_in: 60 }
+    C-&gt;&gt;U: redirect to browser
+    U-&gt;&gt;AS: GET /authorize?client_id=3Dwire-transfer-spa&amp;request_=
+uri=3Durn:ietf:...xyz
+    Note over U,AS: No sensitive data in URL
+    opt No valid SSO session
+        AS-&gt;&gt;U: Login page
+        U-&gt;&gt;AS: Credentials
+    end
+    AS-&gt;&gt;U: Consent page =E2=80=94 amount: 47500 EUR, IBAN: FR76..., =
+beneficiary: ACME Corp
+    U-&gt;&gt;AS: Confirm transaction
+    AS-&gt;&gt;C: 302 =E2=80=94 callback?code=3DAUTH_CODE
+    C-&gt;&gt;AS: POST /token (code + code_verifier)
+    AS-&gt;&gt;C: access_token { sub, roles, authorization_details: [{...}]=
+ }
+
+    C-&gt;&gt;GW: POST /transfers (Bearer token + body: {amount:47500, iban=
+:FR76...})
+
+    note over GW: Level 1 controls
+    GW-&gt;&gt;GW: Validate JWT signature (JWKS)
+    GW-&gt;&gt;GW: Check exp, iss, aud claims
+    GW-&gt;&gt;GW: Check scope wire_transfer present
+    GW-&gt;&gt;GW: Apply rate limiting
+
+    alt Invalid token or missing scope
+        GW-&gt;&gt;C: 401 Unauthorized
+    else Valid =E2=80=94 forward to RS
+        GW-&gt;&gt;RS: forward request + token
+
+        note over RS: Level 2 controls
+        RS-&gt;&gt;RS: Re-validate JWT signature independently
+        RS-&gt;&gt;RS: Compare token.authorization_details vs request body
+        RS-&gt;&gt;RS: Verify sub matches authenticated user
+        RS-&gt;&gt;RS: Verify debtor account belongs to sub
+
+        alt authorization_details mismatch
+            RS-&gt;&gt;C: 403 Forbidden =E2=80=94 token binding failed
+        else Token binding verified =E2=80=94 call PDP
+
+            RS-&gt;&gt;PDP: POST /authorize { subject: {id, roles, daily_sp=
+ent}, action: wire_transfer, resource: {amount:47500, creditor_iban:FR76...=
+, debtor_iban:FR76...}, context: {time, risk_score} }
+
+            note over PDP: Level 3 policy evaluation
+            PDP-&gt;&gt;PDP: Evaluate role policy =E2=80=94 is PAYER role p=
+resent?
+            PDP-&gt;&gt;PDP: Evaluate amount vs daily limit
+            PDP-&gt;&gt;PDP: Evaluate creditor IBAN against fraud watchlist
+            PDP-&gt;&gt;PDP: Evaluate dual-control rule if amount above thr=
+eshold
+
+            alt Permit
+                PDP-&gt;&gt;RS: { decision: PERMIT }
+                RS-&gt;&gt;RS: Execute transfer
+                RS-&gt;&gt;C: 200 OK
+            else Deny
+                PDP-&gt;&gt;RS: { decision: DENY, reason: "daily_limit_exce=
+eded" }
+                RS-&gt;&gt;C: 403 Forbidden =E2=80=94 policy denied
+            end
+        end
+    end
+</pre>
+</div>
+</div>
+<p local-id=3D"3f183398a9fe"></p>
+<h3 local-id=3D"abb129b9a7f3" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-3.4WhatthePDPEvaluat=
+es=E2=80=94PolicyCategories">3.4 What the PDP Evaluates =E2=80=94 Policy Ca=
+tegories</h3>
+<p local-id=3D"8bfff35cf898"><strong>Identity and role policies =E2=80=94 W=
+ho</strong></p>
+<ul local-id=3D"fa82ede2-31bc-481d-8389-58b47013fcd8">
+<li local-id=3D"40b8ddf2-9bbc-4358-94e3-2f171327e1a4">
+<p local-id=3D"ebe2d60e7772">The PDP checks if the user has the right role =
+to perform the requested action.</p></li>
+<li local-id=3D"f544f2cd-31ed-4050-849a-53bdf8723b9b">
+<p local-id=3D"01649e56a003">Having one role does not give access to everyt=
+hing =E2=80=94 each role grants only what it is explicitly allowed to do.</=
+p></li>
+<li local-id=3D"a3c5118c-0669-4337-b0fe-a170a4589ca6">
+<p local-id=3D"a6623ac10d77">Access can be limited to specific groups.</p><=
+/li>
+</ul>
+<p local-id=3D"8d79fa700ef2"><strong>Attribute-based policies =E2=80=94 Wha=
+t</strong></p>
+<ul local-id=3D"ca8e173a614b">
+<li local-id=3D"2cc13b857188">
+<p local-id=3D"cbe286b4fa98">Decisions are made against <strong>subject att=
+ributes</strong> =E2=80=94 limits, quotas, flags,<br>
+and classifications assigned to the user or the resource.</p></li>
+<li local-id=3D"62e25e15e04f">
+<p local-id=3D"55391e0c5364">A request that is valid from a role perspectiv=
+e can still be denied if<br>
+a subject-level attribute prohibits it.</p></li>
+<li local-id=3D"786199f818f3">
+<p local-id=3D"325944e01939"><strong>Resource attributes</strong> =E2=80=94=
+ sensitivity level, ownership, classification =E2=80=94 are<br>
+evaluated independently from subject attributes.</p></li>
+</ul>
+<div class=3D"confluence-information-macro confluence-information-macro-inf=
+ormation">
+<span class=3D"aui-icon aui-icon-small aui-iconfont-info confluence-informa=
+tion-macro-icon"></span>
+<div class=3D"confluence-information-macro-body">
+<p local-id=3D"afb4f4e44f5a"><strong>Resource attributes</strong> are prope=
+rties of the payment or approval object being accessed. The PDP evaluates t=
+hem <strong>independently </strong>from <strong>who is making the request</=
+strong>.</p>
+</div>
+</div>
+<p local-id=3D"32ee4b632e39"><strong>Examples </strong>in a payment and app=
+roval context:</p>
+<ul local-id=3D"4861e923-85b9-421e-a4bf-97fc756bac9a">
+<li local-id=3D"34c38c26-ad30-40c9-ab0a-8b0f28f14232">
+<p local-id=3D"770c91968c82"><strong>Amount threshold</strong> =E2=80=94 a =
+payment above 50,000 EUR is classified as "high-value" and requires a secon=
+d approver, regardless of the initiator's role</p></li>
+<li local-id=3D"6b06505e-bcfe-42c2-bed6-ae585fdbde0a">
+<p local-id=3D"82eca1467cd1"><strong>Approval status</strong> =E2=80=94 a p=
+ayment already in "pending approval" state cannot be modified or re-submitt=
+ed until the current approval cycle is completed</p></li>
+<li local-id=3D"593dab23-58ed-4f76-aa0f-b68b6085e0c6">
+<p local-id=3D"4d83961e379d"><strong>Initiator lock</strong> =E2=80=94 a pa=
+yment created by user A cannot be approved by user A, even if user A holds =
+the MANAGER role =E2=80=94 the payment itself carries the initiator's ident=
+ity as an attribute</p></li>
+<li local-id=3D"d0c10a03-d3bc-4306-a861-2ddde7d01568">
+<p local-id=3D"860908709635"><strong>Payment type</strong> =E2=80=94 an int=
+ernational wire transfer is classified differently from a domestic transfer=
+ and triggers additional policy checks at the PDP level</p></li>
+<li local-id=3D"a2319f7e-d98a-4e78-a1ac-ecd73e1e9e5b">
+<p local-id=3D"15c506f9d66e"><strong>Expiry</strong> =E2=80=94 an approval =
+request that has been pending for more than 24 hours is automatically class=
+ified as "expired" and denied by the PDP without any user action</p></li>
+</ul>
+<p local-id=3D"1d7bc5086863">Technically, the PDP sees the data like this. =
+:</p>
+<div class=3D"code panel pdl" style=3D"border-width: 1px;">
+<div class=3D"codeContent panelContent pdl">
+<pre class=3D"syntaxhighlighter-pre" data-syntaxhighlighter-params=3D"brush=
+: java; gutter: false; theme: Confluence" data-theme=3D"Confluence">{
+  "subject":  { "id": "user_1", "roles": ["MANAGER"] },
+  "action":   "approve",
+  "resource": { "id": "PAY-2024-089", "status": "pending_approval",
+                "initiator_id": "user_2", "amount": 47500, "risk_level": "h=
+igh" }
+}</pre>
+</div>
+</div>
+<p local-id=3D"031e06d0e27c"><strong>Contextual and environmental policies =
+=E2=80=94 When / Where</strong></p>
+<ul local-id=3D"1528fda08fa8">
+<li local-id=3D"e8db0240-1be9-4872-804b-357594bb62de">
+<p local-id=3D"55069fcf96bb">The PDP evaluates conditions that exist at the=
+ moment of execution, not at the moment the token was issued.</p></li>
+<li local-id=3D"8d2418e3-66c5-4622-bce9-d2321ce0f05c">
+<p local-id=3D"9aa38bc061a9"><strong>Examples of contextual inputs</strong>=
+: time of day, user location, device trust level, real-time risk score of t=
+he transaction.</p></li>
+<li local-id=3D"fbaa8584-4a11-4c31-be92-35b7fb3d0152">
+<p local-id=3D"a8c671533797">A <strong><span data-colorid=3D"r07d7i7k7n">to=
+ken can be valid</span></strong> and a user can have <strong><span data-col=
+orid=3D"yaquh04w9n">the right role</span></strong> =E2=80=94 and the operat=
+ion can still <strong><span data-colorid=3D"vt0d1lmuw7">be denied</span> </=
+strong>because something changed between <strong>consent and execution</str=
+ong>.</p></li>
+</ul>
+<p local-id=3D"695f2414ae0d"></p>
+<p local-id=3D"2853b6b80660">ABAC with a PDP is the pragmatic choice for ba=
+nking authorization: <strong>policies are evaluated against attributes alre=
+ady available in the token</strong> or retrievable in real time, <strong>wi=
+th no need to model </strong>and maintain a persistent relationship graph.<=
+/p>
+<p local-id=3D"92874b0ded67">ReBAC (FGA) adds expressive power for ownershi=
+p and hierarchical structures<strong> but requires a significant upfront</s=
+trong> investment in <strong>relationship modeling and ongoing tuple</stron=
+g> maintenance</p>
+<div class=3D"table-wrap">
+<table data-layout=3D"default" data-local-id=3D"993e95b4-5403-4497-bb49-e7d=
+094275b8d" class=3D"confluenceTable">
+<tbody>
+<tr data-local-id=3D"5ed0f7d2-5526-4643-bede-3cfcb0edd109">
+<th data-local-id=3D"e128c119-efd4-4391-9d1f-8ced711864c0" class=3D"conflue=
+nceTh">
+<p local-id=3D"b09f0d113ef8">Criterion</p></th>
+<th data-local-id=3D"44c52a2e-f457-4704-ae5c-12478880407f" class=3D"conflue=
+nceTh">
+<p local-id=3D"78a261b5f180">Classic OAuth 2.0</p></th>
+<th data-local-id=3D"0b56bee0-c04d-4d72-a238-99d6e44ff198" class=3D"conflue=
+nceTh">
+<p local-id=3D"2ee68af08750">OAuth 2.0 + PAR + RAR + PDP (ABAC)</p></th>
+<th data-local-id=3D"f1b70667-f7f5-45df-b511-c5746d011e17" class=3D"conflue=
+nceTh">
+<p local-id=3D"820a49b938e8">OAuth 2.0 + PAR + RAR + FGA (ReBAC)</p></th>
+</tr>
+<tr data-local-id=3D"180e7847-7c58-40c4-aa12-f1819c637c30">
+<td data-local-id=3D"0242c156-f2c7-41d6-b4c9-54d9aec00a93" class=3D"conflue=
+nceTd">
+<p local-id=3D"f5343ef4ae12">Authorization type</p></td>
+<td data-local-id=3D"8d652677-118f-459c-9bc0-05feaafa0746" class=3D"conflue=
+nceTd">
+<p local-id=3D"5118e6491669">RBAC</p></td>
+<td data-local-id=3D"4ff6d88c-b9a7-40b7-9b64-33bb888bafeb" class=3D"conflue=
+nceTd">
+<p local-id=3D"81315ae2b849">ABAC</p></td>
+<td data-local-id=3D"5473538c-9266-43ae-9717-2f02c8ec9714" class=3D"conflue=
+nceTd">
+<p local-id=3D"418134682003">ReBAC</p></td>
+</tr>
+<tr data-local-id=3D"dac156f7-099c-47c0-983a-0ca8d26ed67e">
+<td data-local-id=3D"84f9a6e8-3a27-4ea0-bdea-74f44c5de945" class=3D"conflue=
+nceTd">
+<p local-id=3D"ee39c7a55ae0">Authorization granularity</p></td>
+<td data-local-id=3D"30a3da68-ab65-4772-a541-35b4613d6b68" class=3D"conflue=
+nceTd">
+<p local-id=3D"a584c393b35b">Coarse =E2=80=94 role or scope only</p></td>
+<td data-local-id=3D"09d97f95-248d-4481-8337-15afd0779a9c" class=3D"conflue=
+nceTd">
+<p local-id=3D"073e67e19be2">Fine =E2=80=94 roles + attributes + context</p=
+></td>
+<td data-local-id=3D"c7cfad0f-e693-4ed8-bf0b-34c6568a6660" class=3D"conflue=
+nceTd">
+<p local-id=3D"b3f8d71cf5b4">Very fine =E2=80=94 relationship graph between=
+ subjects and resources</p></td>
+</tr>
+<tr data-local-id=3D"efe34103-f110-4af9-aecb-22707a4504a0">
+<td data-local-id=3D"cb13ad61-6779-4038-877a-057172d95f6b" class=3D"conflue=
+nceTd">
+<p local-id=3D"edc00a7294f5">Policy model</p></td>
+<td data-local-id=3D"a497c99a-d15f-42c8-b45b-78e0acd225d9" class=3D"conflue=
+nceTd">
+<p local-id=3D"cde2e91e5233">Static roles mapped to scopes</p></td>
+<td data-local-id=3D"539e11b9-15fd-4a75-9b67-b1123ed8abd3" class=3D"conflue=
+nceTd">
+<p local-id=3D"625cab3bdb4a">Rules evaluated against attributes at runtime<=
+/p></td>
+<td data-local-id=3D"fbe467fc-8a76-43b9-bc9e-fac5fcc94766" class=3D"conflue=
+nceTd">
+<p local-id=3D"2f5364dedfe9">Relationship tuples evaluated against a typed =
+model</p></td>
+</tr>
+<tr data-local-id=3D"ffbb4a91-3810-4617-a16d-bc01a3191382">
+<td data-local-id=3D"a03f809e-e07f-4a6a-9cfd-54238116be28" class=3D"conflue=
+nceTd">
+<p local-id=3D"78a86a17b953">Data model complexity</p></td>
+<td data-local-id=3D"0db89e28-5a1c-4bb8-b1b0-c0be548d195a" class=3D"conflue=
+nceTd">
+<p local-id=3D"30509c6c0062">Low =E2=80=94 roles assigned to users</p></td>
+<td data-local-id=3D"58eb1902-e827-4a16-97f3-e363ad4748d9" class=3D"conflue=
+nceTd">
+<p local-id=3D"eabbf048774e">Medium =E2=80=94 attributes on users and resou=
+rces</p></td>
+<td data-local-id=3D"8fd7cddb-8eb4-4084-bd6e-58a067a2ccef" class=3D"conflue=
+nceTd">
+<p local-id=3D"067b4cbbf21c">High =E2=80=94 full relationship graph must be=
+ modeled and persisted</p></td>
+</tr>
+<tr data-local-id=3D"6e7301ff-ada3-42af-9e7e-7d873cd7a46d">
+<td data-local-id=3D"2bdd679f-a7ac-432a-aed4-b29e188adfff" class=3D"conflue=
+nceTd">
+<p local-id=3D"9e2db5eed21f">Implementation effort</p></td>
+<td data-local-id=3D"f6b0723a-2537-45c8-b83c-7151d11240ed" class=3D"conflue=
+nceTd">
+<p local-id=3D"b499921b4d19">Low</p></td>
+<td data-local-id=3D"bbbcda88-d197-4ea2-a70b-6f1f96ec3a41" class=3D"conflue=
+nceTd">
+<p local-id=3D"b0ebc5b6bea9">Medium</p></td>
+<td data-local-id=3D"d72262a2-7f52-4e25-912d-8c76d8753bf5" class=3D"conflue=
+nceTd">
+<p local-id=3D"3198b8a15fcc">High</p></td>
+</tr>
+<tr data-local-id=3D"a8817d22-4eba-43aa-b4ab-3f83cbe75eb5">
+<td data-local-id=3D"c8ed8865-acae-4e9b-8ed9-b7362bbdb92b" class=3D"conflue=
+nceTd">
+<p local-id=3D"f08577f80ca5">Policy update</p></td>
+<td data-local-id=3D"e6f9e429-8454-4f5f-964e-d58a321c35b7" class=3D"conflue=
+nceTd">
+<p local-id=3D"c87d9b7d2f8e">Requires code or config change</p></td>
+<td data-local-id=3D"90723458-d6fc-4366-9c0e-bcf2be48d814" class=3D"conflue=
+nceTd">
+<p local-id=3D"3e399b4d2a30">Policy update in PDP engine only</p></td>
+<td data-local-id=3D"1d6d762e-f381-4763-8d55-90fccef914a9" class=3D"conflue=
+nceTd">
+<p local-id=3D"a0b487e8c5a5">Model + tuple update in FGA store</p></td>
+</tr>
+<tr data-local-id=3D"0d6e9952-2d6c-441c-ae99-8ace3708d7f3">
+<td data-local-id=3D"d6a0e744-c9ab-41a8-add4-1e7723ec5b04" class=3D"conflue=
+nceTd">
+<p local-id=3D"486332df4b87">Real-time context support</p></td>
+<td data-local-id=3D"42f2acd3-ec7a-4607-9bd8-88bbd3e12bf0" class=3D"conflue=
+nceTd">
+<p local-id=3D"93d5379002e0">No</p></td>
+<td data-local-id=3D"f5c8d97a-0c88-4fde-bac5-df34c1962f05" class=3D"conflue=
+nceTd">
+<p local-id=3D"2311c905434d">Yes =E2=80=94 risk score, time, location evalu=
+ated at decision time</p></td>
+<td data-local-id=3D"6556dbdb-fcaf-41d9-ac3f-68705d15d736" class=3D"conflue=
+nceTd">
+<p local-id=3D"1590d068a3bb">Partial =E2=80=94 depends on relationship fres=
+hness</p></td>
+</tr>
+<tr data-local-id=3D"b2ad0d2f-1fd2-454c-86a1-893a2d73b6e3">
+<td data-local-id=3D"f4461dd1-1d49-4fbe-ae9d-5b59f5d8b882" class=3D"conflue=
+nceTd">
+<p local-id=3D"fb82cd4d53d3">Transaction-level binding (RAR)</p></td>
+<td data-local-id=3D"2f705f03-4bd7-4519-8404-70cb53985240" class=3D"conflue=
+nceTd">
+<p local-id=3D"b67ceeed0f22">No</p></td>
+<td data-local-id=3D"dd9d8214-3b89-4e22-bc3c-aa1274bfd2aa" class=3D"conflue=
+nceTd">
+<p local-id=3D"36e4576272b8">Yes</p></td>
+<td data-local-id=3D"cdf3afff-a7d4-42b9-95e6-e0575dbcca50" class=3D"conflue=
+nceTd">
+<p local-id=3D"cfc2daf1f4fa">Yes</p></td>
+</tr>
+<tr data-local-id=3D"2f29ce29-4b92-4da7-8c98-c6ab525281f3">
+<td data-local-id=3D"6af4bde2-56d5-4f6a-a8e3-11d05b84011c" class=3D"conflue=
+nceTd">
+<p local-id=3D"6cd296f86a23">Transport security (PAR)</p></td>
+<td data-local-id=3D"4c5cb1f5-3b50-466f-9b30-a9c90db86121" class=3D"conflue=
+nceTd">
+<p local-id=3D"f74924bcee29">No</p></td>
+<td data-local-id=3D"a0ab69e4-a9c4-4ab4-9741-15ad3f4aa092" class=3D"conflue=
+nceTd">
+<p local-id=3D"a48d051f6a83">Yes</p></td>
+<td data-local-id=3D"7d42cca2-e10d-4ce0-8038-73a7c0ad6ba4" class=3D"conflue=
+nceTd">
+<p local-id=3D"640fae8975c1">Yes</p></td>
+</tr>
+<tr data-local-id=3D"4ba2d7f7-0df9-4513-9700-ba566e6540d5">
+<td data-local-id=3D"4e7c1c38-c7e0-456e-b93c-0022cc06a7f1" class=3D"conflue=
+nceTd">
+<p local-id=3D"16addbcf9e71">Consent precision</p></td>
+<td data-local-id=3D"70cbe5da-dae7-4622-9755-8f684e4fe61b" class=3D"conflue=
+nceTd">
+<p local-id=3D"ff995b3fde07">Generic scope</p></td>
+<td data-local-id=3D"98e6a7aa-1f50-479f-abbb-2172986409df" class=3D"conflue=
+nceTd">
+<p local-id=3D"a12f85a62401">Transaction-specific via authorization_details=
+</p></td>
+<td data-local-id=3D"a4db7590-ecbe-4a41-b523-02263cf9df1f" class=3D"conflue=
+nceTd">
+<p local-id=3D"84408e067a47">Transaction-specific via authorization_details=
+</p></td>
+</tr>
+<tr data-local-id=3D"d1f90c09-c0dd-4beb-b7a1-f53b627faa3e">
+<td data-local-id=3D"b8e15117-dd40-48ef-8e82-ebc2a9cd0b98" class=3D"conflue=
+nceTd">
+<p local-id=3D"a307514abf17">Scales to complex org hierarchies</p></td>
+<td data-local-id=3D"37950a0f-8669-4728-a555-f67c517ff50c" class=3D"conflue=
+nceTd">
+<p local-id=3D"8213755e4ddd">No</p></td>
+<td data-local-id=3D"010a3fe8-d4bb-4ca9-a9d1-da2b858b5d4b" class=3D"conflue=
+nceTd">
+<p local-id=3D"db00a7116a6a">Partially =E2=80=94 attribute rules can approx=
+imate hierarchies</p></td>
+<td data-local-id=3D"4fdcc3c4-aae4-43bb-af9d-e6850390ebc9" class=3D"conflue=
+nceTd">
+<p local-id=3D"c8444a68e8c0">Yes =E2=80=94 hierarchy is native to the model=
+</p></td>
+</tr>
+<tr data-local-id=3D"b53e784a-1472-481d-9c4c-65d1741e2779">
+<td data-local-id=3D"1fcd6c26-99e2-45d3-a099-19c50df9c07c" class=3D"conflue=
+nceTd">
+<p local-id=3D"7104594d9f52">Scales to fine-grained resource ownership</p><=
+/td>
+<td data-local-id=3D"8e1cab23-3daa-41fe-a2c5-c88f87e90883" class=3D"conflue=
+nceTd">
+<p local-id=3D"4c634999e078">No</p></td>
+<td data-local-id=3D"80fd6b00-ca1f-42c8-945d-fe3f545aa285" class=3D"conflue=
+nceTd">
+<p local-id=3D"f00403453f5f">Partially</p></td>
+<td data-local-id=3D"d43424b5-27fa-45f6-af0d-fd12a3ed062f" class=3D"conflue=
+nceTd">
+<p local-id=3D"ee61725e8b27">Yes =E2=80=94 ownership is a first-class relat=
+ionship</p></td>
+</tr>
+<tr data-local-id=3D"1909e45c-a845-4e13-b855-72db992699c4">
+<td data-local-id=3D"323506aa-38ec-4241-ae7c-7a777a4af59a" class=3D"conflue=
+nceTd">
+<p local-id=3D"c5b32c30e318">Typical use case</p></td>
+<td data-local-id=3D"50edca53-aea1-45d1-99a0-0c040eabca6c" class=3D"conflue=
+nceTd">
+<p local-id=3D"ee4b153fcf5c">Simple API access control</p></td>
+<td data-local-id=3D"1f6af00f-323b-4496-847d-da869ec96b8b" class=3D"conflue=
+nceTd">
+<p local-id=3D"f923bcf4eb6d">Banking, payment APIs, regulated environments<=
+/p></td>
+<td data-local-id=3D"4e370c00-21cc-4386-9dc1-faf091c5247e" class=3D"conflue=
+nceTd">
+<p local-id=3D"5ecd50d2bbd9">Multi-tenant SaaS, document sharing, complex o=
+rg structures</p></td>
+</tr>
+<tr data-local-id=3D"13646112-cb46-48d7-8770-d6bffe8d4545">
+<td data-local-id=3D"0e41237a-eba7-4aaf-b0eb-aaa41af7528b" class=3D"conflue=
+nceTd">
+<p local-id=3D"7c1a91d34f09">Example engines</p></td>
+<td data-local-id=3D"083ff319-4b77-4d5b-afb0-764845ed537e" class=3D"conflue=
+nceTd">
+<p local-id=3D"ded341fc6fd0">Keycloak roles, OAuth scopes</p></td>
+<td data-local-id=3D"5e6ad5de-cd69-4835-88e3-b18fd74a1b54" class=3D"conflue=
+nceTd">
+<p local-id=3D"741eb17f8298">OPA, PingOne Authorize, AWS Cedar</p></td>
+<td data-local-id=3D"f705c591-44c8-4a13-8b17-a88eb355b63b" class=3D"conflue=
+nceTd">
+<p local-id=3D"81c359751b6a">OpenFGA, SpiceDB, Permify</p></td>
+</tr>
+<tr data-local-id=3D"b4a3a081-56a1-4fd7-9d2a-28898dfefba5">
+<td data-local-id=3D"da66ba54-ba70-4a5b-9a3d-ca0c5c2765dc" class=3D"conflue=
+nceTd">
+<p local-id=3D"e7d0f5ea62f9">PSD2 RTS compliance</p></td>
+<td data-local-id=3D"c1b5493d-aac0-4954-af47-ada95b3ecbe4" class=3D"conflue=
+nceTd">
+<p local-id=3D"f620b792294d">Insufficient</p></td>
+<td data-local-id=3D"51e20e63-e544-4f1f-aba8-39600033d238" class=3D"conflue=
+nceTd">
+<p local-id=3D"18e76681853e">Full when combined with RAR</p></td>
+<td data-local-id=3D"1aeafff9-07e5-4fc9-b62d-d8be477344cf" class=3D"conflue=
+nceTd">
+<p local-id=3D"7311ae6b5df8">Full when combined with RAR</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 local-id=3D"22f9eda5830c" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-Glossary{#glossary}"=
+>Glossary {#glossary}</h2>
+<div class=3D"table-wrap">
+<table data-table-width=3D"760" data-layout=3D"default" data-local-id=3D"5d=
+fa63b8-6159-4156-880b-caf0620376f4" class=3D"confluenceTable">
+<tbody>
+<tr data-local-id=3D"e4f897bd-3c62-47e1-8aec-7e5504f13e6d">
+<th data-local-id=3D"c21755e0-f4cf-4830-98f1-3a8659a58c7d" class=3D"conflue=
+nceTh">
+<p local-id=3D"d25cdf2a15bc">Term</p></th>
+<th data-local-id=3D"99944ead-d344-452f-87a4-88feba0904a0" class=3D"conflue=
+nceTh">
+<p local-id=3D"9bf4e49bc6d7">Definition</p></th>
+</tr>
+<tr data-local-id=3D"8da6a59a-60e1-4ab2-aac2-103a2e158a36">
+<td data-local-id=3D"a2d0e462-bc3a-4fe2-a7e3-34effd6ddf4d" class=3D"conflue=
+nceTd">
+<p local-id=3D"fe2b41cac478"><strong>AS (Authorization Server)</strong></p>=
+</td>
+<td data-local-id=3D"088c4180-914a-4504-b789-6068731a4e6e" class=3D"conflue=
+nceTd">
+<p local-id=3D"2aacafa9a924">The server that authenticates the resource own=
+er and issues access tokens after obtaining authorization. In banking conte=
+xts, examples include Keycloak, PingFederate, ForgeRock AM, and PingOne.</p=
+></td>
+</tr>
+<tr data-local-id=3D"cca5a81d-430e-4c96-bbdd-2842007b7d07">
+<td data-local-id=3D"9ca736e5-ea8f-44a3-9258-99a7353c1f2f" class=3D"conflue=
+nceTd">
+<p local-id=3D"b9390c245edd"><strong>authorization_details</strong></p></td=
+>
+<td data-local-id=3D"8183ff6c-015a-47fb-8dda-44f11101a387" class=3D"conflue=
+nceTd">
+<p local-id=3D"aa2dd6085660">The JSON parameter introduced by RFC 9396 (RAR=
+) that carries a structured, type-tagged description of the specific author=
+ization being requested. Replaces or supplements the coarse <code>scope</co=
+de> string for fine-grained use cases.</p></td>
+</tr>
+<tr data-local-id=3D"6f57ab6e-b43e-46ec-b2dc-3cea76b86841">
+<td data-local-id=3D"add99546-77e1-4592-bcb7-436b74abf34f" class=3D"conflue=
+nceTd">
+<p local-id=3D"df980b64fed1"><strong>Authorization Code Flow</strong></p></=
+td>
+<td data-local-id=3D"74ef8231-6398-4b02-b892-8d6c951804d2" class=3D"conflue=
+nceTd">
+<p local-id=3D"84b154b61a13">The OAuth 2.0 grant type in which the AS issue=
+s a short-lived authorization code to the client via a browser redirect, wh=
+ich the client then exchanges for an access token via a back-channel POST t=
+o the token endpoint.</p></td>
+</tr>
+<tr data-local-id=3D"6ca4d595-24ee-4e20-a572-332ca99a16e4">
+<td data-local-id=3D"723e3b2c-d6ed-4b56-b7db-f31b96e8b471" class=3D"conflue=
+nceTd">
+<p local-id=3D"b1e5a8b2ea64"><strong>Bearer Token</strong></p></td>
+<td data-local-id=3D"341e4d1d-2459-4af7-8364-7e15f6d32456" class=3D"conflue=
+nceTd">
+<p local-id=3D"7507c879a134">An access token that grants access to a protec=
+ted resource to any party that presents it, without requiring proof of iden=
+tity. Defined in RFC 6750.</p></td>
+</tr>
+<tr data-local-id=3D"785e931a-30cf-403d-a3a9-2b2b5196a24d">
+<td data-local-id=3D"0352bff2-bbaf-439d-afc9-67c84365829b" class=3D"conflue=
+nceTd">
+<p local-id=3D"25e49878ed04"><strong>Client</strong></p></td>
+<td data-local-id=3D"db81ada0-625e-4570-8310-dbc0c14a83b6" class=3D"conflue=
+nceTd">
+<p local-id=3D"0aa1bdc8cbe6">In OAuth 2.0 terminology, the application requ=
+esting authorization on behalf of the resource owner. In the banking POC co=
+ntext, this is the SPA or mobile application.</p></td>
+</tr>
+<tr data-local-id=3D"dbaaae0d-fdc6-48ce-bad1-c57874bb9c52">
+<td data-local-id=3D"22d5b995-d2f6-4d74-a558-8d0e04ae2f80" class=3D"conflue=
+nceTd">
+<p local-id=3D"e7344f52b836"><a class=3D"external-link" href=3D"https://ope=
+nid.net/specs/fapi-security-profile-2_0.html" rel=3D"nofollow"><strong>FAPI=
+ (Financial-grade API)</strong></a></p></td>
+<td data-local-id=3D"43bd20c7-f3cd-4a11-ba8c-1379bf6abb5d" class=3D"conflue=
+nceTd">
+<p local-id=3D"fcd6c3d62ded">A set of security profiles published by the Op=
+enID Foundation, built on top of OAuth 2.0 and OpenID Connect, that mandate=
+s PAR and RAR for payment initiation and account access APIs in financial s=
+ervices.</p></td>
+</tr>
+<tr data-local-id=3D"2a36aece-9ab4-48dd-83d9-0653373a841e">
+<td data-local-id=3D"886c863f-7688-4753-8e99-9a1297906a25" class=3D"conflue=
+nceTd">
+<p local-id=3D"c490da898eb5"><strong>PAR (Pushed Authorization Requests)</s=
+trong></p></td>
+<td data-local-id=3D"9ad5fe27-074b-4ea3-9014-a281553c6dbe" class=3D"conflue=
+nceTd">
+<p local-id=3D"9b8b1c2b0016">RFC 9126. An OAuth 2.0 extension that allows c=
+lients to send the Authorization Request to the AS via an authenticated bac=
+k-channel HTTPS POST to a <code>/par</code> endpoint, receiving an opaque <=
+code>request_uri</code> in return. This <code>request_uri</code> is then us=
+ed in the browser redirect, keeping all request parameters out of URLs.</p>=
+</td>
+</tr>
+<tr data-local-id=3D"620b4b76-4ad3-420d-ba0b-19befaea3f0e">
+<td data-local-id=3D"6019d423-37ac-418a-8bf1-b03d14b2c667" class=3D"conflue=
+nceTd">
+<p local-id=3D"5792ed1f83a9"><strong>PKCE (Proof Key for Code Exchange)</st=
+rong></p></td>
+<td data-local-id=3D"41cf9ac0-b476-45e5-9cf5-293c194aaac7" class=3D"conflue=
+nceTd">
+<p local-id=3D"70d4bbd040cc">RFC 7636. A security extension to the Authoriz=
+ation Code flow that prevents authorization code interception attacks. The =
+client generates a random <code>code_verifier</code>, derives a <code>code_=
+challenge</code> from it, sends the challenge in the Authorization Request,=
+ and proves possession of the verifier at the token endpoint. Mandatory for=
+ public clients.</p></td>
+</tr>
+<tr data-local-id=3D"c91804e5-16ff-46f2-a647-f11a168165d6">
+<td data-local-id=3D"071462b8-8828-454c-b0b9-d9ad1f4b4b2e" class=3D"conflue=
+nceTd">
+<p local-id=3D"9b07f147135c"><strong>PSD2 (Payment Services Directive 2)</s=
+trong></p></td>
+<td data-local-id=3D"def758a2-2acf-4ea8-afb6-6de61b153696" class=3D"conflue=
+nceTd">
+<p local-id=3D"799106b89ca6">European Union directive (2015/2366) that regu=
+lates payment services and payment service providers. Requires Strong Custo=
+mer Authentication (SCA) and explicit, transaction-specific user consent fo=
+r payment initiation.</p></td>
+</tr>
+<tr data-local-id=3D"ed2326f9-a7c0-48c1-860b-9029057a14fb">
+<td data-local-id=3D"0c9257e7-87b8-4569-8678-a6e825d7c38c" class=3D"conflue=
+nceTd">
+<p local-id=3D"e26c1cdf0f5e"><strong>Public Client</strong></p></td>
+<td data-local-id=3D"7b4c3728-5433-4a7a-a3e3-19fd59ba463c" class=3D"conflue=
+nceTd">
+<p local-id=3D"64beea02e430">An OAuth 2.0 client that cannot securely store=
+ a client secret =E2=80=94 typically a browser-based SPA or a mobile applic=
+ation. Public clients rely on PKCE rather than client credentials for secur=
+ity.</p></td>
+</tr>
+<tr data-local-id=3D"236f0615-c950-4afa-9ffa-e28ad8909636">
+<td data-local-id=3D"ff4a4ec5-a7fc-4c65-a8fd-6aa15ca6ffc8" class=3D"conflue=
+nceTd">
+<p local-id=3D"e7f409c39fd6"><strong>RAR (Rich Authorization Requests)</str=
+ong></p></td>
+<td data-local-id=3D"4e396d7f-e17c-404a-ba89-6a725a3dcccc" class=3D"conflue=
+nceTd">
+<p local-id=3D"c520b7d1a4d0">RFC 9396. An OAuth 2.0 extension that introduc=
+es the <code>authorization_details</code> parameter, enabling clients to sp=
+ecify fine-grained, structured authorization requests beyond what the <code=
+>scope</code> parameter can express.</p></td>
+</tr>
+<tr data-local-id=3D"aaef1c33-91cb-4b4a-8215-19738889c228">
+<td data-local-id=3D"5f5fc735-6aac-4f96-b4fe-6ef60affb386" class=3D"conflue=
+nceTd">
+<p local-id=3D"7cc8c4465de9"><strong>Redirect URI</strong></p></td>
+<td data-local-id=3D"fde10ce0-94c5-4a95-892c-35947a32d5a3" class=3D"conflue=
+nceTd">
+<p local-id=3D"2794ca51212a">The URI to which the AS redirects the user age=
+nt after the authorization step, carrying the authorization code (or error)=
+. Must be pre-registered with the AS.</p></td>
+</tr>
+<tr data-local-id=3D"9fd2669a-3489-4397-9a77-48daa0e56b18">
+<td data-local-id=3D"62c8fbd2-4d97-44f5-af2c-4fa06f6f4f24" class=3D"conflue=
+nceTd">
+<p local-id=3D"83d296293de5"><strong>request_uri</strong></p></td>
+<td data-local-id=3D"73560a0d-211c-4692-a963-c38b83ed877a" class=3D"conflue=
+nceTd">
+<p local-id=3D"45397455d51f">The opaque, short-lived URI returned by the AS=
+ in response to a PAR request. It serves as a reference to the stored Autho=
+rization Request and is the only parameter (besides <code>client_id</code>)=
+ required in the subsequent browser redirect.</p></td>
+</tr>
+<tr data-local-id=3D"5c0b2224-4de0-43e9-9a5d-1ae1f388d72b">
+<td data-local-id=3D"c35c5f21-ced9-4a54-85b1-7e989ecf8fea" class=3D"conflue=
+nceTd">
+<p local-id=3D"3750e55dc667"><strong>Resource Owner</strong></p></td>
+<td data-local-id=3D"d71c377b-6f1b-4595-b6fc-1d4ce0722a96" class=3D"conflue=
+nceTd">
+<p local-id=3D"d49fe39e498b">The entity (typically the end user) that owns =
+the protected resource and can grant access to it.</p></td>
+</tr>
+<tr data-local-id=3D"add16438-e59f-4038-bfcd-0c098717bf81">
+<td data-local-id=3D"471a82c4-762e-4898-8880-7120997d79e1" class=3D"conflue=
+nceTd">
+<p local-id=3D"fb696b5792c6"><strong>Resource Server (RS)</strong></p></td>
+<td data-local-id=3D"979a8887-ed6c-435a-9e75-276c52e93995" class=3D"conflue=
+nceTd">
+<p local-id=3D"15adc197ffcb">The server hosting the protected resources =E2=
+=80=94 in a banking context, the backend API that processes wire transfer r=
+equests, account queries, etc.</p></td>
+</tr>
+<tr data-local-id=3D"4007750a-6d66-4f3f-ae4a-5f7207674804">
+<td data-local-id=3D"f154fb44-2713-4774-a713-73eb88831957" class=3D"conflue=
+nceTd">
+<p local-id=3D"105201c48697"><strong>RTS (Regulatory Technical Standards)</=
+strong></p></td>
+<td data-local-id=3D"3ec24f1d-0c7c-4161-bbe6-12856afbf583" class=3D"conflue=
+nceTd">
+<p local-id=3D"d6dfa77faa77">Commission Delegated Regulation (EU) 2018/389,=
+ which specifies the technical requirements for Strong Customer Authenticat=
+ion and secure communication under PSD2.</p></td>
+</tr>
+<tr data-local-id=3D"87a7feac-32d4-4581-9ed1-7662e41de6bf">
+<td data-local-id=3D"23d9755d-ea4c-406d-b2fe-87ef65e1bb4d" class=3D"conflue=
+nceTd">
+<p local-id=3D"b61960e5af6d"><strong>SCA (Strong Customer Authentication)</=
+strong></p></td>
+<td data-local-id=3D"c90b73d0-d698-4fd4-a0df-5af5f6f23cc2" class=3D"conflue=
+nceTd">
+<p local-id=3D"65a29263f25b">An authentication procedure defined by PSD2 RT=
+S that requires the use of two or more independent authentication factors (=
+knowledge, possession, inherence) for payment initiation and account access=
+.</p></td>
+</tr>
+<tr data-local-id=3D"9f0a9350-e9ac-4f04-b2a4-55c81feb3ce8">
+<td data-local-id=3D"7743eb81-83b7-4c0a-9a59-f59538a5c1c4" class=3D"conflue=
+nceTd">
+<p local-id=3D"377688f4f48b"><strong>scope</strong></p></td>
+<td data-local-id=3D"dd300038-410c-425e-8963-a52e7d1f16e9" class=3D"conflue=
+nceTd">
+<p local-id=3D"535c15e611a0">The OAuth 2.0 mechanism for specifying the acc=
+ess permissions being requested. A space-separated string of identifiers (e=
+.g., <code>openid wire_transfer accounts:read</code>). Coarse-grained by de=
+sign; does not carry transaction-specific data.</p></td>
+</tr>
+<tr data-local-id=3D"337e4022-74bf-4f9e-830a-848ca5fd3eaa">
+<td data-local-id=3D"e03747f7-d364-4ee5-8434-57736a9f67fa" class=3D"conflue=
+nceTd">
+<p local-id=3D"5eea64e76dab"><strong>SPA (Single Page Application)</strong>=
+</p></td>
+<td data-local-id=3D"8ae98a5a-ee1e-4df8-813b-0f546cf847d7" class=3D"conflue=
+nceTd">
+<p local-id=3D"9986d34c27c7">A web application that loads a single HTML pag=
+e and dynamically updates content via JavaScript. SPAs are public OAuth 2.0=
+ clients and must use PKCE.</p></td>
+</tr>
+<tr data-local-id=3D"66cde706-3211-46a6-8ac5-d160a0c341d6">
+<td data-local-id=3D"eae6a9ff-605c-4b45-9a53-194f60790dc1" class=3D"conflue=
+nceTd">
+<p local-id=3D"94e9eb31bb17"><strong>TLS (Transport Layer Security)</strong=
+></p></td>
+<td data-local-id=3D"1a079a75-3d65-49b4-bb72-3551394dad52" class=3D"conflue=
+nceTd">
+<p local-id=3D"d104f8255ffe">The cryptographic protocol that provides confi=
+dentiality and integrity for network communications. HTTPS is HTTP over TLS=
+. TLS protects the content of HTTP request bodies but does not protect URLs=
+, which may be logged by intermediaries.</p></td>
+</tr>
+<tr data-local-id=3D"2afc1462-8b2e-4170-b72b-ddb8e773b2eb">
+<td data-local-id=3D"e8e1ab6b-779f-4cff-91eb-39907f2ba817" class=3D"conflue=
+nceTd">
+<p local-id=3D"d0748181418c"><strong>Token Binding</strong></p></td>
+<td data-local-id=3D"7131d374-fcee-4b18-8a18-27d858dc553f" class=3D"conflue=
+nceTd">
+<p local-id=3D"d5099f527fbd">The property by which an access token is crypt=
+ographically or semantically tied to a specific transaction intent. With RA=
+R, token binding is achieved by embedding <code>authorization_details</code=
+> as a claim in the issued token.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr local-id=3D"034f676e-9878-4601-bd33-a13b025c45f4">
+<h2 local-id=3D"0449268b6cee" id=3D"OAuth2.0SecurityPatterns=E2=80=94FromCo=
+arse-GrainedAuthorizationtotoFine-GrainedAuthorization-References{#referenc=
+es}">References {#references}</h2>
+<div class=3D"table-wrap">
+<table data-table-width=3D"760" data-layout=3D"default" data-local-id=3D"f8=
+8da265-322a-44c0-849f-f8eac4410dbd" class=3D"confluenceTable">
+<tbody>
+<tr data-local-id=3D"32377ba6-a608-444b-8c3c-6bc0b0c4c222">
+<th data-local-id=3D"4b67d3c6-f15d-4a5d-b74d-245fd2861676" class=3D"conflue=
+nceTh">
+<p local-id=3D"119e19ab1b1c">Reference</p></th>
+<th data-local-id=3D"2a29ed90-7a08-4e95-9f16-41550691c928" class=3D"conflue=
+nceTh">
+<p local-id=3D"204a8e6e27f9">Description</p></th>
+</tr>
+<tr data-local-id=3D"f9d425de-0c17-4515-aa94-f8b44a5eb916">
+<td data-local-id=3D"e8772041-084d-4b6f-8cd2-0609cb0b9817" class=3D"conflue=
+nceTd">
+<p local-id=3D"f3afb744c790"><a class=3D"external-link" href=3D"https://dat=
+atracker.ietf.org/doc/html/rfc6749" rel=3D"nofollow">RFC 6749</a></p></td>
+<td data-local-id=3D"2d0ece01-8456-489d-8d08-dd31d19831b3" class=3D"conflue=
+nceTd">
+<p local-id=3D"aff6851ffaf0">The OAuth 2.0 Authorization Framework</p></td>
+</tr>
+<tr data-local-id=3D"3f4c6720-e892-4123-a4c3-9a7a18e72df6">
+<td data-local-id=3D"c5e2ff40-30a8-4ee7-91b2-5fa0520aef6b" class=3D"conflue=
+nceTd">
+<p local-id=3D"fcab2d86f344"><a class=3D"external-link" href=3D"https://dat=
+atracker.ietf.org/doc/html/rfc6750" rel=3D"nofollow">RFC 6750</a></p></td>
+<td data-local-id=3D"d64008ba-8852-42a2-8e7b-f71b9e9663f1" class=3D"conflue=
+nceTd">
+<p local-id=3D"43e036b033c6">The OAuth 2.0 Authorization Framework: Bearer =
+Token Usage</p></td>
+</tr>
+<tr data-local-id=3D"1a7fd7cd-d8cf-4ed9-bf7b-7b86c88fb612">
+<td data-local-id=3D"393db6be-1341-4733-9aa0-ddd832120cfd" class=3D"conflue=
+nceTd">
+<p local-id=3D"e959529bef2c"><a class=3D"external-link" href=3D"https://dat=
+atracker.ietf.org/doc/html/rfc7636" rel=3D"nofollow">RFC 7636</a></p></td>
+<td data-local-id=3D"3307177f-9922-4d4c-a371-1af39477ecc6" class=3D"conflue=
+nceTd">
+<p local-id=3D"2911adf9154d">Proof Key for Code Exchange by OAuth Public Cl=
+ients (PKCE)</p></td>
+</tr>
+<tr data-local-id=3D"8bfb87dc-5d8c-4292-ad46-f94e349525f6">
+<td data-local-id=3D"4035e5ad-6a2c-4882-8814-dd6b8937edd7" class=3D"conflue=
+nceTd">
+<p local-id=3D"ee2b87f357ea"><a class=3D"external-link" href=3D"https://dat=
+atracker.ietf.org/doc/html/rfc9126" rel=3D"nofollow">RFC 9126</a></p></td>
+<td data-local-id=3D"fffb1ff1-7226-483b-b42d-5130a989d9e7" class=3D"conflue=
+nceTd">
+<p local-id=3D"9b69dd12ae94">OAuth 2.0 Pushed Authorization Requests (PAR)<=
+/p></td>
+</tr>
+<tr data-local-id=3D"d28e7342-fc28-4b35-88b1-b9a239c6042b">
+<td data-local-id=3D"ed588b48-efb8-4cc6-b99b-dad5e1e8876a" class=3D"conflue=
+nceTd">
+<p local-id=3D"2cc99af3b1c4"><a class=3D"external-link" href=3D"https://dat=
+atracker.ietf.org/doc/html/rfc9396" rel=3D"nofollow">RFC 9396</a></p></td>
+<td data-local-id=3D"cbee61b7-23e8-4b40-97ab-f2a5b3d5542f" class=3D"conflue=
+nceTd">
+<p local-id=3D"7108a0ec0619">OAuth 2.0 Rich Authorization Requests (RAR)</p=
+></td>
+</tr>
+<tr data-local-id=3D"6d9206a6-d64f-429b-ac6a-e319d863ab08">
+<td data-local-id=3D"8f992538-d0f7-4f66-a36e-0a04f93aa660" class=3D"conflue=
+nceTd">
+<p local-id=3D"113b0d3efc6a"><a class=3D"external-link" href=3D"https://ope=
+nid.net/specs/fapi-2_0-security-profile.html" rel=3D"nofollow">OpenID FAPI =
+2.0</a></p></td>
+<td data-local-id=3D"fd99c906-31c2-40a1-9e68-91a614655638" class=3D"conflue=
+nceTd">
+<p local-id=3D"7c77f8c6b32a">Financial-grade API Security Profile 2.0 =E2=
+=80=94 mandates PAR + RAR</p></td>
+</tr>
+<tr data-local-id=3D"d9e1bce8-9d55-4b98-b785-1d3b9898dba2">
+<td data-local-id=3D"94c78a15-de0a-4e53-9164-2dc69a461021" class=3D"conflue=
+nceTd">
+<p local-id=3D"1fbd0f9005d2"><a class=3D"external-link" href=3D"https://eur=
+-lex.europa.eu/legal-content/EN/TXT/?uri=3DCELEX:32018R0389" rel=3D"nofollo=
+w">PSD2 RTS =E2=80=94 EU 2018/389</a></p></td>
+<td data-local-id=3D"3bf7bff6-dd81-49e7-b9aa-b4cb4f148cf3" class=3D"conflue=
+nceTd">
+<p local-id=3D"5e588b31238f">Commission Delegated Regulation on Strong Cust=
+omer Authentication</p></td>
+</tr>
+<tr data-local-id=3D"418824e2-ab9b-45de-b6a5-219c5cd5d9af">
+<td data-local-id=3D"eb2152e3-b336-47d2-8da8-7790399486d6" class=3D"conflue=
+nceTd">
+<p local-id=3D"c0fec198e1ff"><a class=3D"external-link" href=3D"https://www=
+.berlin-group.org/nextgenpsd2-downloads" rel=3D"nofollow">Berlin Group Next=
+GenPSD2</a></p></td>
+<td data-local-id=3D"7e74de63-44d7-4161-84c6-544937baa820" class=3D"conflue=
+nceTd">
+<p local-id=3D"fc08d0ad797a">Open Banking API framework for PSD2 compliance=
+ in Europe</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+    </div>
+</body>
+</html>
+------=_Part_160_1739582117.1776070300600--
