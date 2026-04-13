@@ -1,9 +1,9 @@
 ```mermaid
 sequenceDiagram
     participant SPA as SPA (Public Client)
+    participant U as User Browser
     participant AS as Authorization Server (PingOne)
     participant PDP as PDP Component (PingAuthorize)
-    participant U as User Browser
     participant GW as API Gateway
     participant MS as Microservice (Wire Transfer)
     participant SAB as SAB Core Banking (Legacy)
@@ -12,23 +12,35 @@ sequenceDiagram
 
     SPA->>AS: GET /authorize?response_type=code<br/>&authorization_details=[{type:wire_transfer,<br/>amount:47500, creditorIBAN:FR76...}]<br/>&code_challenge=S256&scope=openid+wire_transfer
 
-    Note over AS: Parse authorization_details
-    Note over AS: Select policy and consent template
+    Note over AS: Structural validation only
+    Note over AS: authorization_details format valid ?
+    Note over AS: type wire_transfer supported ?
+    Note over AS: amount is a positive number ?
+    Note over AS: IBAN format valid ?
+    Note over AS: client_id allowed for this type ?
 
-    AS->>PDP: Evaluate authorization request<br/>{subject:user123, action:wire_transfer,<br/>transactionContext:{amount:47500,<br/>creditorIBAN:FR76..., debtorIBAN:FR76...}}
+    AS-->>U: Login page
 
-    Note over PDP: Enrich from PingOne<br/>(groups, daily_limit, approval_level)
+    Note over SPA,AS: Phase 2 - Authentication and Consent
+
+    U->>AS: Authenticate (credentials)
+
+    Note over AS: User is now identified
+    Note over AS: subject is known
+
+    AS->>PDP: Evaluate consent request<br/>{<br/>  subject: user123,<br/>  action: wire_transfer,<br/>  transactionContext: {<br/>    amount: 47500.00,<br/>    currency: EUR,<br/>    creditorIBAN: FR76...,<br/>    debtorIBAN: FR76...<br/>  }<br/>}
+
+    Note over PDP: Enrich from PingOne<br/>(groups, daily_limit)
     Note over PDP: Is the amount within daily limit ?
     Note over PDP: Is the creditor IBAN on a fraud watchlist ?
-    Note over PDP: Is dual approval required ?
 
-    PDP-->>AS: decision: allow + enriched context<br/>(consent details, required SCA level)
+    PDP-->>AS: decision: allow + consent details
 
     AS-->>U: Consent screen<br/>"Authorize EUR 47,500.00 to ACME Corp SAS<br/>(FR7630006000011234567890189) ?"
 
-    U->>AS: Authenticate + confirm
+    U->>AS: Confirm
 
-    Note over AS: Phase 2 - Token Issuance
+    Note over SPA,AS: Phase 3 - Token Issuance
 
     AS-->>SPA: 302 redirect ?code=AUTH_CODE
 
@@ -36,7 +48,7 @@ sequenceDiagram
 
     AS-->>SPA: access_token {<br/>  sub: user123,<br/>  scope: wire_transfer,<br/>  authorization_details: [{<br/>    type: wire_transfer,<br/>    amount: 47500.00,<br/>    creditorIBAN: FR76...,<br/>    debtorIBAN: FR76...<br/>  }]<br/>}
 
-    Note over SPA,SAB: Phase 3 - API Call and Policy Enforcement
+    Note over SPA,SAB: Phase 4 - API Call and Policy Enforcement
 
     SPA->>GW: POST /transfers<br/>(Bearer token + transaction body)
 
@@ -54,14 +66,13 @@ sequenceDiagram
     Note over MS: RAR Binding - token.creditorIBAN == body.creditorIBAN ?
     Note over MS: RAR Binding - token.debtorIBAN == body.debtorIBAN ?
 
-    MS-->>SPA: 403 if binding check fails
+    MS-->>SPA: 403 if RAR binding check fails
 
-    MS->>PDP: POST /v1/data/banking/transfers<br/>{<br/>  subject: user123,<br/>  action: wire_transfer,<br/>  transactionContext: {<br/>    amount: 47500.00,<br/>    currency: EUR,<br/>    creditorIBAN: FR76...,<br/>    debtorIBAN: FR76...,<br/>    remittanceInformation: Invoice 2024-089<br/>  },<br/>  runtimeContext: {<br/>    already_spent_today: 2000.00,<br/>    transaction_history_count: 3,<br/>    last_transfer_timestamp: 2026-04-13T08:32:00Z<br/>  }<br/>}
+    MS->>PDP: POST /v1/data/banking/transfers<br/>{<br/>  subject: user123,<br/>  action: wire_transfer,<br/>  transactionContext: {<br/>    amount: 47500.00,<br/>    currency: EUR,<br/>    creditorIBAN: FR76...,<br/>    debtorIBAN: FR76...<br/>  },<br/>  runtimeContext: {<br/>    already_spent_today: 2000.00,<br/>    transaction_history_count: 3<br/>  }<br/>}
 
-    Note over PDP: Enrich from PingOne<br/>(groups, daily_limit, approval_level)
+    Note over PDP: Enrich from PingOne<br/>(groups, daily_limit)
     Note over PDP: Policy 1 - Amount within daily limit ?
-    Note over PDP: Policy 2 - Dual approval required ?
-    Note over PDP: Policy 3 - Creditor IBAN not flagged ?
+    Note over PDP: Policy 2 - Creditor IBAN not flagged ?
 
     PDP-->>MS: decision: allow / deny + reason
 
