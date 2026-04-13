@@ -1,87 +1,72 @@
-```mermaid
 sequenceDiagram
-    participant SPA as SPA (Public Client)
-    participant U as User Browser
-    participant AS as Authorization Server (PingOne)
-    participant PDP as PDP Component (PingAuthorize)
-    participant GW as API Gateway
-    participant MS as Microservice (Wire Transfer)
-    participant SAB as SAB Core Banking (Legacy)
+participant SPA as SPA (Public Client)
+participant U as User Browser
+participant AS as Authorization Server (PingOne)
+participant PDP as PDP Component (PingAuthorize)
+participant GW as API Gateway
+participant MS as Microservice (Wire Transfer)
+participant SAB as SAB Core Banking (Legacy)
 
-    Note over SPA,AS: Phase 1 - Authorization Request with RAR
+Note over SPA,AS: Phase 1 - Authorization Request with RAR
 
-    SPA->>AS: GET /authorize?response_type=code<br/>&authorization_details=[{type:wire_transfer,<br/>amount:47500, creditorIBAN:FR76...}]<br/>&code_challenge=S256&scope=openid+wire_transfer
+SPA->>AS: GET /authorize?response_type=code<br/>&authorization_details=[{type:wire_transfer,<br/>amount:47500, creditorIBAN:FR76...}]<br/>&code_challenge=S256&scope=openid+wire_transfer
 
-    Note over AS: Structural validation only
-    Note over AS: authorization_details format valid ?
-    Note over AS: type wire_transfer supported ?
-    Note over AS: amount is a positive number ?
-    Note over AS: IBAN format valid ?
-    Note over AS: client_id allowed for this type ?
+Note over AS: client_id valid and active ?
+Note over AS: redirect_uri matches registered uri ?
+Note over AS: scope allowed for this client ?
+Note over AS: authorization_details type supported ?
 
-    AS-->>U: Login page
 
-    Note over SPA,AS: Phase 2 - Authentication and Consent
+Note over SPA,AS: Phase 2 - Authentication and Consent
 
-    U->>AS: Authenticate (credentials)
+U->>AS: Authenticate (credentials)
 
-    Note over AS: User is now identified
-    Note over AS: subject is known
+AS-->>U: Consent screen<br/>"Authorize EUR 47,500.00 to ACME Corp SAS<br/>(FR7630006000011234567890189) ?"
 
-    AS->>PDP: Evaluate consent request<br/>{<br/>  subject: user123,<br/>  action: wire_transfer,<br/>  transactionContext: {<br/>    amount: 47500.00,<br/>    currency: EUR,<br/>    creditorIBAN: FR76...,<br/>    debtorIBAN: FR76...<br/>  }<br/>}
+U->>AS: Confirm
 
-    Note over PDP: Enrich from PingOne<br/>(groups, daily_limit)
-    Note over PDP: Is the amount within daily limit ?
-    Note over PDP: Is the creditor IBAN on a fraud watchlist ?
+Note over SPA,AS: Phase 3 - Token Issuance
 
-    PDP-->>AS: decision: allow + consent details
+AS-->>SPA: 302 redirect ?code=AUTH_CODE
 
-    AS-->>U: Consent screen<br/>"Authorize EUR 47,500.00 to ACME Corp SAS<br/>(FR7630006000011234567890189) ?"
+SPA->>AS: POST /token<br/>(code + code_verifier)
 
-    U->>AS: Confirm
+AS-->>SPA: access_token {<br/>  sub: user123,<br/>  scope: wire_transfer,<br/>  authorization_details: [{<br/>    type: wire_transfer,<br/>    amount: 47500.00,<br/>    creditorIBAN: FR76...,<br/>    debtorIBAN: FR76...<br/>  }]<br/>}
 
-    Note over SPA,AS: Phase 3 - Token Issuance
+Note over SPA,SAB: Phase 4 - API Call and Policy Enforcement
 
-    AS-->>SPA: 302 redirect ?code=AUTH_CODE
+SPA->>GW: POST /transfers<br/>(Bearer token + transaction body)
 
-    SPA->>AS: POST /token<br/>(code + code_verifier)
+Note over GW: Check 1 - JWT signature valid ?
+Note over GW: Check 2 - Token not expired ?
+Note over GW: Check 3 - Audience matches this service ?
+Note over GW: Check 4 - Scope wire_transfer present ?
 
-    AS-->>SPA: access_token {<br/>  sub: user123,<br/>  scope: wire_transfer,<br/>  authorization_details: [{<br/>    type: wire_transfer,<br/>    amount: 47500.00,<br/>    creditorIBAN: FR76...,<br/>    debtorIBAN: FR76...<br/>  }]<br/>}
+GW-->>SPA: 401 if any technical check fails
 
-    Note over SPA,SAB: Phase 4 - API Call and Policy Enforcement
+GW->>MS: Forward request (token + body)
 
-    SPA->>GW: POST /transfers<br/>(Bearer token + transaction body)
+Note over MS: Re-validate JWT independently
+Note over MS: RAR Binding - token.amount == body.amount ?
+Note over MS: RAR Binding - token.creditorIBAN == body.creditorIBAN ?
+Note over MS: RAR Binding - token.debtorIBAN == body.debtorIBAN ?
 
-    Note over GW: Check 1 - JWT signature valid ?
-    Note over GW: Check 2 - Token not expired ?
-    Note over GW: Check 3 - Audience matches this service ?
-    Note over GW: Check 4 - Scope wire_transfer present ?
+MS-->>SPA: 403 if RAR binding check fails
 
-    GW-->>SPA: 401 if any technical check fails
+MS->>PDP: Create transfer request<br/>{<br/>  subject: user123,<br/>  action: wire_transfer,<br/>  transactionContext: {<br/>    amount: 47500.00,<br/>    currency: EUR,<br/>    creditorIBAN: FR76...,<br/>    debtorIBAN: FR76...<br/>  },<br/>  runtimeContext: {<br/>    already_spent_today: 2000.00,<br/>    transaction_history_count: 3<br/>  }<br/>}
 
-    GW->>MS: Forward request (token + body)
+Note over PDP: Enrich from PingOne<br/>(groups, daily_limit)
+Note over PDP: Policy 1 - Amount within daily limit ?
+Note over PDP: Policy 2 - Creditor IBAN not flagged ?
+Note over PDP: Policy 3 - User in the Autorized group ?
 
-    Note over MS: Re-validate JWT independently
-    Note over MS: RAR Binding - token.amount == body.amount ?
-    Note over MS: RAR Binding - token.creditorIBAN == body.creditorIBAN ?
-    Note over MS: RAR Binding - token.debtorIBAN == body.debtorIBAN ?
+PDP-->>MS: decision: allow / deny + reason
 
-    MS-->>SPA: 403 if RAR binding check fails
+MS-->>SPA: 403 + reason if PDP denies
 
-    MS->>PDP: POST /v1/data/banking/transfers<br/>{<br/>  subject: user123,<br/>  action: wire_transfer,<br/>  transactionContext: {<br/>    amount: 47500.00,<br/>    currency: EUR,<br/>    creditorIBAN: FR76...,<br/>    debtorIBAN: FR76...<br/>  },<br/>  runtimeContext: {<br/>    already_spent_today: 2000.00,<br/>    transaction_history_count: 3<br/>  }<br/>}
-
-    Note over PDP: Enrich from PingOne<br/>(groups, daily_limit)
-    Note over PDP: Policy 1 - Amount within daily limit ?
-    Note over PDP: Policy 2 - Creditor IBAN not flagged ?
-
-    PDP-->>MS: decision: allow / deny + reason
-
-    MS-->>SPA: 403 + reason if PDP denies
-
-    MS->>SAB: Initiate transfer (all checks passed)
-    Note over SAB: Trusted legacy system
-    Note over SAB: Outside OAuth2 perimeter
-    Note over SAB: Called via internal service account
-    SAB-->>MS: Transfer confirmed
-    MS-->>SPA: 200 Transfer initiated
-```
+MS->>SAB: Initiate transfer (all checks passed)
+Note over SAB: Trusted legacy system
+Note over SAB: Outside OAuth2 perimeter
+Note over SAB: Called via internal service account
+SAB-->>MS: Transfer confirmed
+MS-->>SPA: 200 Transfer initiated
