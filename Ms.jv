@@ -1,0 +1,36 @@
+import java.awt.Robot;
+import java.awt.AWTException;
+import java.awt.MouseInfo;
+import java.awt.Point;
+import java.util.Random;
+
+public class MouseMover {
+
+    public static void main(String[] args) {
+        try {
+            Robot robot = new Robot();
+            Random random = new Random();
+
+            while (true) {
+                // Position actuelle de la souris
+                Point mouseLocation = MouseInfo.getPointerInfo().getLocation();
+
+                // Générer un petit déplacement aléatoire (-50 à +50 pixels)
+                int deltaX = random.nextInt(101) - 50;
+                int deltaY = random.nextInt(101) - 50;
+
+                int newX = (int) mouseLocation.getX() + deltaX;
+                int newY = (int) mouseLocation.getY() + deltaY;
+
+                // Déplacer la souris
+                robot.mouseMove(newX, newY);
+
+                // Attendre 10 secondes
+                Thread.sleep(10000);
+            }
+
+        } catch (AWTException | InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
