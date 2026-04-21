@@ -1,5 +1,20 @@
+--------schema.ldif--------
+dn: cn=schema
+changetype: modify
+add: attributeTypes
+attributeTypes: ( 1.3.6.1.4.1.99999.1 NAME 'ibanAccount' DESC 'IBAN Account Number' EQUALITY caseIgnoreMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 SINGLE-VALUE )
+
+dn: cn=schema
+changetype: modify
+add: objectClasses
+objectClasses: ( 1.3.6.1.4.1.99999.2 NAME 'bankingPerson' DESC 'Banking Person' SUP top AUXILIARY MAY ibanAccount )
+----------------
+docker cp schema.ldif ping-pingdirectory-1:/tmp/schema.ldif
+docker cp init-directory.ldif ping-pingdirectory-1:/tmp/init-directory.ldif
+
 docker cp init-directory.ldif ping-pingdirectory-1:/tmp/init-directory.ldif
 docker exec ping-pingdirectory-1 ldapmodify --hostname localhost --port 1636 --useSSL --trustAll --bindDN "cn=administrator" --bindPassword 2FederateM0re --defaultAdd --filename /tmp/init-directory.ldif
 
 docker exec ping-pingdirectory-1 ldapsearch --hostname localhost --port 1636 --useSSL --trustAll --bindDN "cn=administrator" --bindPassword 2FederateM0re --baseDN "dc=example,dc=com" --searchScope sub "(objectClass=*)" dn
+
 
