@@ -1,0 +1,22 @@
+{
+  "scope": "openid payment:read banking_transfer",
+  "authorization_details": [
+    {
+      "type": "banking_transfer",
+      "amount": 765600,
+      "currency": "EUR",
+      "label": "blablabla",
+      "iban": "FR7630006000011234567890189"
+    }
+  ],
+  "client_id": "banking-spa",
+  "iss": "https://localhost:9031",
+  "aud": "https://api.payment-poc.com",
+  "iat": 1776760274,
+  "jti": "A7emXT3rtP03P6YETtxZJE",
+  "ibanAccount": "FR7630006000011234567890189",
+  "groups": [
+    "CUSTOMERS"
+  ],
+  "exp": 1776767474
+}
