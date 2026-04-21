@@ -1,4 +1,3 @@
-# Structure de base
 dn: dc=example,dc=com
 objectClass: top
 objectClass: domain
@@ -14,36 +13,34 @@ objectClass: top
 objectClass: organizationalUnit
 ou: Groups
 
-# Utilisateur Customer_1
 dn: uid=Customer_1,ou=People,dc=example,dc=com
 objectClass: top
 objectClass: person
 objectClass: inetOrgPerson
+objectClass: bankingPerson
 uid: Customer_1
 cn: Customer_1
 sn: Customer
 userPassword: Password1234!
 ibanAccount: FR7630006000011234567890189
 
-# Utilisateur Approbateur_1
 dn: uid=Approbateur_1,ou=People,dc=example,dc=com
 objectClass: top
 objectClass: person
 objectClass: inetOrgPerson
+objectClass: bankingPerson
 uid: Approbateur_1
 cn: Approbateur_1
 sn: Approbateur
 userPassword: Password1234!
 ibanAccount: FR7630004000031234567890143
 
-# Groupe CUSTOMERS
 dn: cn=CUSTOMERS,ou=Groups,dc=example,dc=com
 objectClass: top
 objectClass: groupOfNames
 cn: CUSTOMERS
 member: uid=Customer_1,ou=People,dc=example,dc=com
 
-# Groupe APPROVERS
 dn: cn=APPROVERS,ou=Groups,dc=example,dc=com
 objectClass: top
 objectClass: groupOfNames
