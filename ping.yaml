@@ -1,0 +1,52 @@
+services:
+
+  pingfederate:
+    image: pingidentity/pingfederate:edge
+    ports:
+      - "9031:9031"
+      - "9999:9999"
+    environment:
+      - PING_IDENTITY_ACCEPT_EULA=YES
+    volumes:
+      - d:/tmp/PingFederate-13.0-Development.lic:/opt/in/instance/server/default/conf/pingfederate.lic
+    depends_on:
+      - pingdirectory
+
+  pingdirectory:
+    image: pingidentity/pingdirectory:edge
+    ports:
+      - "1389:1389"
+      - "1636:1636"
+      - "1443:1443"
+    environment:
+      - PING_IDENTITY_ACCEPT_EULA=YES
+      - ROOT_USER_PASSWORD=2FederateM0re
+    volumes:
+      - d:/tmp/PingDirectory-11.0.0.0-Development.lic:/opt/staging/pd.profile/server-root/pre-setup/PingDirectory.lic
+
+  pingdataconsole:
+    image: pingidentity/pingdataconsole:edge
+    ports:
+      - "8443:8443"
+    environment:
+      - PING_IDENTITY_ACCEPT_EULA=YES
+
+  pingauthorize:
+    image: pingidentity/pingauthorize:edge
+    ports:
+      - "7443:7443"
+    environment:
+      - PING_IDENTITY_ACCEPT_EULA=YES
+    volumes:
+      - d:/tmp/PingAuthorize-11.0.0.0-Development.lic:/opt/staging/pd.profile/server-root/pre-setup/PingAuthorize.lic
+    depends_on:
+      - pingdirectory
+
+  pingauthorizepap:
+    image: pingidentity/pingauthorizepap:edge
+    ports:
+      - "9443:9443"
+    environment:
+      - PING_IDENTITY_ACCEPT_EULA=YES
+    volumes:
+      - d:/tmp/PingAuthorize-11.0.0.0-Development.lic:/opt/staging/pd.profile/server-root/pre-setup/PingAuthorize.lic
