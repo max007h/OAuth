@@ -14,7 +14,7 @@ docker exec ping-pingdirectory-1 ldapmodify --hostname localhost --port 1636 --u
 
 
 docker cp init-directory.ldif ping-pingdirectory-1:/tmp/init-directory.ldif
-docker exec ping-pingdirectory-1 ldapmodify --hostname localhost --port 1636 --useSSL --trustAll --bindDN "cn=administrator" --bindPassword 2FederateM0re --defaultAdd --filename /tmp/init-directory.ldif
+docker exec ping-pingdirectory-1 ldapmodify --hostname localhost --port 1636 --useSSL --trustAll --bindDN "cn=administrator" --bindPassword 2FederateM0re --defaultAdd --filename /tmp/init-directory.ldif --continueOnError
 
 docker exec ping-pingdirectory-1 ldapsearch --hostname localhost --port 1636 --useSSL --trustAll --bindDN "cn=administrator" --bindPassword 2FederateM0re --baseDN "dc=example,dc=com" --searchScope sub "(objectClass=*)" dn
 
