@@ -1,1 +1,337 @@
 
+Step 1 — PKCE Generation (Client-side)
+code_verifier  = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+code_challenge = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+method         = "S256"
+state          = "abc123xyz"
+nonce          = "n-0S6_WzA2Mj"
+Step 2 — GET /authorize
+Request
+GET /as/authorize
+  ?response_type=code
+  &client_id=banking-spa
+  &redirect_uri=http%3A%2F%2Flocalhost%3A4200%2Fcallback
+  &scope=openid%20wire_transfer
+  &state=abc123xyz
+  &nonce=n-0S6_WzA2Mj
+  &code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+  &code_challenge_method=S256
+  &authorization_details=%5B%7B%22type%22%3A%22banking_transfer%22%2C%22instructedAmount%22%3A%7B%22currency%22%3A%22EUR%22%2C%22amount%22%3A%227656.00%22%7D%2C%22creditorAccount%22%3A%7B%22iban%22%3A%22FR7630006000011234567890189%22%7D%2C%22creditorName%22%3A%22ACME%20Corp%20SAS%22%2C%22debtorAccount%22%3A%7B%22iban%22%3A%22FR7630004000031234567890143%22%7D%2C%22remittanceInformation%22%3A%22Invoice%202024-089%22%7D%5D
+  HTTP/1.1
+Host: localhost:9031
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en-US,en;q=0.5
+Accept-Encoding: gzip, deflate, br
+Connection: keep-alive
+Upgrade-Insecure-Requests: 1
+Sec-Fetch-Dest: document
+Sec-Fetch-Mode: navigate
+Sec-Fetch-Site: cross-site
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Angular/17.0
+Response
+HTTP/1.1 302 Found
+Content-Type: text/html;charset=UTF-8
+Location: https://localhost:9031/as/resume/as/authorization.ping
+Set-Cookie: PF=abc123sessiontoken; Path=/; Secure; HttpOnly; SameSite=None
+Set-Cookie: PF_AUTHN_REF=ref_xyz789; Path=/; Secure; HttpOnly
+X-Frame-Options: SAMEORIGIN
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 1; mode=block
+Cache-Control: no-cache, no-store
+Pragma: no-cache
+Content-Length: 0
+Step 3 — GET /as/resume (Login Page redirect)
+Request (Browser follows redirect)
+GET /as/resume/as/authorization.ping HTTP/1.1
+Host: localhost:9031
+Accept: text/html,application/xhtml+xml
+Accept-Encoding: gzip, deflate, br
+Connection: keep-alive
+Cookie: PF=abc123sessiontoken; PF_AUTHN_REF=ref_xyz789
+Sec-Fetch-Dest: document
+Sec-Fetch-Mode: navigate
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)
+Referer: http://localhost:4200/
+Response — PingFederate serves Login page
+HTTP/1.1 200 OK
+Content-Type: text/html;charset=UTF-8
+X-Frame-Options: SAMEORIGIN
+X-Content-Type-Options: nosniff
+Cache-Control: no-cache, no-store, must-revalidate
+Pragma: no-cache
+Expires: 0
+Set-Cookie: PF=abc123sessiontoken; Path=/; Secure; HttpOnly
+Content-Length: 4821
+
+<html>... Login form ...</html>
+Step 4 — POST /idp/startSSO (Credentials submission)
+Request
+POST /idp/startSSO.ping HTTP/1.1
+Host: localhost:9031
+Content-Type: application/x-www-form-urlencoded
+Accept: text/html,application/xhtml+xml
+Accept-Encoding: gzip, deflate, br
+Connection: keep-alive
+Cookie: PF=abc123sessiontoken; PF_AUTHN_REF=ref_xyz789
+Referer: https://localhost:9031/as/resume/as/authorization.ping
+Origin: https://localhost:9031
+Sec-Fetch-Dest: document
+Sec-Fetch-Mode: navigate
+Sec-Fetch-Site: same-origin
+Content-Length: 52
+
+username=Customer_1&password=Password1!&ok=Sign+In
+Response — Redirect to Consent Screen
+HTTP/1.1 302 Found
+Location: https://localhost:9031/as/resume/as/authorization.ping
+Set-Cookie: PF=newSessionToken_afterAuthn; Path=/; Secure; HttpOnly; SameSite=None
+Set-Cookie: PF_SSO=ssoToken_Customer1; Path=/; Secure; HttpOnly
+X-Frame-Options: SAMEORIGIN
+Cache-Control: no-cache, no-store
+Content-Length: 0
+Step 5 — GET /as/resume (Consent Screen)
+Request
+GET /as/resume/as/authorization.ping HTTP/1.1
+Host: localhost:9031
+Accept: text/html,application/xhtml+xml
+Cookie: PF=newSessionToken_afterAuthn; PF_SSO=ssoToken_Customer1
+Referer: https://localhost:9031/idp/startSSO.ping
+Sec-Fetch-Dest: document
+Sec-Fetch-Mode: navigate
+Response — Consent Screen HTML
+HTTP/1.1 200 OK
+Content-Type: text/html;charset=UTF-8
+X-Frame-Options: SAMEORIGIN
+X-Content-Type-Options: nosniff
+Cache-Control: no-cache, no-store
+Set-Cookie: PF=newSessionToken_afterAuthn; Path=/; Secure; HttpOnly
+
+<html>
+  <!-- PingFederate Consent Screen -->
+  <!-- "Authorize EUR 7,656.00 to ACME Corp SAS (FR7630006000011234567890189)?" -->
+  <!-- ✓ ACCESS TO YOUR IDENTITY                -->
+  <!-- ✓ VIEW YOUR PAYMENTS                     -->
+  <!-- ✓ BANK TRANSFER AUTHORIZATION            -->
+  <!-- ✓ TRANSFER 7656.00 EUR TO FR763000...    -->
+  <!-- [Allow]  [Don't Allow]                   -->
+</html>
+Step 6 — POST /as/resume (User clicks Allow)
+Request
+POST /as/resume/as/authorization.ping HTTP/1.1
+Host: localhost:9031
+Content-Type: application/x-www-form-urlencoded
+Accept: text/html,application/xhtml+xml
+Cookie: PF=newSessionToken_afterAuthn; PF_SSO=ssoToken_Customer1
+Referer: https://localhost:9031/as/resume/as/authorization.ping
+Origin: https://localhost:9031
+Sec-Fetch-Dest: document
+Sec-Fetch-Mode: navigate
+Sec-Fetch-Site: same-origin
+Content-Length: 28
+
+consent=approved&scope=openid+wire_transfer
+Response — Redirect with AUTH_CODE
+HTTP/1.1 302 Found
+Location: http://localhost:4200/callback
+  ?code=SplxlOBeZQQYbYS6WxSbIA_K9mP2xR
+  &state=abc123xyz
+Cache-Control: no-cache, no-store
+X-Frame-Options: SAMEORIGIN
+Content-Length: 0
+Step 7 — POST /as/token.oauth2 (Code Exchange)
+Request
+POST /as/token.oauth2 HTTP/1.1
+Host: localhost:9031
+Content-Type: application/x-www-form-urlencoded
+Accept: application/json
+Accept-Encoding: gzip, deflate, br
+Connection: keep-alive
+Origin: http://localhost:4200
+Content-Length: 198
+
+grant_type=authorization_code
+&code=SplxlOBeZQQYbYS6WxSbIA_K9mP2xR
+&redirect_uri=http%3A%2F%2Flocalhost%3A4200%2Fcallback
+&client_id=banking-spa
+&code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+Response
+HTTP/1.1 200 OK
+Content-Type: application/json;charset=UTF-8
+Cache-Control: no-store
+Pragma: no-cache
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+Content-Length: 1876
+
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJDdXN0b21lcl8xIiwiaXNzIjoiaHR0cHM6Ly9sb2NhbGhvc3Q6OTAzMSIsImF1ZCI6ImJhbmtpbmctYXBpIiwiZXhwIjoxNzQ1MzIzMjAwLCJpYXQiOjE3NDUzMTk2MDAsInNjb3BlIjoib3BlbmlkIHdpcmVfdHJhbnNmZXIiLCJncm91cHMiOlsiY249Q1VTVE9NRVJTLG91PWdyb3VwcyxkYz1leGFtcGxlLGRjPWNvbSJdLCJpYmFuQWNjb3VudCI6IkZSNzYzMDAwNDAwMDAzMTIzNDU2Nzg5MDE0MyIsImF1dGhvcml6YXRpb25fZGV0YWlscyI6W3sidHlwZSI6ImJhbmtpbmdfdHJhbnNmZXIiLCJpbnN0cnVjdGVkQW1vdW50Ijp7ImN1cnJlbmN5IjoiRVVSIiwiYW1vdW50IjoiNzY1Ni4wMCJ9LCJjcmVkaXRvckFjY291bnQiOnsiaWJhbiI6IkZSNzYzMDAwNjAwMDAxMTIzNDU2Nzg5MDE4OSJ9LCJjcmVkaXRvck5hbWUiOiJBQ01FIENvcnAgU0FTIiwiZGVidG9yQWNjb3VudCI6eyJpYmFuIjoiRlI3NjMwMDA0MDAwMDMxMjM0NTY3ODkwMTQzIn0sInJlbWl0dGFuY2VJbmZvcm1hdGlvbiI6Ikludm9pY2UgMjAyNC0wODkifV19.signature",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "scope": "openid wire_transfer",
+  "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InBmLXNpZ25pbmcta2V5LTEifQ.eyJzdWIiOiJDdXN0b21lcl8xIiwiaXNzIjoiaHR0cHM6Ly9sb2NhbGhvc3Q6OTAzMSIsImF1ZCI6ImJhbmtpbmctc3BhIiwiZXhwIjoxNzQ1MzIzMjAwLCJpYXQiOjE3NDUzMTk2MDAsIm5vbmNlIjoibi0wUzZfV3pBMk1qIiwiYXV0aF90aW1lIjoxNzQ1MzE5NTAwLCJuYW1lIjoiQ3VzdG9tZXIgT25lIn0.signature",
+  "authorization_details": [
+    {
+      "type": "banking_transfer",
+      "instructedAmount": {
+        "currency": "EUR",
+        "amount": "7656.00"
+      },
+      "creditorAccount": {
+        "iban": "FR7630006000011234567890189"
+      },
+      "creditorName": "ACME Corp SAS",
+      "debtorAccount": {
+        "iban": "FR7630004000031234567890143"
+      },
+      "remittanceInformation": "Invoice 2024-089"
+    }
+  ]
+}
+JWT Access Token Decoded
+HEADER:
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}
+
+PAYLOAD:
+{
+  "sub": "Customer_1",
+  "iss": "https://localhost:9031",
+  "aud": "banking-api",
+  "exp": 1745323200,
+  "iat": 1745319600,
+  "jti": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "scope": "openid wire_transfer",
+  "client_id": "banking-spa",
+  "groups": [
+    "cn=CUSTOMERS,ou=groups,dc=example,dc=com"
+  ],
+  "ibanAccount": "FR7630004000031234567890143",
+  "authorization_details": [
+    {
+      "type": "banking_transfer",
+      "instructedAmount": {
+        "currency": "EUR",
+        "amount": "7656.00"
+      },
+      "creditorAccount": {
+        "iban": "FR7630006000011234567890189"
+      },
+      "creditorName": "ACME Corp SAS",
+      "debtorAccount": {
+        "iban": "FR7630004000031234567890143"
+      },
+      "remittanceInformation": "Invoice 2024-089"
+    }
+  ]
+}
+Step 8 — POST /api/transfers (Resource Server — Spring Boot)
+Request
+POST /api/transfers HTTP/1.1
+Host: localhost:8080
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+Accept: application/json
+Accept-Encoding: gzip, deflate, br
+Origin: http://localhost:4200
+Referer: http://localhost:4200/payments
+X-Request-ID: req-7f3a9b12-cc4e-4d1a-b8f2-123456789abc
+Content-Length: 312
+
+{
+  "instructedAmount": {
+    "currency": "EUR",
+    "amount": "7656.00"
+  },
+  "creditorAccount": {
+    "iban": "FR7630006000011234567890189"
+  },
+  "creditorName": "ACME Corp SAS",
+  "debtorAccount": {
+    "iban": "FR7630004000031234567890143"
+  },
+  "remittanceInformation": "Invoice 2024-089"
+}
+Step 9 — POST /decisionEndpoints/{id} (PingOne Authorize — PDP)
+Request (Spring Boot → PingAuthorize)
+POST /api/decisionEndpoints/dev-transfer-policy-endpoint/decision HTTP/1.1
+Host: localhost:7443
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...workertoken...
+Content-Type: application/json
+Accept: application/json
+X-Request-ID: pdp-req-7f3a9b12
+Content-Length: 487
+
+{
+  "decisionRequest": {
+    "subject": {
+      "type": "User",
+      "payload": {
+        "sub": "Customer_1",
+        "groups": [
+          "cn=CUSTOMERS,ou=groups,dc=example,dc=com"
+        ],
+        "ibanAccount": "FR7630004000031234567890143"
+      }
+    },
+    "resource": {
+      "type": "BankTransfer",
+      "payload": {
+        "amount": "7656.00",
+        "currency": "EUR",
+        "creditorIban": "FR7630006000011234567890189",
+        "debtorIban": "FR7630004000031234567890143"
+      }
+    },
+    "action": {
+      "type": "Action",
+      "payload": {
+        "actionType": "INITIATE_TRANSFER"
+      }
+    }
+  }
+}
+Response (PingAuthorize → Spring Boot)
+HTTP/1.1 200 OK
+Content-Type: application/json
+X-Request-ID: pdp-req-7f3a9b12
+Cache-Control: no-store
+Content-Length: 198
+
+{
+  "decision": "PERMIT",
+  "obligations": [],
+  "statements": {
+    "dailyLimitRemaining": "43344.00",
+    "requiresDualApproval": false,
+    "userGroup": "CUSTOMERS",
+    "debtorIbanVerified": true
+  }
+}
+Step 10 — Final Response (Spring Boot → Angular SPA)
+HTTP/1.1 200 OK
+Content-Type: application/json
+X-Request-ID: req-7f3a9b12-cc4e-4d1a-b8f2-123456789abc
+Cache-Control: no-store
+Access-Control-Allow-Origin: http://localhost:4200
+Access-Control-Allow-Credentials: true
+Content-Length: 234
+
+{
+  "transferId": "TXN-2024-089-XK7",
+  "status": "INITIATED",
+  "instructedAmount": {
+    "currency": "EUR",
+    "amount": "7656.00"
+  },
+  "creditorAccount": {
+    "iban": "FR7630006000011234567890189"
+  },
+  "creditorName": "ACME Corp SAS",
+  "debtorAccount": {
+    "iban": "FR7630004000031234567890143"
+  },
+  "remittanceInformation": "Invoice 2024-089",
+  "timestamp": "2026-04-22T11:28:00Z"
+}
