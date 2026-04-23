@@ -118,6 +118,15 @@
 
   <div class="section">
     <h2>3. Docker Infrastructure</h2>
+    <p>
+      Docker Compose was chosen as the deployment method for this POC for several reasons.
+      First, the PingIdentity suite requires multiple interdependent services to run simultaneously, and Docker Compose makes it straightforward to define and orchestrate them in a single file.
+      Second, it allows the entire stack to be reproduced consistently across different machines — Windows or macOS — without manual installation of each component.
+      Third, PingIdentity provides official Docker images for all its products, which significantly reduces setup time and configuration effort.
+      Fourth, environment variables and volume mounts make it easy to inject license files and custom configurations without modifying the images.
+      Fifth, the <code>depends_on</code> directive ensures PingFederate and PingAuthorize only start after PingDirectory is ready, which is critical for LDAP connectivity.
+      Finally, this approach closely mirrors a real enterprise deployment, making the POC findings directly transferable to production-grade infrastructure decisions.
+    </p>
     <table class="infra-table">
       <thead>
         <tr>
