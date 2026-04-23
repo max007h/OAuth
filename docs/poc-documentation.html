@@ -173,6 +173,94 @@
 
 </div>
 
+  <div class="section">
+    <h2>4. Starting the Stack</h2>
+
+    <h3>Prerequisites</h3>
+    <p>Before starting, place the following license files in <code>/tmp/</code> on the host machine:</p>
+    <table class="infra-table">
+      <thead><tr><th>File</th><th>Used by</th></tr></thead>
+      <tbody>
+        <tr><td><code>PingFederate-13.0.0-Development.lic</code></td><td>PingFederate</td></tr>
+        <tr><td><code>PingDirectory-11.0.0.0-Development.lic</code></td><td>PingDirectory + PingAuthorize + PAP</td></tr>
+      </tbody>
+    </table>
+
+    <h3>docker-compose.yml</h3>
+    <pre style="background:#f4f5f7;border:1px solid #dfe1e6;border-radius:6px;padding:16px;font-size:13px;overflow-x:auto;line-height:1.6">services:
+
+  pingfederate:
+    image: pingidentity/pingfederate:edge
+    ports:
+      - "9031:9031"
+      - "9999:9999"
+    environment:
+      - PING_IDENTITY_ACCEPT_EULA=YES
+    volumes:
+      - /tmp/PingFederate-13.0.0-Development.lic:/opt/in/instance/server/default/conf/pingfederate.lic
+    depends_on:
+      - pingdirectory
+
+  pingdirectory:
+    image: pingidentity/pingdirectory:edge
+    ports:
+      - "1389:1389"
+      - "1636:1636"
+      - "1443:1443"
+    environment:
+      - PING_IDENTITY_ACCEPT_EULA=YES
+      - ROOT_USER_PASSWORD=2FederateM0re
+    volumes:
+      - /tmp/PingDirectory-11.0.0.0-Development.lic:/opt/staging/pd.profile/server-root/pre-setup/PingDirectory.lic
+
+  pingdataconsole:
+    image: pingidentity/pingdataconsole:edge
+    ports:
+      - "8443:8443"
+    environment:
+      - PING_IDENTITY_ACCEPT_EULA=YES
+
+  pingauthorize:
+    image: pingidentity/pingauthorize:edge
+    ports:
+      - "7443:7443"
+    environment:
+      - PING_IDENTITY_ACCEPT_EULA=YES
+    volumes:
+      - /tmp/PingAuthorize-11.0.0.0-Development.lic:/opt/staging/pd.profile/server-root/pre-setup/PingAuthorize.lic
+    depends_on:
+      - pingdirectory
+
+  pingauthorizepap:
+    image: pingidentity/pingauthorizepap:edge
+    ports:
+      - "9443:9443"
+    environment:
+      - PING_IDENTITY_ACCEPT_EULA=YES
+    volumes:
+      - /tmp/PingAuthorize-11.0.0.0-Development.lic:/opt/staging/pd.profile/server-root/pre-setup/PingAuthorize.lic</pre>
+
+    <h3>Start the stack</h3>
+    <pre style="background:#172b4d;color:#e3fcef;border-radius:6px;padding:16px;font-size:13px;line-height:1.8"># Start all containers in background
+docker-compose -f ping.yaml up -d
+
+# Verify all 5 containers are running
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"</pre>
+
+    <h3>Expected result</h3>
+    <table class="infra-table">
+      <thead><tr><th>Container</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><code>env-pingfederate-1</code></td><td>Up (healthy)</td></tr>
+        <tr><td><code>env-pingauthorize-1</code></td><td>Up (healthy)</td></tr>
+        <tr><td><code>env-pingauthorizepap-1</code></td><td>Up (healthy)</td></tr>
+        <tr><td><code>env-pingdirectory-1</code></td><td>Up (healthy)</td></tr>
+        <tr><td><code>env-pingdataconsole-1</code></td><td>Up (healthy)</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:16px">⚠️ Containers take approximately <strong>2-3 minutes</strong> to fully initialize. Wait until all show <code>healthy</code> before proceeding with configuration.</p>
+  </div>
+
 <footer>POC OAuth2 RAR+PAR — PingIdentity Self-Hosted · Internal Documentation</footer>
 
 </body>
