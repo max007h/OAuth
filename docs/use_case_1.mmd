@@ -1,0 +1,52 @@
+flowchart TD
+    subgraph Actors
+        C1([Customer_1])
+        C2([Customer_2])
+        AP([Approbateur_1])
+    end
+
+    subgraph Angular SPA
+        LOGIN[Login via PingFederate]
+        VIEW_OWN[View Own Transfers]
+        INIT_TRANSFER[Initiate Wire Transfer / Payment]
+        VIEW_PENDING[View Pending Approvals]
+        APPROVE[Approve / Reject Transfer]
+    end
+
+    subgraph OAuth2 Flow
+        PAR[PAR - Pushed Authorization Request]
+        RAR[RAR - Rich Authorization Request]
+        TOKEN[JWT Access Token\nibanAccount + groups + authorization_details]
+    end
+
+    subgraph Backend
+        SPRING[Spring Boot Resource Server]
+        PDP[PingAuthorize PDP\nPolicy Decision Point]
+        LDAP[PingDirectory LDAP\nUser Store]
+    end
+
+    C1 --> LOGIN
+    C2 --> LOGIN
+    AP --> LOGIN
+
+    LOGIN --> PAR
+    PAR --> RAR
+    RAR --> TOKEN
+
+    C1 --> VIEW_OWN
+    C2 --> VIEW_OWN
+    VIEW_OWN --> SPRING
+    SPRING -->|validate token| TOKEN
+    SPRING -->|check policy| PDP
+    PDP -->|get user attributes| LDAP
+
+    C1 --> INIT_TRANSFER
+    C2 --> INIT_TRANSFER
+    INIT_TRANSFER --> PAR
+    INIT_TRANSFER --> SPRING
+
+    AP --> VIEW_PENDING
+    AP --> APPROVE
+    VIEW_PENDING --> SPRING
+    APPROVE --> SPRING
+    APPROVE -->|enforce policy| PDP
