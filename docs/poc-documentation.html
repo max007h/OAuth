@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>POC OAuth2 RAR+PAR — PingIdentity</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f5f7; color: #172b4d; }
+    header { background: #0052cc; color: white; padding: 32px 48px; }
+    header h1 { font-size: 28px; font-weight: 700; }
+    header p { margin-top: 8px; font-size: 14px; opacity: 0.85; }
+    .container { max-width: 1100px; margin: 40px auto; padding: 0 24px; }
+    .section { background: white; border-radius: 8px; padding: 32px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    h2 { font-size: 20px; font-weight: 700; color: #0052cc; border-bottom: 2px solid #e8f0fe; padding-bottom: 10px; margin-bottom: 20px; }
+    h3 { font-size: 15px; font-weight: 600; margin: 20px 0 10px; color: #172b4d; }
+    p { font-size: 14px; line-height: 1.7; color: #344563; margin-bottom: 12px; }
+
+    /* Stack badges */
+    .badge-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+    .badge { background: #e8f0fe; color: #0052cc; border-radius: 20px; padding: 6px 16px; font-size: 13px; font-weight: 600; }
+    .badge.green { background: #e3fcef; color: #006644; }
+    .badge.orange { background: #fff3cd; color: #7a4f01; }
+    .badge.purple { background: #f0e6ff; color: #5e35b1; }
+
+    /* Scenarios table */
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    thead { background: #0052cc; color: white; }
+    thead th { padding: 12px 16px; text-align: left; font-weight: 600; }
+    tbody tr:nth-child(even) { background: #f4f5f7; }
+    tbody td { padding: 11px 16px; border-bottom: 1px solid #e0e0e0; }
+    .role { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+    .role.customer { background: #e3fcef; color: #006644; }
+    .role.approver { background: #fff3cd; color: #7a4f01; }
+
+    /* Infrastructure table */
+    .infra-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .infra-table th { background: #172b4d; color: white; padding: 10px 14px; text-align: left; }
+    .infra-table td { padding: 10px 14px; border-bottom: 1px solid #e0e0e0; }
+    .infra-table tr:nth-child(even) { background: #f4f5f7; }
+    code { background: #f4f5f7; border: 1px solid #dfe1e6; border-radius: 4px; padding: 2px 6px; font-size: 13px; font-family: 'Courier New', monospace; }
+
+    footer { text-align: center; padding: 24px; font-size: 12px; color: #7a869a; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>POC OAuth2 RAR+PAR — Autorisation Fine-Grained avec PingIdentity</h1>
+  <p>Documentation technique — Stack self-hosted Docker | Spring Boot · Angular · PingFederate · PingAuthorize</p>
+</header>
+
+<div class="container">
+
+  <!-- DESCRIPTION -->
+  <div class="section">
+    <h2>1. Description du POC</h2>
+    <p>
+      Proof of Concept démontrant l'implémentation d'un système d'autorisation fine-grained dans un contexte bancaire,
+      combinant <strong>OAuth2 RAR</strong> (Rich Authorization Requests — RFC 9396) et <strong>PAR</strong>
+      (Pushed Authorization Requests — RFC 9126) avec la stack PingIdentity déployée en self-hosted via Docker.
+    </p>
+    <p>
+      L'objectif est de montrer comment encoder l'intention métier (IBAN, montant, type de virement) dans le token OAuth2
+      dès la phase d'autorisation, et de déléguer les décisions d'accès fines à un PDP (Policy Decision Point) centralisé.
+    </p>
+
+    <h3>Stack technique</h3>
+    <div class="badge-grid">
+      <span class="badge">Angular (SPA)</span>
+      <span class="badge">Spring Boot</span>
+      <span class="badge">Spring Security</span>
+      <span class="badge green">PingFederate (AS)</span>
+      <span class="badge green">PingAuthorize (PDP)</span>
+      <span class="badge green">PingDirectory (LDAP)</span>
+      <span class="badge orange">Docker Compose</span>
+      <span class="badge purple">OAuth2 RAR · PAR · PKCE</span>
+    </div>
+  </div>
+
+  <!-- SCENARIOS -->
+  <div class="section">
+    <h2>2. Scénarios du POC</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Acteur</th>
+          <th>Rôle</th>
+          <th>Scénario</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><code>Customer_1</code></td>
+          <td><span class="role customer">CUSTOMER</span></td>
+          <td>Consulter ses propres virements (accès limité à son IBAN)</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><code>Customer_2</code></td>
+          <td><span class="role customer">CUSTOMER</span></td>
+          <td>Consulter ses propres virements (accès limité à son IBAN)</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><code>Customer_1</code> / <code>Customer_2</code></td>
+          <td><span class="role customer">CUSTOMER</span></td>
+          <td>Initier un virement / paiement via PAR+RAR (IBAN + montant encodés dans le token)</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><code>Approbateur_1</code></td>
+          <td><span class="role approver">APPROVER</span></td>
+          <td>Consulter les demandes de paiement en attente de validation</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><code>Approbateur_1</code></td>
+          <td><span class="role approver">APPROVER</span></td>
+          <td>Valider ou rejeter un virement au-delà du plafond autorisé</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- INFRASTRUCTURE -->
+  <div class="section">
+    <h2>3. Infrastructure Docker</h2>
+    <table class="infra-table">
+      <thead>
+        <tr>
+          <th>Conteneur</th>
+          <th>Image</th>
+          <th>Port(s)</th>
+          <th>Rôle</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>env-pingfederate-1</code></td>
+          <td>pingidentity/pingfederate:edge</td>
+          <td>9031 / 9999</td>
+          <td>Authorization Server (OAuth2 PAR+RAR)</td>
+        </tr>
+        <tr>
+          <td><code>env-pingauthorize-1</code></td>
+          <td>pingidentity/pingauthorize:edge</td>
+          <td>7443</td>
+          <td>Policy Decision Point (PDP)</td>
+        </tr>
+        <tr>
+          <td><code>env-pingauthorizepap-1</code></td>
+          <td>pingidentity/pingauthorizepap:edge</td>
+          <td>9443</td>
+          <td>Policy Administration Point (PAP)</td>
+        </tr>
+        <tr>
+          <td><code>env-pingdirectory-1</code></td>
+          <td>pingidentity/pingdirectory:edge</td>
+          <td>1389 / 1636</td>
+          <td>User Store LDAP</td>
+        </tr>
+        <tr>
+          <td><code>env-pingdataconsole-1</code></td>
+          <td>pingidentity/pingdataconsole:edge</td>
+          <td>8443</td>
+          <td>Console d'administration LDAP</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<footer>POC OAuth2 RAR+PAR — PingIdentity Self-Hosted · Documentation interne</footer>
+
+</body>
+</html>
