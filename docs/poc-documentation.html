@@ -176,8 +176,17 @@
   <div class="section">
     <h2>4. Starting the Stack</h2>
 
+    <div style="background:#fff3cd;border-left:5px solid #f0a500;border-radius:6px;padding:20px;margin-bottom:24px">
+      <p style="font-size:16px;font-weight:700;color:#7a4f01;margin-bottom:8px">⚠️ Before You Begin</p>
+      <p style="font-size:14px;color:#7a4f01">
+        You must create a free account on <strong>developer.pingidentity.com</strong> and download the development license files for the three following components:
+        <strong>PingFederate</strong>, <strong>PingDirectory</strong>, and <strong>PingAuthorize</strong>.
+        These license files are required to start the Docker containers — without them the stack will fail to launch.
+      </p>
+    </div>
+
     <h3>Prerequisites</h3>
-    <p>Before starting, place the following license files in <code>/tmp/</code> on the host machine:</p>
+    <p>Once downloaded, place the following license files in <code>/tmp/</code> on the host machine:</p>
     <table class="infra-table">
       <thead><tr><th>File</th><th>Used by</th></tr></thead>
       <tbody>
