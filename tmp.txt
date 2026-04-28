@@ -61,3 +61,27 @@ NEXT STEPS - RECONFIGURATION PINGFEDERATE
 6. PAR policy
 7. RAR type banking_transfer
 8. Connexion PingFederate -> PingAuthorize (PDP)
+
+=============================================================
+CREATE LDAP DATASTORE - MAC
+=============================================================
+
+curl -k -u Administrator:2FederateM0re \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-XSRF-Header: PingFederate" \
+  https://localhost:9999/pf-admin-api/v1/dataStores \
+  -d '{
+    "type": "LDAP",
+    "name": "PingDirectory-LDAP",
+    "ldapType": "PING_DIRECTORY",
+    "useSsl": true,
+    "hostnames": ["pingdirectory"],
+    "ldapPort": 1389,
+    "ldapsPort": 1636,
+    "baseDn": "dc=example,dc=com",
+    "bindAnonymously": false,
+    "userDN": "cn=administrator",
+    "password": "2FederateM0re",
+    "testOnBorrow": true
+  }'
