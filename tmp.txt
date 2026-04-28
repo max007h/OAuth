@@ -1,21 +1,72 @@
---------schema.ldif--------
-dn: cn=schema
-changetype: modify
-add: attributeTypes
-attributeTypes: ( 1.3.6.1.4.1.99999.1 NAME 'ibanAccount' DESC 'IBAN Account Number' EQUALITY caseIgnoreMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 SINGLE-VALUE )
+=============================================================
+VERIFICATION PING DIRECTORY - MAC
+=============================================================
 
-dn: cn=schema
-changetype: modify
-add: objectClasses
-objectClasses: ( 1.3.6.1.4.1.99999.2 NAME 'bankingPerson' DESC 'Banking Person' SUP top AUXILIARY MAY ibanAccount )
-----------------
-docker cp schema.ldif ping-pingdirectory-1:/tmp/schema.ldif
-docker exec ping-pingdirectory-1 ldapmodify --hostname localhost --port 1636 --useSSL --trustAll --bindDN "cn=administrator" --bindPassword 2FederateM0re --continueOnError --filename /tmp/schema.ldif
+ETAPE 1 - Verifier les users
+-------------------------------------------------------------
+docker exec env-pingdirectory-1 ldapsearch \
+  --hostname localhost --port 1636 \
+  --useSSL --trustAll \
+  --bindDN "cn=administrator" \
+  --bindPassword "2FederateM0re" \
+  --baseDN "dc=example,dc=com" \
+  --searchScope sub "(objectClass=inetOrgPerson)" uid ibanAccount objectClass
 
+RESULTAT ATTENDU:
+  dn: uid=Customer_1,ou=People,dc=example,dc=com
+  uid: Customer_1
+  ibanAccount: FR7630006000011234567890189
+  objectClass: bankingPerson
 
-docker cp init-directory.ldif ping-pingdirectory-1:/tmp/init-directory.ldif
-docker exec ping-pingdirectory-1 ldapmodify --hostname localhost --port 1636 --useSSL --trustAll --bindDN "cn=administrator" --bindPassword 2FederateM0re --defaultAdd --filename /tmp/init-directory.ldif --continueOnError
+  dn: uid=Approbateur_1,ou=People,dc=example,dc=com
+  uid: Approbateur_1
+  ibanAccount: FR7630004000031234567890143
+  objectClass: bankingPerson
 
-docker exec ping-pingdirectory-1 ldapsearch --hostname localhost --port 1636 --useSSL --trustAll --bindDN "cn=administrator" --bindPassword 2FederateM0re --baseDN "dc=example,dc=com" --searchScope sub "(objectClass=*)" dn
+-------------------------------------------------------------
+ETAPE 2 - Verifier les groupes
+-------------------------------------------------------------
+docker exec env-pingdirectory-1 ldapsearch \
+  --hostname localhost --port 1636 \
+  --useSSL --trustAll \
+  --bindDN "cn=administrator" \
+  --bindPassword "2FederateM0re" \
+  --baseDN "dc=example,dc=com" \
+  --searchScope sub "(objectClass=groupOfNames)" cn member
 
+RESULTAT ATTENDU:
+  dn: cn=CUSTOMERS,ou=Groups,dc=example,dc=com
+  cn: CUSTOMERS
+  member: uid=Customer_1,ou=People,dc=example,dc=com
 
+  dn: cn=APPROVERS,ou=Groups,dc=example,dc=com
+  cn: APPROVERS
+  member: uid=Approbateur_1,ou=People,dc=example,dc=com
+
+-------------------------------------------------------------
+ETAPE 3 - Verifier isMemberOf
+-------------------------------------------------------------
+docker exec env-pingdirectory-1 ldapsearch \
+  --hostname localhost --port 1636 \
+  --useSSL --trustAll \
+  --bindDN "cn=administrator" \
+  --bindPassword "2FederateM0re" \
+  --baseDN "uid=Customer_1,ou=People,dc=example,dc=com" \
+  --searchScope base "(objectClass=*)" isMemberOf ibanAccount
+
+RESULTAT ATTENDU:
+  isMemberOf: cn=CUSTOMERS,ou=Groups,dc=example,dc=com
+  ibanAccount: FR7630006000011234567890189
+
+=============================================================
+NEXT STEPS APRES VERIFICATION
+=============================================================
+Si tout est OK -> Reconfiguration manuelle PingFederate :
+  1. Data Store (connexion LDAP vers PingDirectory)
+  2. Password Credential Validator
+  3. OAuth Client banking-spa
+  4. Scopes : openid, payment:read, banking_transfer
+  5. Attribute mappings JWT (ibanAccount, groups, authorization_details)
+  6. PAR policy
+  7. RAR type banking_transfer
+  8. Connexion PingFederate -> PingAuthorize (PDP)
