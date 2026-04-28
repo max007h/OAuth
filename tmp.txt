@@ -94,3 +94,17 @@ docker inspect env-pingdirectory-1 --format '{{.Name}} {{range .NetworkSettings.
 
 Utiliser l'IP retournee dans PingFederate hostname:
   <IP_retournee>:1636
+
+=============================================================
+STEP 2 - PASSWORD CREDENTIAL VALIDATOR
+=============================================================
+
+System -> Password Credential Validators -> Add New Instance
+
+Instance Configuration:
+  LDAP Datastore  : PingDirectory-LDAP
+  Search Base     : ou=People,dc=example,dc=com
+  Search Filter   : uid=${username}
+  Scope of Search : Subtree
+
+Click Next -> Save
