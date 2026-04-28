@@ -352,6 +352,105 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"</pre>
     </table>
   </div>
 
+  <div class="section">
+    <h2>6. PingFederate Configuration via REST API</h2>
+    <p>
+      All PingFederate configuration can be done programmatically via the Admin REST API instead of the UI.
+      This approach is reproducible, scriptable, and can be version-controlled. The base URL for all API calls is
+      <code>https://localhost:9999/pf-admin-api/v1</code> with basic auth <code>Administrator / 2FederateM0re</code>.
+      The header <code>X-XSRF-Header: PingFederate</code> is required on all requests.
+    </p>
+
+    <h3>Step 1 — Data Store (LDAP connection to PingDirectory)</h3>
+    <pre style="background:#172b4d;color:#e3fcef;border-radius:6px;padding:16px;font-size:13px;line-height:1.8;overflow-x:auto">curl -k -u Administrator:2FederateM0re \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-XSRF-Header: PingFederate" \
+  https://localhost:9999/pf-admin-api/v1/dataStores \
+  -d '{
+    "type": "LDAP",
+    "name": "PingDirectory-LDAP",
+    "ldapType": "PING_DIRECTORY",
+    "useSsl": true,
+    "hostnames": ["pingdirectory"],
+    "port": 1636,
+    "baseDn": "dc=example,dc=com",
+    "bindAnonymously": false,
+    "userDN": "cn=administrator",
+    "password": "2FederateM0re"
+  }'</pre>
+
+    <h3>Step 2 — Password Credential Validator</h3>
+    <pre style="background:#172b4d;color:#e3fcef;border-radius:6px;padding:16px;font-size:13px;line-height:1.8;overflow-x:auto">curl -k -u Administrator:2FederateM0re \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-XSRF-Header: PingFederate" \
+  https://localhost:9999/pf-admin-api/v1/passwordCredentialValidators \
+  -d '{
+    "id": "ldapPCV",
+    "name": "LDAP PCV",
+    "pluginDescriptorRef": {
+      "id": "org.sourceid.saml20.domain.LDAPUsernamePasswordCredentialValidator"
+    },
+    "configuration": {
+      "tables": [{
+        "name": "Authentication Error Overrides"
+      }],
+      "fields": [
+        { "name": "LDAP Datastore", "value": "PingDirectory-LDAP" },
+        { "name": "Search Base", "value": "ou=People,dc=example,dc=com" },
+        { "name": "Search Filter", "value": "uid=${username}" }
+      ]
+    }
+  }'</pre>
+
+    <h3>Step 3 — OAuth Client (banking-spa)</h3>
+    <pre style="background:#172b4d;color:#e3fcef;border-radius:6px;padding:16px;font-size:13px;line-height:1.8;overflow-x:auto">curl -k -u Administrator:2FederateM0re \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-XSRF-Header: PingFederate" \
+  https://localhost:9999/pf-admin-api/v1/oauth/clients \
+  -d '{
+    "clientId": "banking-spa",
+    "name": "Banking SPA",
+    "grantTypes": ["AUTHORIZATION_CODE"],
+    "redirectUris": ["http://localhost:4200"],
+    "requirePushedAuthorizationRequests": true,
+    "pkceEnforcement": "REQUIRED",
+    "allowAuthenticationApiInit": false,
+    "scopes": ["openid","payment:read","banking_transfer"],
+    "clientAuthType": "NONE"
+  }'</pre>
+
+    <h3>Step 4 — RAR Authorization Detail Type</h3>
+    <pre style="background:#172b4d;color:#e3fcef;border-radius:6px;padding:16px;font-size:13px;line-height:1.8;overflow-x:auto">curl -k -u Administrator:2FederateM0re \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-XSRF-Header: PingFederate" \
+  https://localhost:9999/pf-admin-api/v1/oauth/authorizationDetailTypes \
+  -d '{
+    "type": "banking_transfer",
+    "description": "Banking wire transfer authorization details"
+  }'</pre>
+
+    <h3>Step 5 — Verify configuration</h3>
+    <pre style="background:#172b4d;color:#e3fcef;border-radius:6px;padding:16px;font-size:13px;line-height:1.8;overflow-x:auto"># List Data Stores
+curl -k -u Administrator:2FederateM0re \
+  -H "X-XSRF-Header: PingFederate" \
+  https://localhost:9999/pf-admin-api/v1/dataStores
+
+# List OAuth Clients
+curl -k -u Administrator:2FederateM0re \
+  -H "X-XSRF-Header: PingFederate" \
+  https://localhost:9999/pf-admin-api/v1/oauth/clients
+
+# List RAR types
+curl -k -u Administrator:2FederateM0re \
+  -H "X-XSRF-Header: PingFederate" \
+  https://localhost:9999/pf-admin-api/v1/oauth/authorizationDetailTypes</pre>
+
+  </div>
+
 <footer>POC OAuth2 RAR+PAR — PingIdentity Self-Hosted · Internal Documentation</footer>
 
 </body>
