@@ -270,6 +270,88 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"</pre>
     <p style="margin-top:16px">⚠️ Containers take approximately <strong>2-3 minutes</strong> to fully initialize. Wait until all show <code>healthy</code> before proceeding with configuration.</p>
   </div>
 
+  <div class="section">
+    <h2>5. PingFederate Admin Console</h2>
+    <p>
+      Once all containers are healthy, access the PingFederate administration console to configure the OAuth2 server.
+      PingFederate uses a self-signed certificate — your browser will show a security warning on first access.
+    </p>
+
+    <h3>Access</h3>
+    <table class="infra-table">
+      <thead><tr><th>URL</th><th>Credentials</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>https://localhost:9999/pingfederate/app</code></td>
+          <td><code>Administrator / 2FederateM0re</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="background:#e8f0fe;border-left:5px solid #0052cc;border-radius:6px;padding:16px;margin:20px 0">
+      <p style="font-size:13px;color:#172b4d">
+        💡 <strong>Browser warning:</strong> On Chrome, click <strong>Advanced</strong> then <strong>Proceed to localhost</strong> to bypass the self-signed certificate warning.
+        If you get an <em>invalid HTTP response</em> error, wait 2-3 more minutes — PingFederate takes time to fully initialize even after showing <code>healthy</code>.
+      </p>
+    </div>
+
+    <h3>Manual Configuration Checklist</h3>
+    <p>Once logged in, configure the following components in order:</p>
+    <table class="infra-table">
+      <thead><tr><th>#</th><th>Component</th><th>Location in UI</th><th>Details</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><strong>Data Store</strong></td>
+          <td>System → Data Stores</td>
+          <td>LDAP connection to PingDirectory on <code>localhost:1636</code> — bind DN <code>cn=administrator</code></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><strong>Password Credential Validator</strong></td>
+          <td>System → Password Credential Validators</td>
+          <td>LDAP Username Password Validator using the Data Store above</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><strong>OAuth Client</strong></td>
+          <td>OAuth Server → Clients</td>
+          <td>Client ID: <code>banking-spa</code> — public client — PAR required — redirect <code>http://localhost:4200</code></td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><strong>Scopes</strong></td>
+          <td>OAuth Server → Scope Management</td>
+          <td><code>openid</code>, <code>payment:read</code>, <code>banking_transfer</code></td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><strong>Attribute Mappings</strong></td>
+          <td>OAuth Server → Access Token Manager</td>
+          <td>Map <code>ibanAccount</code>, <code>groups</code> (isMemberOf), <code>authorization_details</code> into JWT</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td><strong>PAR Policy</strong></td>
+          <td>OAuth Server → Authorization Server Settings</td>
+          <td>Enable Pushed Authorization Requests — set as required for <code>banking-spa</code></td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td><strong>RAR Type</strong></td>
+          <td>OAuth Server → Authorization Detail Types</td>
+          <td>Type: <code>banking_transfer</code></td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td><strong>PDP Connection</strong></td>
+          <td>System → External Services</td>
+          <td>Connect PingFederate to PingAuthorize on <code>https://localhost:7443</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
 <footer>POC OAuth2 RAR+PAR — PingIdentity Self-Hosted · Internal Documentation</footer>
 
 </body>
