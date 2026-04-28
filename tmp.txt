@@ -108,3 +108,38 @@ Instance Configuration:
   Scope of Search : Subtree
 
 Click Next -> Save
+
+=============================================================
+STEP 3 - OAUTH CLIENT banking-spa
+=============================================================
+
+Applications -> OAuth -> Clients -> Add Client
+
+  CLIENT ID                        : banking-spa
+  NAME                             : Banking SPA
+  CLIENT AUTHENTICATION            : NONE
+  REQUIRE PUSHED AUTH REQUESTS     : checked
+  REDIRECT URIS                    : http://localhost:4200
+  ALLOW AUTHORIZATION DETAILS      : checked
+  ALLOWED GRANT TYPES              : Authorization Code only
+
+  NOTE: "No Authorization Detail Types are defined" is normal
+        at this stage. Save the client as-is and create the
+        RAR type banking_transfer first, then come back to
+        associate it.
+
+Click Save.
+
+=============================================================
+STEP 4 - RAR TYPE banking_transfer
+=============================================================
+
+To be done BEFORE editing the client again:
+
+Applications -> OAuth -> Authorization Detail Types -> Add
+
+  TYPE        : banking_transfer
+  DESCRIPTION : Banking wire transfer authorization details
+
+Click Save, then go back to edit client banking-spa
+and associate the RAR type.
