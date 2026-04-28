@@ -12,18 +12,6 @@ docker exec env-pingdirectory-1 ldapsearch \
   --baseDN "dc=example,dc=com" \
   --searchScope sub "(objectClass=inetOrgPerson)" uid ibanAccount objectClass
 
-RESULTAT ATTENDU:
-  dn: uid=Customer_1,ou=People,dc=example,dc=com
-  uid: Customer_1
-  ibanAccount: FR7630006000011234567890189
-  objectClass: bankingPerson
-
-  dn: uid=Approbateur_1,ou=People,dc=example,dc=com
-  uid: Approbateur_1
-  ibanAccount: FR7630004000031234567890143
-  objectClass: bankingPerson
-
--------------------------------------------------------------
 ETAPE 2 - Verifier les groupes
 -------------------------------------------------------------
 docker exec env-pingdirectory-1 ldapsearch \
@@ -34,16 +22,6 @@ docker exec env-pingdirectory-1 ldapsearch \
   --baseDN "dc=example,dc=com" \
   --searchScope sub "(objectClass=groupOfNames)" cn member
 
-RESULTAT ATTENDU:
-  dn: cn=CUSTOMERS,ou=Groups,dc=example,dc=com
-  cn: CUSTOMERS
-  member: uid=Customer_1,ou=People,dc=example,dc=com
-
-  dn: cn=APPROVERS,ou=Groups,dc=example,dc=com
-  cn: APPROVERS
-  member: uid=Approbateur_1,ou=People,dc=example,dc=com
-
--------------------------------------------------------------
 ETAPE 3 - Verifier isMemberOf
 -------------------------------------------------------------
 docker exec env-pingdirectory-1 ldapsearch \
@@ -54,19 +32,32 @@ docker exec env-pingdirectory-1 ldapsearch \
   --baseDN "uid=Customer_1,ou=People,dc=example,dc=com" \
   --searchScope base "(objectClass=*)" isMemberOf ibanAccount
 
-RESULTAT ATTENDU:
-  isMemberOf: cn=CUSTOMERS,ou=Groups,dc=example,dc=com
-  ibanAccount: FR7630006000011234567890189
+=============================================================
+DEBUG - DATASTORE API FORMAT
+=============================================================
+
+Lister les datastores existants :
+-------------------------------------------------------------
+curl -k -u Administrator:2FederateM0re \
+  -H "X-XSRF-Header: PingFederate" \
+  https://localhost:9999/pf-admin-api/v1/dataStores \
+  | python3 -m json.tool
+
+Voir le descriptor (format attendu) :
+-------------------------------------------------------------
+curl -k -u Administrator:2FederateM0re \
+  -H "X-XSRF-Header: PingFederate" \
+  https://localhost:9999/pf-admin-api/v1/dataStores/descriptors \
+  | python3 -m json.tool
 
 =============================================================
-NEXT STEPS APRES VERIFICATION
+NEXT STEPS - RECONFIGURATION PINGFEDERATE
 =============================================================
-Si tout est OK -> Reconfiguration manuelle PingFederate :
-  1. Data Store (connexion LDAP vers PingDirectory)
-  2. Password Credential Validator
-  3. OAuth Client banking-spa
-  4. Scopes : openid, payment:read, banking_transfer
-  5. Attribute mappings JWT (ibanAccount, groups, authorization_details)
-  6. PAR policy
-  7. RAR type banking_transfer
-  8. Connexion PingFederate -> PingAuthorize (PDP)
+1. Data Store (connexion LDAP vers PingDirectory)
+2. Password Credential Validator
+3. OAuth Client banking-spa
+4. Scopes : openid, payment:read, banking_transfer
+5. Attribute mappings JWT (ibanAccount, groups, authorization_details)
+6. PAR policy
+7. RAR type banking_transfer
+8. Connexion PingFederate -> PingAuthorize (PDP)
