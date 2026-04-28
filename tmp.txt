@@ -33,113 +33,122 @@ docker exec env-pingdirectory-1 ldapsearch \
   --searchScope base "(objectClass=*)" isMemberOf ibanAccount
 
 =============================================================
-DEBUG - DATASTORE API FORMAT
-=============================================================
-
-Lister les datastores existants :
--------------------------------------------------------------
-curl -k -u Administrator:2FederateM0re \
-  -H "X-XSRF-Header: PingFederate" \
-  https://localhost:9999/pf-admin-api/v1/dataStores \
-  | python3 -m json.tool
-
-Voir le descriptor (format attendu) :
--------------------------------------------------------------
-curl -k -u Administrator:2FederateM0re \
-  -H "X-XSRF-Header: PingFederate" \
-  https://localhost:9999/pf-admin-api/v1/dataStores/descriptors \
-  | python3 -m json.tool
-
-=============================================================
-NEXT STEPS - RECONFIGURATION PINGFEDERATE
-=============================================================
-1. Data Store (connexion LDAP vers PingDirectory)
-2. Password Credential Validator
-3. OAuth Client banking-spa
-4. Scopes : openid, payment:read, banking_transfer
-5. Attribute mappings JWT (ibanAccount, groups, authorization_details)
-6. PAR policy
-7. RAR type banking_transfer
-8. Connexion PingFederate -> PingAuthorize (PDP)
-
-=============================================================
-CREATE LDAP DATASTORE - MAC
-=============================================================
-
-curl -k -u Administrator:2FederateM0re \
-  -X POST \
-  -H "Content-Type: application/json" \
-  -H "X-XSRF-Header: PingFederate" \
-  https://localhost:9999/pf-admin-api/v1/dataStores \
-  -d '{
-    "type": "LDAP",
-    "name": "PingDirectory-LDAP",
-    "ldapType": "PING_DIRECTORY",
-    "useSsl": true,
-    "hostnames": ["pingdirectory"],
-    "ldapPort": 1389,
-    "ldapsPort": 1636,
-    "baseDn": "dc=example,dc=com",
-    "bindAnonymously": false,
-    "userDN": "cn=administrator",
-    "password": "2FederateM0re",
-    "testOnBorrow": true
-  }'
-
-=============================================================
 GET PINGDIRECTORY IP - MAC
 =============================================================
 
 docker inspect env-pingdirectory-1 --format '{{.Name}} {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
 
 Utiliser l'IP retournee dans PingFederate hostname:
-  <IP_retournee>:1636
+  <IP_retournee>:1389  (sans SSL)
 
 =============================================================
-STEP 2 - PASSWORD CREDENTIAL VALIDATOR
+CORRECT ORDER - PINGFEDERATE CONFIGURATION
 =============================================================
 
+IMPORTANT: This is the correct order to configure PingFederate.
+Skipping steps will cause validation errors.
+
+STEP 1 - DATA STORE
+-------------------------------------------------------------
+System -> Data Stores -> Add New Data Store
+  Type     : Directory (LDAP)
+  Name     : PingDirectory-LDAP
+  Hostname : <pingdirectory_ip>:1389
+  Security : None
+  User DN  : cn=administrator
+  Password : 2FederateM0re
+Test Connection -> Save
+
+STEP 2 - PASSWORD CREDENTIAL VALIDATOR (PCV)
+-------------------------------------------------------------
 System -> Password Credential Validators -> Add New Instance
+  Name          : LDAP-PCV
+  Type          : LDAP Username Password Credential Validator
+  LDAP Store    : PingDirectory-LDAP
+  Search Base   : ou=People,dc=example,dc=com
+  Search Filter : uid=${username}
+  Scope         : Subtree
 
-Instance Configuration:
-  LDAP Datastore  : PingDirectory-LDAP
-  Search Base     : ou=People,dc=example,dc=com
-  Search Filter   : uid=${username}
-  Scope of Search : Subtree
+Extended Contract - Add attributes:
+  ibanAccount
+  isMemberOf
 
-Click Next -> Save
+Save
 
-=============================================================
-STEP 3 - OAUTH CLIENT banking-spa
-=============================================================
+WHAT IS A PCV?
+  A plugin that validates username/password against PingDirectory.
+  It is called by the IdP Adapter during user authentication.
 
-Applications -> OAuth -> Clients -> Add Client
+STEP 3 - IdP ADAPTER (HTML Form)
+-------------------------------------------------------------
+Authentication -> Adapters -> Create New Instance
+  Name : HTML-Form-Adapter
+  Type : HTML Form IdP Adapter
 
-  CLIENT ID                        : banking-spa
-  NAME                             : Banking SPA
-  CLIENT AUTHENTICATION            : NONE
-  REQUIRE PUSHED AUTH REQUESTS     : checked
-  REDIRECT URIS                    : http://localhost:4200
-  ALLOW AUTHORIZATION DETAILS      : checked
-  ALLOWED GRANT TYPES              : Authorization Code only
+  Instance Configuration:
+    Credential Validator : LDAP-PCV
 
-  NOTE: "No Authorization Detail Types are defined" is normal
-        at this stage. Save the client as-is and create the
-        RAR type banking_transfer first, then come back to
-        associate it.
+  Extended Contract - Add attributes:
+    ibanAccount
+    isMemberOf
 
-Click Save.
+Save
 
-=============================================================
-STEP 4 - RAR TYPE banking_transfer
-=============================================================
+WHAT IS AN IdP ADAPTER?
+  A PingFederate plugin (HTML Form Adapter) that:
+  - Presents the login page to the user
+  - Collects username/password
+  - Calls the PCV to validate against PingDirectory
+  - Returns user attributes (uid, ibanAccount, isMemberOf)
+    to the OAuth2 Authorization Code flow
+  Without this, PingFederate cannot authenticate users.
 
-To be done BEFORE editing the client again:
+STEP 4 - AUTHENTICATION POLICY CONTRACT
+-------------------------------------------------------------
+Authentication -> Policy Contracts -> Create New Contract
+  Name : BankingPolicyContract
 
+  Contract Attributes - Add:
+    ibanAccount
+    isMemberOf
+
+Save
+
+WHAT IS A POLICY CONTRACT?
+  Defines what user attributes flow from authentication
+  into the OAuth token. Acts as the bridge between
+  the IdP Adapter and the OAuth Authorization Server.
+
+STEP 5 - AUTHORIZATION DETAIL TYPES (RAR)
+-------------------------------------------------------------
 Applications -> OAuth -> Authorization Detail Types -> Add
+  Type        : banking_transfer
+  Description : Banking wire transfer authorization details
 
-  TYPE        : banking_transfer
-  DESCRIPTION : Banking wire transfer authorization details
+Save
 
-Click Save, then go back to edit client banking-spa
-and associate the RAR type.
+WHAT IS AN AUTHORIZATION DETAIL TYPE?
+  Defines the RAR (Rich Authorization Request) type per RFC 9396.
+  It allows the client to embed business intent (IBAN, amount,
+  transfer type) directly into the OAuth2 authorization request.
+  Must exist before the OAuth client can reference it.
+
+STEP 6 - OAUTH CLIENT (banking-spa)
+-------------------------------------------------------------
+Applications -> OAuth -> Clients -> Add Client
+  Client ID                    : banking-spa
+  Name                         : Banking SPA
+  Client Authentication        : NONE
+  Require PAR                  : checked
+  Redirect URI                 : http://localhost:4200
+  Allow Authorization Details  : checked
+  Authorization Detail Type    : banking_transfer
+  Allowed Grant Types          : Authorization Code
+
+Save
+
+=============================================================
+NEXT - ACCESS TOKEN MANAGER & ATTRIBUTE MAPPINGS
+=============================================================
+  Applications -> OAuth -> Access Token Management
+  Map ibanAccount, isMemberOf, authorization_details into JWT
