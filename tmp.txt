@@ -85,3 +85,12 @@ curl -k -u Administrator:2FederateM0re \
     "password": "2FederateM0re",
     "testOnBorrow": true
   }'
+
+=============================================================
+GET PINGDIRECTORY IP - MAC
+=============================================================
+
+docker inspect env-pingdirectory-1 --format '{{.Name}} {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
+
+Utiliser l'IP retournee dans PingFederate hostname:
+  <IP_retournee>:1636
