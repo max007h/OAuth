@@ -201,3 +201,102 @@ ACTION REQUIRED:
   -> Configure field mappings for banking_transfer type
 
 =============================================================
+
+=============================================================
+AUTHORIZATION DETAIL PROCESSOR - PLUGIN EXPLAINED
+=============================================================
+
+The Authorization Detail Processor is MANDATORY in PingFederate.
+You cannot save an Authorization Detail Type without one.
+
+It is a Java plugin (.jar) deployed in PingFederate that
+implements the AuthorizationDetailProcessor interface.
+
+The plugin JAR must be placed in:
+  /opt/out/instance/server/default/deploy/
+
+Then restart PingFederate for it to be detected.
+
+=============================================================
+BankingTransferProcessor.java - METHOD DESCRIPTIONS
+=============================================================
+
+1. configure(Configuration configuration)
+-------------------------------------------------------------
+Called once when the plugin is loaded by PingFederate.
+Used to read plugin configuration from the Admin UI.
+In this POC: empty body - no config params needed.
+
+2. getPluginDescriptor()
+-------------------------------------------------------------
+Returns metadata about the plugin to PingFederate:
+  - Display name: "Banking Transfer Processor"
+  - Version: "1.0"
+  - GUI config descriptor (fields shown in Admin UI)
+PingFederate uses this to register and display the plugin.
+
+3. validate(AuthorizationDetail detail,
+            AuthorizationDetailContext context,
+            Map<String, Object> params)
+-------------------------------------------------------------
+Called at authorization time to validate the RAR payload
+sent by the Angular SPA in the PAR request.
+Returns: AuthorizationDetailValidationResult.createValidResult()
+In this POC: always returns valid (no field validation).
+Could be extended to check: amount > 0, valid IBAN format, etc.
+
+4. enrich(AuthorizationDetail detail,
+          AuthorizationDetailContext context,
+          Map<String, Object> params)
+-------------------------------------------------------------
+Called after validation to enrich the authorization_details
+object before it is stored in the token.
+Returns: the detail object (modified or not)
+In this POC: returns detail as-is (no enrichment).
+Could be extended to: add server-side data, resolve IBAN to
+account name, add risk score, etc.
+
+5. getUserConsentDescription(AuthorizationDetail detail,
+                              AuthorizationDetailContext context,
+                              Map<String, Object> params)
+-------------------------------------------------------------
+Returns a human-readable string shown on the consent screen.
+Example output:
+  "Transfer of 150.00 EUR to IBAN FR76... | Reference: rent"
+Fields extracted from detail.getDetail():
+  - amount   (divided by 100 to convert cents to euros)
+  - currency (default: "EUR")
+  - iban     (creditor IBAN)
+  - label    (payment reference)
+
+6. isEqualOrSubset(AuthorizationDetail requested,
+                   AuthorizationDetail accepted,
+                   AuthorizationDetailContext context,
+                   Map<String, Object> params)
+-------------------------------------------------------------
+Called when checking if a new authorization request is
+covered by an existing grant (token reuse / incremental auth).
+Returns: true (always accepts in this POC)
+Could be extended to compare amounts and IBANs strictly.
+
+=============================================================
+HOW TO DEPLOY THE PLUGIN ON MAC
+=============================================================
+
+1. Build the JAR on Windows:
+   mvn clean package -> target/BankingTransferProcessor.jar
+
+2. Copy to Mac:
+   scp or USB -> /tmp/BankingTransferProcessor.jar
+
+3. Deploy into PingFederate container:
+   docker cp /tmp/BankingTransferProcessor.jar \
+     env-pingfederate-1:/opt/out/instance/server/default/deploy/
+
+4. Restart PingFederate:
+   docker restart env-pingfederate-1
+
+5. Verify in Admin UI:
+   System -> OAuth Settings -> Authorization Detail Processors
+   -> "Banking Transfer Processor" should appear
+
