@@ -160,3 +160,35 @@ CONFIGURATION REFERENCE
 - PingAuthorize         : 7443
 - PAP                   : 9443
 - PingDirectory         : 1636
+
+=============================================================
+SERVEUR HTTPS LOCAL – RÉSOLUTION CORS / MIXED CONTENT
+=============================================================
+
+Problème : page http://localhost:4200 ne peut pas appeler
+https://localhost:9031 (mixed content bloqué par le browser)
++ PingFederate ne retourne pas Access-Control-Allow-Origin
+
+Solution : servir index.html en HTTPS avec cert auto-signé
+
+# 1. Générer le cert auto-signé
+cd OAuth/docs
+openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem \
+  -days 365 -nodes -subj "/CN=localhost"
+
+# 2. Lancer le serveur HTTPS sur 4200
+python3 -c "
+import http.server, ssl
+server = http.server.HTTPServer(('', 4200), http.server.SimpleHTTPRequestHandler)
+ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+ctx.load_cert_chain('cert.pem', 'key.pem')
+server.socket = ctx.wrap_socket(server.socket, server_side=True)
+server.serve_forever()
+"
+
+# 3. Ouvrir dans le browser (accepter le warning cert auto-signé)
+https://localhost:4200
+
+NOTE: Le CORS dans PingFederate (OAuth Settings → Authorization
+Server Settings → Cross-Origin Resource Sharing) doit avoir
+https://localhost:4200 (et non http://)
