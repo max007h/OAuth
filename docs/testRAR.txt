@@ -192,3 +192,30 @@ https://localhost:4200
 NOTE: Le CORS dans PingFederate (OAuth Settings → Authorization
 Server Settings → Cross-Origin Resource Sharing) doit avoir
 https://localhost:4200 (et non http://)
+
+=============================================================
+CORS OAUTH RUNTIME – CONFIGURATION pf.properties
+=============================================================
+
+Le CORS dans l'UI PingFederate (OAuth Settings → AS Settings)
+ne couvre PAS les endpoints runtime /as/par.oauth2, /as/token.oauth2
+Il faut modifier pf.properties directement dans le container.
+
+# 1. Trouver le container
+docker ps | grep ping
+
+# 2. Chercher le fichier pf.properties
+docker exec <container> find /opt/pingfederate -name "pf.properties" 2>/dev/null
+
+# 3. Vérifier les settings CORS existants
+docker exec <container> grep -i "cors" /opt/pingfederate/pingfederate/server/default/conf/pf.properties
+
+# 4. Ajouter/modifier les propriétés CORS
+docker exec <container> bash -c "cat >> /opt/pingfederate/pingfederate/server/default/conf/pf.properties << 'PROPS'
+pf.cors.allowedOrigins=*
+pf.cors.allowedMethods=GET,POST,OPTIONS
+pf.cors.allowedHeaders=Content-Type,Authorization,X-Requested-With
+PROPS"
+
+# 5. Redémarrer
+docker restart <container>
