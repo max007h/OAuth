@@ -159,3 +159,45 @@ NEXT - ACCESS TOKEN MANAGER & ATTRIBUTE MAPPINGS
 =============================================================
   Applications -> OAuth -> Access Token Management
   Map ibanAccount, isMemberOf, authorization_details into JWT
+
+=============================================================
+⚠️  AUTHORIZATION DETAIL PROCESSOR - IMPORTANT NOTE
+=============================================================
+
+When creating an Authorization Detail Type, PingFederate
+asks you to select an "Authorization Detail Processor".
+
+WHAT IS IT?
+  A processor is a plugin that validates and enriches the
+  authorization_details object submitted by the client
+  during the PAR/RAR request.
+
+  It runs at authorization time and can:
+  - Validate the RAR payload (check IBAN format, amount limits)
+  - Enrich the authorization_details with extra attributes
+  - Reject the request if the payload is invalid
+  - Map RAR fields into the final JWT token
+
+FUNCTIONS AVAILABLE IN THE PLUGIN:
+  1. Input Validation  -> Check type, amount, currency fields
+  2. Attribute Mapping -> Add attributes to the access token
+  3. Policy Evaluation -> Call PingAuthorize for a decision
+  4. Enrichment        -> Add server-side data to the token
+
+FOR THIS POC:
+  A custom processor is required to properly map
+  authorization_details fields (type, amount, creditorIban)
+  into the JWT access token.
+
+  Without a processor:
+  -> authorization_details will be EMPTY in the JWT
+  -> Spring Boot cannot verify the RAR consent
+  -> The POC flow will be incomplete
+
+ACTION REQUIRED:
+  Go to: System -> OAuth Settings -> Authorization Detail Processors
+  -> Add New Processor
+  -> Type: scripted or built-in processor
+  -> Configure field mappings for banking_transfer type
+
+=============================================================
