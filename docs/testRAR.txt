@@ -82,3 +82,38 @@ Key ID  : poc-key
 Key     : 6a4f8c2d1e9b3f7a5c0d8e2f4b6a9c1d3e5f7a8b2c4d6e0f1a3b5c7d9e2f4a6b
 Encoding: Hex
 Algorithm: HS256
+
+=============================================================
+AUTHORIZATION SERVER SETTINGS – SNAPSHOT (29/04/2026)
+=============================================================
+
+[General]
+- Authorization Code Timeout      : 60s
+- Authorization Code Entropy      : 30 bytes
+- Disallow Plain PKCE             : NON (décoché)
+- Include Issuer in Auth Response : NON
+- Track User Sessions for Logout  : NON
+- Client Secret Retention Period  : 0 min
+
+[PAR Settings]
+- PAR Status                      : REQUIRED ✓
+- PAR Reference Timeout           : 60s
+- PAR Reference Entropy           : 24 bytes
+
+[Refresh Token / Persistent Grant]
+- Persistent Grant Max Lifetime   : Grants Do Not Expire
+- Persistent Grant Idle Timeout   : 30 Days
+- Refresh Token Length            : 42 chars
+- Roll Refresh Token Values       : NON
+- Minimum Interval to Roll        : 0 Hours
+- Rolling Grace Period            : 60s
+- Reuse Existing Grants           : IMPLICIT only ✓
+
+[Authorization Consent]
+- Bypass Approved Persistent Grants : NON
+- Bypass Approved Consents          : NON
+- Consent UI                        : Default
+
+[OAuth Admin Web Services]
+- Password Credential Validator   : (non configuré)
+- Persistent Grant Mgmt ATM       : (non configuré)
