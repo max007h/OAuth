@@ -268,3 +268,16 @@ HTTPServer(('',9032), Proxy).serve_forever()
 
 # index.html utilise http://localhost:9032 pour PAR + token
 # Le redirect authorization va toujours directement vers https://localhost:9031
+
+=============================================================
+DEBUG – LOGS PINGFEDERATE APRÈS SERVER_ERROR
+=============================================================
+
+# Voir les erreurs après un server_error sur le flow OAuth
+docker logs env-pingfederate-1 --tail=50 2>&1 | grep -i "error\|exception\|banking"
+
+# Logs complets si besoin
+docker logs env-pingfederate-1 --tail=100 2>&1
+
+# Logs en temps réel pendant le test
+docker logs env-pingfederate-1 -f 2>&1 | grep -i "error\|warn\|banking"
