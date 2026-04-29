@@ -16,19 +16,17 @@ Champs confirmés présents (29/04/2026) :
   - authorization_endpoint                : https://localhost:9031/as/authorization.oauth2
 
 =============================================================
-STEP 1 - Générer PKCE code_verifier + code_challenge
+PKCE - VALEURS FIXES POUR LE POC
 =============================================================
 
-# Générer un code_verifier aléatoire (43-128 chars)
-CODE_VERIFIER=$(openssl rand -base64 32 | tr -d '=+/' | cut -c1-43)
-echo "code_verifier: $CODE_VERIFIER"
+code_verifier  : dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+code_challenge : E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+method         : S256
 
-# Générer le code_challenge (SHA256 du verifier, base64url)
-CODE_CHALLENGE=$(echo -n "$CODE_VERIFIER" | openssl dgst -sha256 -binary | openssl base64 | tr '+/' '-_' | tr -d '=')
-echo "code_challenge: $CODE_CHALLENGE"
+(valeurs RFC 7636 - fixes pour faciliter les tests POC)
 
 =============================================================
-STEP 2 - PAR Request
+STEP 1 - PAR Request
 =============================================================
 
 curl -k -X POST https://localhost:9031/as/par.oauth2 \
@@ -37,7 +35,7 @@ curl -k -X POST https://localhost:9031/as/par.oauth2 \
   -d "response_type=code" \
   -d "redirect_uri=http://localhost:4200" \
   -d "scope=openid payment:read banking_transfert" \
-  -d "code_challenge=$CODE_CHALLENGE" \
+  -d "code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM" \
   -d "code_challenge_method=S256" \
   -d 'authorization_details=[{"type":"bankingTransfert","amount":15000,"currency":"EUR","iban":"FR7630004000031234567890143","label":"loyer"}]'
 
@@ -48,26 +46,26 @@ Expected response:
   }
 
 =============================================================
-STEP 3 - Authorization Request (browser)
+STEP 2 - Authorization Request (browser)
 =============================================================
 
 Ouvrir dans le navigateur :
-https://localhost:9031/as/authorization.oauth2?client_id=banking-spa&request_uri=<request_uri_from_step2>
+https://localhost:9031/as/authorization.oauth2?client_id=banking-spa&request_uri=<request_uri_from_step1>
 
 -> Login : Customer_1 / Password1234!
 -> Redirect vers : http://localhost:4200?code=<auth_code>
 
 =============================================================
-STEP 4 - Token Exchange
+STEP 3 - Token Exchange
 =============================================================
 
 curl -k -X POST https://localhost:9031/as/token.oauth2 \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=authorization_code" \
   -d "client_id=banking-spa" \
-  -d "code=<auth_code_from_step3>" \
+  -d "code=<auth_code_from_step2>" \
   -d "redirect_uri=http://localhost:4200" \
-  -d "code_verifier=$CODE_VERIFIER"
+  -d "code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
 
 Expected response:
   {
@@ -77,7 +75,7 @@ Expected response:
   }
 
 =============================================================
-STEP 5 - Decode JWT et vérification claims
+STEP 4 - Decode JWT et vérification claims
 =============================================================
 
 Coller l'access_token sur https://jwt.io et vérifier :
@@ -101,11 +99,11 @@ Pour vérifier la signature HS256 sur jwt.io :
   Cocher "secret base64 encoded" : NON (c'est du hex)
 
 =============================================================
-STEP 6 - Appel Resource Server (Spring Boot)
+STEP 5 - Appel Resource Server (Spring Boot)
 =============================================================
 
 curl -k -X GET https://localhost:8443/api/payments \
-  -H "Authorization: Bearer <access_token_from_step4>"
+  -H "Authorization: Bearer <access_token_from_step3>"
 
 Expected: HTTP 200 avec la liste des paiements
 
