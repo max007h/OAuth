@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pluginDescriptor>
+    <id>com.poc.BankingTransferProcessor</id>
+    <name>Banking Transfer Processor</name>
+    <description>Authorization Detail Processor for wire transfers</description>
+    <class>com.poc.BankingTransferProcessor</class>
+    <version>1.0</version>
+</pluginDescriptor>

@@ -573,6 +573,142 @@ docker restart env-pingfederate-1</pre>
       </tbody>
     </table>
 
+    <h3>Plugin Source Code</h3>
+
+    <h4 style="margin:16px 0 8px;color:#172b4d">pluginDescriptor.xml — <code>plugin NoProcessor/src/main/resources/META-INF/pluginDescriptor.xml</code></h4>
+    <pre style="background:#1e1e1e;color:#d4d4d4;border-radius:6px;padding:16px;font-size:12px;line-height:1.8;overflow-x:auto">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;pluginDescriptor&gt;
+  &lt;id&gt;com.poc.BankingTransferProcessor&lt;/id&gt;
+  &lt;name&gt;Banking Transfer Processor&lt;/name&gt;
+  &lt;description&gt;Authorization Detail Processor for wire transfers&lt;/description&gt;
+  &lt;class&gt;com.poc.BankingTransferProcessor&lt;/class&gt;
+  &lt;version&gt;1.0&lt;/version&gt;
+&lt;/pluginDescriptor&gt;</pre>
+
+    <h4 style="margin:16px 0 8px;color:#172b4d">pom.xml — <code>plugin NoProcessor/pom.xml</code></h4>
+    <pre style="background:#1e1e1e;color:#d4d4d4;border-radius:6px;padding:16px;font-size:12px;line-height:1.8;overflow-x:auto">&lt;project&gt;
+  &lt;modelVersion&gt;4.0.0&lt;/modelVersion&gt;
+  &lt;groupId&gt;com.poc.banking&lt;/groupId&gt;
+  &lt;artifactId&gt;banking-transfer-processor&lt;/artifactId&gt;
+  &lt;version&gt;1.0&lt;/version&gt;
+  &lt;packaging&gt;jar&lt;/packaging&gt;
+
+  &lt;dependencies&gt;
+    &lt;dependency&gt;
+      &lt;groupId&gt;com.pingidentity&lt;/groupId&gt;
+      &lt;artifactId&gt;pingfederate-sdk&lt;/artifactId&gt;
+      &lt;version&gt;13.0&lt;/version&gt;
+      &lt;scope&gt;system&lt;/scope&gt;
+      &lt;!-- SDK extracted from PingFederate container --&gt;
+      &lt;systemPath&gt;${project.basedir}/pingfederate-sdk.jar&lt;/systemPath&gt;
+    &lt;/dependency&gt;
+  &lt;/dependencies&gt;
+
+  &lt;build&gt;
+    &lt;plugins&gt;
+      &lt;plugin&gt;
+        &lt;groupId&gt;org.apache.maven.plugins&lt;/groupId&gt;
+        &lt;artifactId&gt;maven-compiler-plugin&lt;/artifactId&gt;
+        &lt;configuration&gt;
+          &lt;source&gt;17&lt;/source&gt;
+          &lt;target&gt;17&lt;/target&gt;
+        &lt;/configuration&gt;
+      &lt;/plugin&gt;
+    &lt;/plugins&gt;
+  &lt;/build&gt;
+&lt;/project&gt;</pre>
+
+    <h4 style="margin:16px 0 8px;color:#172b4d">BankingTransferProcessor.java — <code>plugin NoProcessor/src/main/java/com/poc/BankingTransferProcessor.java</code></h4>
+    <pre style="background:#1e1e1e;color:#d4d4d4;border-radius:6px;padding:16px;font-size:12px;line-height:1.8;overflow-x:auto">package com.poc;
+
+import com.pingidentity.sdk.GuiConfigDescriptor;
+import com.pingidentity.sdk.PluginDescriptor;
+import com.pingidentity.sdk.authorizationdetails.*;
+import org.sourceid.saml20.adapter.conf.Configuration;
+import java.util.Map;
+
+public class BankingTransferProcessor implements AuthorizationDetailProcessor {
+
+    // Called once at plugin startup - no config params needed for this POC
+    @Override
+    public void configure(Configuration configuration) {}
+
+    // Registers the plugin in PingFederate Admin UI
+    @Override
+    public PluginDescriptor getPluginDescriptor() {
+        GuiConfigDescriptor gui = new GuiConfigDescriptor();
+        return new AuthorizationDetailProcessorDescriptor(
+            "Banking Transfer Processor", this, gui, "1.0"
+        );
+    }
+
+    // Validates the RAR payload at authorization time (PAR request)
+    // Always returns valid in this POC - extend to check IBAN, amount, currency
+    @Override
+    public AuthorizationDetailValidationResult validate(
+        AuthorizationDetail detail,
+        AuthorizationDetailContext context,
+        Map&lt;String, Object&gt; params) {
+        return AuthorizationDetailValidationResult.createValidResult();
+    }
+
+    // Enriches authorization_details before storing in JWT
+    // Returns detail as-is - extend to add beneficiary name, risk score, etc.
+    @Override
+    public AuthorizationDetail enrich(
+        AuthorizationDetail detail,
+        AuthorizationDetailContext context,
+        Map&lt;String, Object&gt; params) throws AuthorizationDetailProcessingException {
+        return detail;
+    }
+
+    // Returns text shown on consent screen to the user
+    // Example: "Transfer of 150.00 EUR to IBAN FR76... | Reference: rent"
+    @Override
+    public String getUserConsentDescription(
+        AuthorizationDetail detail,
+        AuthorizationDetailContext context,
+        Map&lt;String, Object&gt; params) throws AuthorizationDetailProcessingException {
+
+        Map&lt;String, Object&gt; fields = detail.getDetail();
+
+        Object amount   = fields.get("amount");
+        Object currency = fields.get("currency");
+        Object label    = fields.get("label");
+        Object iban     = fields.get("iban");
+
+        String amountStr = "N/A";
+        if (amount != null) {
+            try {
+                double euros = Double.parseDouble(amount.toString()) / 100.0;
+                amountStr = String.format("%.2f", euros);
+            } catch (NumberFormatException e) {
+                amountStr = amount.toString();
+            }
+        }
+
+        String ibanStr     = iban     != null ? iban.toString()     : "N/A";
+        String currencyStr = currency != null ? currency.toString() : "EUR";
+        String labelStr    = label    != null ? label.toString()    : "N/A";
+
+        return String.format(
+            "Transfer of %s %s to IBAN %s | Reference: %s",
+            amountStr, currencyStr, ibanStr, labelStr
+        );
+    }
+
+    // Checks if a new authorization request is covered by an existing grant
+    // Returns true in this POC (always accepts token reuse)
+    @Override
+    public boolean isEqualOrSubset(
+        AuthorizationDetail requested,
+        AuthorizationDetail accepted,
+        AuthorizationDetailContext context,
+        Map&lt;String, Object&gt; params) throws AuthorizationDetailProcessingException {
+        return true;
+    }
+}</pre>
+
   </div>
 
 <footer>POC OAuth2 RAR+PAR — PingIdentity Self-Hosted · Internal Documentation</footer>
