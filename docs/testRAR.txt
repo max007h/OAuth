@@ -298,3 +298,17 @@ docker logs env-pingfederate-1 2>&1 | grep -B 5 -A 20 "ERROR" | tail -80
 
 # Chercher cause racine spécifique
 docker logs env-pingfederate-1 2>&1 | grep -i "caused by\|rootcause\|NullPointer\|NoSuch\|banking\|BankingTransfert"
+
+=============================================================
+DEBUG – APRÈS AJOUT IdP ADAPTER GRANT MAPPING
+=============================================================
+
+# Vérifier si NoMappedAdapters persiste
+docker logs env-pingfederate-1 2>&1 | grep -i "NoMappedAdapters\|Exception\|ERROR" | tail -20
+
+# Vérifier le doublon BankingTransferProcessor
+# Aller dans : Applications → OAuth → Authorization Detail Processors
+# Supprimer les doublons de BankingTransferProcessor
+
+# Vérifier les adapters configurés
+docker logs env-pingfederate-1 2>&1 | grep -i "adapter\|HTMLForm" | tail -20
