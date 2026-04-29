@@ -345,3 +345,34 @@ System -> OAuth Settings -> Authorization Detail Types -> Add
   Processor   : Banking Transfer Processor  <- now available
 
 NOTE: PingDirectory data is preserved - no action needed.
+
+=============================================================
+CREATE MISSING PF-INF FILE - MAC
+=============================================================
+
+This file tells PingFederate which processor classes to load.
+Without it the plugin JAR is ignored even if deployed.
+
+mkdir -p ~/ws_prs/OAUTH_RAR_PAR/env/plugin\ NoProcessor/src/main/resources/PF-INF
+
+nano ~/ws_prs/OAUTH_RAR_PAR/env/plugin\ NoProcessor/src/main/resources/PF-INF/authorization-detail-processors
+
+Content to type in nano (exactly one line, no spaces):
+  com.poc.BankingTransferProcessor
+
+Save: Ctrl+O -> Enter -> Ctrl+X
+
+Then rebuild and redeploy:
+-------------------------------------------------------------
+cd ~/ws_prs/OAUTH_RAR_PAR/env/plugin\ NoProcessor
+
+mvn clean package
+
+docker cp target/banking-transfer-processor-1.0.jar \
+  env-pingfederate-1:/opt/out/instance/server/default/lib/
+
+docker restart env-pingfederate-1
+
+Wait 3-4 min then check:
+System -> OAuth Settings -> Authorization Detail Processors
+-> "Banking Transfer Processor" should appear
