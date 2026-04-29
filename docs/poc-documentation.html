@@ -711,6 +711,72 @@ public class BankingTransferProcessor implements AuthorizationDetailProcessor {
 
   </div>
 
+  <div class="section">
+    <h2>8. Access Token Mappings — Mapping LDAP Attributes to JWT Claims</h2>
+
+    <div style="background:#fde8e8;border-left:5px solid #d32f2f;border-radius:6px;padding:20px;margin-bottom:24px">
+      <p style="font-size:16px;font-weight:700;color:#b71c1c;margin-bottom:8px">🔴 Critical Step — Most Important Configuration</p>
+      <p style="font-size:14px;color:#b71c1c">
+        This is the most important configuration step in the entire POC. Access Token Mappings define how PingFederate reads user attributes from PingDirectory (LDAP) and injects them into the JWT access token.
+        Without this mapping, the JWT will be issued but will contain no user data — <strong>ibanAccount, isMemberOf, and authorization_details will all be empty</strong>.
+        Spring Boot will receive a valid token but will be unable to authorize any request because it has no claims to evaluate.
+        Every attribute that Spring Boot needs to make an authorization decision must be explicitly mapped here from its LDAP source to its JWT claim name.
+      </p>
+    </div>
+
+    <h3>Access</h3>
+    <p><strong>Applications → OAuth → Access Token Mappings → Add Mapping</strong></p>
+
+    <table class="infra-table">
+      <thead><tr><th>Field</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Context</td><td><code>Default</code></td></tr>
+        <tr><td>Access Token Manager</td><td><code>JWTAccessToken</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3>Attribute Sources</h3>
+    <p>Add a new Attribute Source to pull data from PingDirectory:</p>
+    <table class="infra-table">
+      <thead><tr><th>Field</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Source Type</td><td>LDAP</td></tr>
+        <tr><td>Data Store</td><td><code>PingDirectory-LDAP</code></td></tr>
+        <tr><td>Base DN</td><td><code>ou=People,dc=example,dc=com</code></td></tr>
+        <tr><td>Search Filter</td><td><code>uid=${username}</code></td></tr>
+        <tr><td>Attributes to return</td><td><code>ibanAccount</code>, <code>isMemberOf</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3>Attribute Contract Fulfillment — JWT Claim Mappings</h3>
+    <p>Map each JWT claim to its source value:</p>
+    <table class="infra-table">
+      <thead><tr><th>JWT Claim</th><th>Source</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td><code>USER_KEY</code></td><td>Adapter</td><td><code>username</code></td></tr>
+        <tr><td><code>ibanAccount</code></td><td>LDAP</td><td><code>ibanAccount</code></td></tr>
+        <tr><td><code>isMemberOf</code></td><td>LDAP</td><td><code>isMemberOf</code></td></tr>
+        <tr><td><code>authorization_details</code></td><td>Authorization Detail</td><td><code>authorization_details</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3>Expected JWT Result</h3>
+    <pre style="background:#172b4d;color:#e3fcef;border-radius:6px;padding:16px;font-size:13px;line-height:1.8;overflow-x:auto">{
+  "sub": "Customer_1",
+  "ibanAccount": "FR7630006000011234567890189",
+  "isMemberOf": ["cn=CUSTOMERS,ou=groups,dc=example,dc=com"],
+  "authorization_details": [
+    {
+      "type": "banking_transfer",
+      "amount": 15000,
+      "currency": "EUR",
+      "iban": "FR7630004000031234567890143"
+    }
+  ]
+}</pre>
+
+  </div>
+
 <footer>POC OAuth2 RAR+PAR — PingIdentity Self-Hosted · Internal Documentation</footer>
 
 </body>
