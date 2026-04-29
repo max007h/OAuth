@@ -376,3 +376,19 @@ docker restart env-pingfederate-1
 Wait 3-4 min then check:
 System -> OAuth Settings -> Authorization Detail Processors
 -> "Banking Transfer Processor" should appear
+
+=============================================================
+ACCESS TOKEN MANAGER - HMAC KEY REQUIREMENT
+=============================================================
+
+IMPORTANT: HMAC SHA-256 requires a key of at least 256 bits.
+The key must be at least 32 characters long (or 22 base64url chars).
+
+When adding a Symmetric Key, use this value:
+
+  Key ID  : poc-key
+  Key     : poc-secret-key-for-hmac-signing-256bits
+  Encoding: Base64url
+
+This key must match exactly what is configured in Spring Boot:
+  application.properties -> spring.security.oauth2.resourceserver.jwt.secret=poc-secret-key-for-hmac-signing-256bits
