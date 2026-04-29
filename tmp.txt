@@ -392,3 +392,15 @@ When adding a Symmetric Key, use this value:
 
 This key must match exactly what is configured in Spring Boot:
   application.properties -> spring.security.oauth2.resourceserver.jwt.secret=poc-secret-key-for-hmac-signing-256bits
+
+=============================================================
+ACCESS TOKEN MANAGER - HMAC KEY (HEX 256 bits)
+=============================================================
+
+Symmetric Key configuration:
+  Key ID   : poc-key
+  Key      : 6a4f8c2d1e9b3f7a5c0d8e2f4b6a9c1d3e5f7a8b2c4d6e0f1a3b5c7d9e2f4a6b
+  Encoding : Hex
+
+IMPORTANT: This key must match in Spring Boot application.properties:
+  spring.security.oauth2.resourceserver.jwt.hmac-secret=6a4f8c2d1e9b3f7a5c0d8e2f4b6a9c1d3e5f7a8b2c4d6e0f1a3b5c7d9e2f4a6b
