@@ -300,3 +300,48 @@ HOW TO DEPLOY THE PLUGIN ON MAC
    System -> OAuth Settings -> Authorization Detail Processors
    -> "Banking Transfer Processor" should appear
 
+
+=============================================================
+RESTART PINGFEDERATE WITH PLUGIN - KEEP CONFIG
+=============================================================
+
+IMPORTANT: PingDirectory does NOT need to be restarted.
+Only restart env-pingfederate-1 to load the new plugin JAR.
+
+STEP 1 - Export current PingFederate config BEFORE restart
+-------------------------------------------------------------
+curl -k -u Administrator:2FederateM0re \
+  -H "X-XSRF-Header: PingFederate" \
+  https://localhost:9999/pf-admin-api/v1/bulk/export \
+  -o /tmp/pf-config-backup.json
+
+STEP 2 - Restart ONLY PingFederate (not PingDirectory)
+-------------------------------------------------------------
+docker restart env-pingfederate-1
+
+STEP 3 - Wait 3-4 minutes until healthy
+-------------------------------------------------------------
+docker ps --format "table {{.Names}}\t{{.Status}}"
+
+STEP 4 - Reimport config after restart
+-------------------------------------------------------------
+curl -k -u Administrator:2FederateM0re \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-XSRF-Header: PingFederate" \
+  -d @/tmp/pf-config-backup.json \
+  https://localhost:9999/pf-admin-api/v1/bulk/import
+
+STEP 5 - Verify plugin is loaded in Admin UI
+-------------------------------------------------------------
+System -> OAuth Settings -> Authorization Detail Processors
+-> "Banking Transfer Processor" should appear
+
+STEP 6 - Continue Authorization Detail Type creation
+-------------------------------------------------------------
+System -> OAuth Settings -> Authorization Detail Types -> Add
+  Type        : banking_transfer
+  Description : RAR type for banking wire transfer
+  Processor   : Banking Transfer Processor  <- now available
+
+NOTE: PingDirectory data is preserved - no action needed.
