@@ -2,199 +2,107 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Banking POC – Virement</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-<style>
-  body { font-family: Arial, sans-serif; background: #f4f6f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-  .card { background: white; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); padding: 32px; width: 440px; }
-  h2 { margin: 0 0 4px 0; font-size: 1.3rem; color: #1a202c; }
-  .subtitle { font-size: 0.78rem; color: #718096; margin-bottom: 20px; }
-  .badges { display: flex; gap: 6px; margin-bottom: 20px; }
-  .badge { font-size: 0.65rem; padding: 2px 8px; border-radius: 3px; font-weight: bold; }
-  .b-par { background: #e6fffa; color: #00a381; border: 1px solid #00a381; }
-  .b-rar { background: #fffbeb; color: #d97706; border: 1px solid #d97706; }
-  .b-pkce { background: #f5f3ff; color: #7c3aed; border: 1px solid #7c3aed; }
-  label { display: block; font-size: 0.78rem; font-weight: 600; color: #4a5568; margin: 12px 0 4px; }
-  input, select { width: 100%; padding: 9px 12px; border: 1px solid #cbd5e0; border-radius: 5px; font-size: 0.9rem; box-sizing: border-box; }
-  input:focus, select:focus { outline: none; border-color: #00a381; }
-  .row { display: flex; gap: 12px; }
-  .row > div { flex: 1; }
-  .rar-box { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 5px; padding: 10px 12px; margin-top: 14px; }
-  .rar-label { font-size: 0.62rem; font-weight: bold; color: #d97706; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
-  .rar-pre { font-size: 0.68rem; color: #78350f; font-family: monospace; white-space: pre-wrap; word-break: break-all; }
-  .btn { width: 100%; margin-top: 18px; padding: 12px; background: #00a381; color: white; border: none; border-radius: 5px; font-size: 0.95rem; font-weight: bold; cursor: pointer; }
-  .btn:hover { background: #008f70; }
-  .btn:disabled { background: #a0aec0; cursor: not-allowed; }
-  .error { margin-top: 10px; padding: 10px 12px; background: #fff5f5; border: 1px solid #feb2b2; border-radius: 5px; color: #c53030; font-size: 0.8rem; display: none; }
-  .success { margin-top: 10px; padding: 10px 12px; background: #f0fff4; border: 1px solid #9ae6b4; border-radius: 5px; color: #276749; font-size: 0.75rem; font-family: monospace; word-break: break-all; display: none; }
-  .steps { margin-top: 18px; border-top: 1px solid #e2e8f0; padding-top: 14px; }
-  .step { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; font-size: 0.78rem; color: #a0aec0; }
-  .step.active { color: #1a202c; }
-  .step.done { color: #00a381; }
-  .dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #cbd5e0; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: bold; flex-shrink: 0; margin-top: 1px; }
-  .step.active .dot { border-color: #f5a623; color: #f5a623; }
-  .step.done .dot { background: #00a381; border-color: #00a381; color: white; }
-  .step-sub { font-size: 0.67rem; color: #718096; font-family: monospace; margin-top: 2px; word-break: break-all; }
-  .proxy-warn { font-size: 0.7rem; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 4px; padding: 6px 10px; margin-bottom: 14px; color: #92400e; }
-</style>
+<title>Banking POC</title>
 </head>
 <body>
-<div class="card">
-  <h2>Virement Bancaire</h2>
-  <p class="subtitle">Démonstration OAuth2 PAR + RAR — PingFederate</p>
-  <div class="badges">
-    <span class="badge b-par">PAR RFC 9126</span>
-    <span class="badge b-rar">RAR RFC 9396</span>
-    <span class="badge b-pkce">PKCE S256</span>
-  </div>
+<h2>Virement Bancaire – PAR + RAR</h2>
 
-  <div class="proxy-warn">
-    ⚠️ Proxy CORS requis sur <strong>localhost:9032</strong> — voir testRAR.txt
-  </div>
+<label>IBAN:</label><br>
+<input type="text" id="iban" value="FR7630004000031234567890143" size="40"><br><br>
 
-  <label>IBAN bénéficiaire</label>
-  <input type="text" id="iban" value="FR7630004000031234567890143">
+<label>Montant:</label><br>
+<input type="number" id="amount" value="15000"><br><br>
 
-  <div class="row">
-    <div>
-      <label>Montant</label>
-      <input type="number" id="amount" value="15000" min="1">
-    </div>
-    <div>
-      <label>Devise</label>
-      <select id="currency">
-        <option>EUR</option><option>USD</option><option>GBP</option>
-      </select>
-    </div>
-  </div>
+<label>Devise:</label><br>
+<select id="currency">
+  <option>EUR</option>
+  <option>USD</option>
+  <option>GBP</option>
+</select><br><br>
 
-  <label>Libellé</label>
-  <input type="text" id="lbl" value="loyer">
+<label>Libellé:</label><br>
+<input type="text" id="lbl" value="loyer"><br><br>
 
-  <div class="rar-box">
-    <div class="rar-label">authorization_details (RAR – RFC 9396)</div>
-    <div class="rar-pre" id="rar-preview"></div>
-  </div>
+<button onclick="initier()">Initier le virement</button>
 
-  <button class="btn" id="btn-go">Initier le virement →</button>
-  <div class="error" id="err"></div>
-  <div class="success" id="ok"></div>
-
-  <div class="steps">
-    <div class="step" id="s1"><div class="dot">1</div><div><div>PAR → proxy:9032 → PingFederate:9031</div><div class="step-sub" id="d1"></div></div></div>
-    <div class="step" id="s2"><div class="dot">2</div><div><div>request_uri reçu → redirect</div><div class="step-sub" id="d2"></div></div></div>
-    <div class="step" id="s3"><div class="dot">3</div><div><div>Login + consentement sur PingFederate</div><div class="step-sub">PingFederate gère l'auth et le consentement</div></div></div>
-    <div class="step" id="s4"><div class="dot">4</div><div><div>Token exchange (code + PKCE verifier)</div><div class="step-sub" id="d4"></div></div></div>
-    <div class="step" id="s5"><div class="dot">5</div><div><div>JWT avec authorization_details ✓</div><div class="step-sub" id="d5"></div></div></div>
-  </div>
-</div>
+<br><br>
+<div id="result"></div>
 
 <script>
-  const PF_DIRECT = 'https://localhost:9031';  // pour le redirect authorize
-  const PROXY     = 'http://localhost:9032';    // pour PAR + token (via proxy CORS)
-  const CLIENT    = 'banking-spa';
-  const REDIRECT  = 'http://localhost:4200';
-  const SCOPE     = 'openid payment:read banking_transfert';
-  const VERIFIER  = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
-  const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
+  const PF       = 'https://localhost:9031';
+  const PROXY    = 'http://localhost:9032';
+  const CLIENT   = 'banking-spa';
+  const REDIRECT = 'http://localhost:4200';
+  const SCOPE    = 'openid payment:read banking_transfert';
+  const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+  const CHALLENGE= 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 
   function rar() {
     return JSON.stringify([{
       type: 'bankingTransfert',
-      iban: $('#iban').val(),
-      amount: parseInt($('#amount').val()) || 0,
-      currency: $('#currency').val(),
-      label: $('#lbl').val()
-    }], null, 2);
+      iban: document.getElementById('iban').value,
+      amount: parseInt(document.getElementById('amount').value),
+      currency: document.getElementById('currency').value,
+      label: document.getElementById('lbl').value
+    }]);
   }
 
-  function st(n,c){ $('#s'+n).removeClass('active done').addClass(c); }
-  function sd(n,t){ $('#d'+n).text(t); }
-
-  $('#iban,#amount,#currency,#lbl').on('input change', () => $('#rar-preview').text(rar()));
-  $('#rar-preview').text(rar());
-
-  $('#btn-go').click(function(){
-    $('#err').hide(); $('#ok').hide();
-    $(this).prop('disabled', true).text('Envoi PAR...');
-    st(1, 'active');
-
-    $.ajax({
-      url: PROXY + '/as/par.oauth2',
-      method: 'POST',
-      contentType: 'application/x-www-form-urlencoded',
-      data: new URLSearchParams({
-        client_id: CLIENT,
-        response_type: 'code',
-        redirect_uri: REDIRECT,
-        scope: SCOPE,
-        code_challenge: CHALLENGE,
-        code_challenge_method: 'S256',
-        authorization_details: rar()
-      }).toString(),
-      success: function(r) {
-        st(1, 'done'); sd(1, 'OK – request_uri reçu');
-        st(2, 'active'); sd(2, r.request_uri);
-        st(3, 'active');
-        const authUrl = PF_DIRECT + '/as/authorization.oauth2'
-          + '?client_id=' + CLIENT
-          + '&request_uri=' + encodeURIComponent(r.request_uri);
-        setTimeout(() => { window.location.href = authUrl; }, 500);
-      },
-      error: function(x) {
-        st(1, '');
-        $('#btn-go').prop('disabled', false).text('Initier le virement →');
-        $('#err').text('PAR Error ' + x.status + ': ' + (x.responseText || 'vérifier que le proxy tourne sur localhost:9032')).show();
-      }
+  function initier() {
+    document.getElementById('result').textContent = 'Envoi PAR...';
+    const body = new URLSearchParams({
+      client_id: CLIENT,
+      response_type: 'code',
+      redirect_uri: REDIRECT,
+      scope: SCOPE,
+      code_challenge: CHALLENGE,
+      code_challenge_method: 'S256',
+      authorization_details: rar()
     });
-  });
 
-  // Callback après login PingFederate
-  (function(){
-    const p = new URLSearchParams(window.location.search);
-    const code = p.get('code'), error = p.get('error');
-    if (error) { $('#err').text('Auth error: ' + (p.get('error_description') || error)).show(); return; }
-    if (!code) return;
-
-    st(1,'done'); st(2,'done'); st(3,'done');
-    st(4, 'active'); sd(4, 'code=' + code.substring(0,16) + '...');
-
-    $.ajax({
-      url: PROXY + '/as/token.oauth2',
+    fetch(PROXY + '/as/par.oauth2', {
       method: 'POST',
-      contentType: 'application/x-www-form-urlencoded',
-      data: new URLSearchParams({
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: body.toString()
+    })
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('result').textContent = 'PAR OK - redirect...';
+      window.location.href = PF + '/as/authorization.oauth2?client_id=' + CLIENT + '&request_uri=' + encodeURIComponent(data.request_uri);
+    })
+    .catch(e => {
+      document.getElementById('result').textContent = 'Erreur PAR: ' + e;
+    });
+  }
+
+  // Callback
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const error = params.get('error');
+
+  if (error) {
+    document.getElementById('result').textContent = 'Erreur: ' + (params.get('error_description') || error);
+  } else if (code) {
+    document.getElementById('result').textContent = 'Token exchange...';
+    fetch(PROXY + '/as/token.oauth2', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({
         grant_type: 'authorization_code',
         client_id: CLIENT,
         code: code,
         redirect_uri: REDIRECT,
         code_verifier: VERIFIER
-      }).toString(),
-      success: function(r) {
-        st(4, 'done'); st(5, 'active');
-        try {
-          const pl = JSON.parse(atob(r.access_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
-          sd(5, 'sub=' + pl.sub + ' | authorization_details=' + (pl.authorization_details ? '✓' : '✗'));
-          st(5, 'done');
-          $('#ok').html(
-            '<strong>✓ Token obtenu</strong><br>' +
-            'sub: ' + pl.sub + '<br>' +
-            'ibanAccount: ' + (pl.ibanAccount || '?') + '<br>' +
-            'authorization_details: ' + JSON.stringify(pl.authorization_details)
-          ).show();
-        } catch(e) {
-          st(5, 'done');
-          $('#ok').text('✓ Token: ' + r.access_token.substring(0,80) + '...').show();
-        }
-        window.history.replaceState({}, '', '/');
-      },
-      error: function(x) {
-        st(4, '');
-        $('#err').text('Token Error ' + x.status + ': ' + x.responseText).show();
-      }
+      }).toString()
+    })
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('result').textContent = 'ACCESS TOKEN:\n\n' + data.access_token;
+      window.history.replaceState({}, '', '/');
+    })
+    .catch(e => {
+      document.getElementById('result').textContent = 'Erreur token: ' + e;
     });
-  })();
+  }
 </script>
 </body>
 </html>
