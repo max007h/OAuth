@@ -451,6 +451,130 @@ curl -k -u Administrator:2FederateM0re \
 
   </div>
 
+  <div class="section">
+    <h2>7. Authorization Detail Processor — Plugin Development & Deployment</h2>
+
+    <div style="background:#fff3cd;border-left:5px solid #f0a500;border-radius:6px;padding:16px;margin-bottom:20px">
+      <p style="font-size:14px;font-weight:700;color:#7a4f01">⚠️ The Authorization Detail Processor is MANDATORY</p>
+      <p style="font-size:13px;color:#7a4f01;margin-top:6px">PingFederate will not allow saving an Authorization Detail Type without a registered processor. The processor must be compiled as a JAR and deployed into the PingFederate container before it can be selected in the UI.</p>
+    </div>
+
+    <h3>What is an Authorization Detail Processor?</h3>
+    <p>It is a Java plugin that implements the <code>AuthorizationDetailProcessor</code> interface from the PingFederate SDK. It is called by PingFederate during the OAuth2 PAR+RAR flow to validate, enrich, and describe the <code>authorization_details</code> object submitted by the client.</p>
+
+    <h3>Step 1 — Extract the PingFederate SDK</h3>
+    <p>The SDK JAR is bundled inside the PingFederate Docker container. Extract it to your local project directory before compiling the plugin:</p>
+    <pre style="background:#172b4d;color:#e3fcef;border-radius:6px;padding:16px;font-size:13px;line-height:1.8;overflow-x:auto"># List available SDK JARs inside the container
+docker exec ping-pingfederate-1 ls /opt/out/instance/server/default/lib/
+
+# Copy the SDK JAR to your local project (Windows)
+docker cp ping-pingfederate-1:/opt/out/instance/server/default/lib/pingfederate-sdk.jar ^
+  "D:\Docker Imgs\Ping\Plugin NoProcessor\pingfederate-sdk.jar"</pre>
+
+    <h3>Step 2 — Build the Plugin</h3>
+    <p>The plugin project is located at <code>D:\Docker Imgs\Ping\Plugin NoProcessor</code>. Build it using Maven with the extracted SDK as a local dependency:</p>
+    <pre style="background:#172b4d;color:#e3fcef;border-radius:6px;padding:16px;font-size:13px;line-height:1.8;overflow-x:auto">cd "D:\Docker Imgs\Ping\Plugin NoProcessor"
+mvn clean package
+
+# Verify the compiled .class files are present in the JAR
+jar tf target\banking-transfer-processor-1.0.jar | findstr ".class"</pre>
+
+    <h3>Step 3 — Deploy the JAR into PingFederate</h3>
+    <pre style="background:#172b4d;color:#e3fcef;border-radius:6px;padding:16px;font-size:13px;line-height:1.8;overflow-x:auto"># Windows
+docker cp target\banking-transfer-processor-1.0.jar ^
+  ping-pingfederate-1:/opt/out/instance/server/default/deploy/
+
+# Mac
+docker cp target/banking-transfer-processor-1.0.jar \
+  env-pingfederate-1:/opt/out/instance/server/default/deploy/
+
+# Restart PingFederate to load the new plugin
+docker restart ping-pingfederate-1
+# or on Mac:
+docker restart env-pingfederate-1</pre>
+
+    <h3>Step 4 — Register in Admin UI</h3>
+    <p>Once deployed and PingFederate restarted, go to <strong>System → OAuth Settings → Authorization Detail Types → Add</strong> and select <strong>Banking Transfer Processor</strong> from the processor dropdown.</p>
+
+    <h3>Plugin Methods — BankingTransferProcessor.java</h3>
+    <table class="infra-table">
+      <thead><tr><th>Method</th><th>When Called</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>configure()</code></td>
+          <td>Plugin startup</td>
+          <td>Loads configuration from Admin UI. Empty in this POC — no config params needed.</td>
+        </tr>
+        <tr>
+          <td><code>getPluginDescriptor()</code></td>
+          <td>Plugin registration</td>
+          <td>Returns plugin metadata to PingFederate: name "Banking Transfer Processor", version "1.0", GUI fields.</td>
+        </tr>
+        <tr>
+          <td><code>validate()</code></td>
+          <td>Authorization time (PAR request)</td>
+          <td>Validates the RAR payload sent by Angular. Returns valid in this POC. Can be extended to check amount &gt; 0, valid IBAN format, currency whitelist.</td>
+        </tr>
+        <tr>
+          <td><code>enrich()</code></td>
+          <td>After validation</td>
+          <td>Enriches the <code>authorization_details</code> object before it is stored in the JWT. Returns detail as-is in this POC.</td>
+        </tr>
+        <tr>
+          <td><code>getUserConsentDescription()</code></td>
+          <td>Consent screen display</td>
+          <td>Returns human-readable string shown to the user: "Transfer of 150.00 EUR to IBAN FR76... | Reference: rent". Reads: <code>amount</code>, <code>currency</code>, <code>iban</code>, <code>label</code> from <code>detail.getDetail()</code>.</td>
+        </tr>
+        <tr>
+          <td><code>isEqualOrSubset()</code></td>
+          <td>Token reuse / incremental auth</td>
+          <td>Checks if a new authorization request is covered by an existing grant. Returns <code>true</code> in this POC.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Advanced Controls — External API Calls from Plugin Methods</h3>
+    <p>For more complex business rules involving entity relationships — such as verifying that a creditor IBAN belongs to a known counterparty, checking account balance limits, or calling a fraud detection system — the processor methods can make HTTP calls to external APIs directly from Java. This avoids duplicating validation logic in Spring Boot.</p>
+
+    <div style="background:#e8f0fe;border-left:5px solid #0052cc;border-radius:6px;padding:16px;margin:16px 0">
+      <p style="font-size:13px;color:#172b4d">
+        💡 <strong>Example:</strong> In <code>validate()</code>, call <code>GET /api/accounts/{iban}/status</code> to verify the creditor IBAN is not blocked before issuing the token. In <code>enrich()</code>, call <code>GET /api/accounts/{iban}/details</code> to resolve the IBAN to a beneficiary name and inject it directly into the JWT — so Spring Boot receives it without a second lookup.
+      </p>
+    </div>
+
+    <table class="infra-table">
+      <thead><tr><th>Use Case</th><th>Method</th><th>API Call Example</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Validate creditor IBAN exists</td>
+          <td><code>validate()</code></td>
+          <td><code>GET /api/accounts/{iban}/status</code></td>
+        </tr>
+        <tr>
+          <td>Check transfer amount vs. daily limit</td>
+          <td><code>validate()</code></td>
+          <td><code>GET /api/customers/{uid}/limits</code></td>
+        </tr>
+        <tr>
+          <td>Resolve IBAN to beneficiary name</td>
+          <td><code>enrich()</code></td>
+          <td><code>GET /api/accounts/{iban}/details</code></td>
+        </tr>
+        <tr>
+          <td>Add fraud risk score to token</td>
+          <td><code>enrich()</code></td>
+          <td><code>POST /api/fraud/score</code></td>
+        </tr>
+        <tr>
+          <td>Check if grant covers new request</td>
+          <td><code>isEqualOrSubset()</code></td>
+          <td>Local comparison — no API needed</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </div>
+
 <footer>POC OAuth2 RAR+PAR — PingIdentity Self-Hosted · Internal Documentation</footer>
 
 </body>
