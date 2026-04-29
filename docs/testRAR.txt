@@ -219,3 +219,52 @@ PROPS"
 
 # 5. Redémarrer
 docker restart <container>
+
+=============================================================
+PROXY LOCAL CORS – CONTOURNEMENT CORS PINGFEDERATE
+=============================================================
+
+PingFederate ne retourne pas Access-Control-Allow-Origin sur
+les endpoints runtime. Solution : proxy Python local sur 9032
+qui ajoute les headers CORS et forward vers 9031.
+
+# Lancer le proxy (dans un terminal séparé)
+python3 -c "
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import urllib.request, ssl
+
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+
+class Proxy(BaseHTTPRequestHandler):
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin','*')
+        self.send_header('Access-Control-Allow-Methods','POST,GET,OPTIONS')
+        self.send_header('Access-Control-Allow-Headers','Content-Type,Authorization')
+        self.end_headers()
+    def do_POST(self):
+        length = int(self.headers.get('Content-Length',0))
+        body = self.rfile.read(length)
+        req = urllib.request.Request('https://localhost:9031'+self.path, data=body, method='POST')
+        req.add_header('Content-Type', self.headers.get('Content-Type',''))
+        try:
+            resp = urllib.request.urlopen(req, context=ctx)
+            data = resp.read()
+            self.send_response(resp.status)
+            self.send_header('Access-Control-Allow-Origin','*')
+            self.send_header('Content-Type','application/json')
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception as e:
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(str(e).encode())
+    def log_message(self, *a): pass
+
+HTTPServer(('',9032), Proxy).serve_forever()
+"
+
+# index.html utilise http://localhost:9032 pour PAR + token
+# Le redirect authorization va toujours directement vers https://localhost:9031
