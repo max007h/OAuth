@@ -79,7 +79,14 @@ WHAT IS A PCV?
   A plugin that validates username/password against PingDirectory.
   It is called by the IdP Adapter during user authentication.
 
-STEP 3 - IdP ADAPTER (HTML Form)
+STEP 3 - PLUGIN / IdP ADAPTER (HTML Form)
+-------------------------------------------------------------
+WHAT IS A PLUGIN?
+  A plugin is pre-installed code in PingFederate.
+  The HTML Form IdP Adapter plugin is bundled natively.
+  You do not install it — you create an INSTANCE of it.
+  The instance = your specific configuration of the plugin.
+
 -------------------------------------------------------------
 Authentication -> Adapters -> Create New Instance
   Name : HTML-Form-Adapter
