@@ -1,0 +1,84 @@
+=============================================================
+TEST PAR+RAR FLOW - PINGFEDERATE
+=============================================================
+
+STEP 1 - Verify Discovery Endpoint
+-------------------------------------------------------------
+Open in browser:
+https://localhost:9031/as/.well-known/openid-configuration
+
+Check the following fields are present:
+  - pushed_authorization_request_endpoint
+  - authorization_details_types_supported: ["banking_transfer"]
+  - scopes_supported: ["openid", "payment:read", "banking_transfer"]
+
+=============================================================
+STEP 2 - Send PAR Request
+=============================================================
+
+curl -k -X POST https://localhost:9031/as/par \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "client_id=banking-spa" \
+  -d "response_type=code" \
+  -d "redirect_uri=http://localhost:4200" \
+  -d "scope=openid payment:read banking_transfer" \
+  -d "code_challenge=abc123" \
+  -d "code_challenge_method=S256" \
+  -d 'authorization_details=[{"type":"banking_transfer","amount":15000,"currency":"EUR","iban":"FR7630004000031234567890143","label":"rent"}]'
+
+Expected response:
+  {
+    "request_uri": "urn:ietf:params:oauth:request_uri:...",
+    "expires_in": 90
+  }
+
+=============================================================
+STEP 3 - Authorization Request with request_uri
+=============================================================
+
+Open in browser:
+https://localhost:9031/as/authorization.oauth2?client_id=banking-spa&request_uri=<request_uri_from_step2>
+
+-> Login with Customer_1 / Password1234!
+-> Should redirect to http://localhost:4200?code=<auth_code>
+
+=============================================================
+STEP 4 - Exchange Code for Token
+=============================================================
+
+curl -k -X POST https://localhost:9031/as/token.oauth2 \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=authorization_code" \
+  -d "client_id=banking-spa" \
+  -d "code=<auth_code_from_step3>" \
+  -d "redirect_uri=http://localhost:4200" \
+  -d "code_verifier=<pkce_verifier>"
+
+=============================================================
+STEP 5 - Decode JWT and Verify Claims
+=============================================================
+
+Paste the access_token at https://jwt.io and verify:
+  {
+    "sub": "Customer_1",
+    "ibanAccount": "FR7630006000011234567890189",
+    "isMemberOf": ["cn=CUSTOMERS,ou=groups,dc=example,dc=com"],
+    "authorization_details": [
+      {
+        "type": "banking_transfer",
+        "amount": 15000,
+        "currency": "EUR",
+        "iban": "FR7630004000031234567890143",
+        "label": "rent"
+      }
+    ]
+  }
+
+=============================================================
+HMAC KEY FOR JWT VERIFICATION
+=============================================================
+
+Key ID  : poc-key
+Key     : 6a4f8c2d1e9b3f7a5c0d8e2f4b6a9c1d3e5f7a8b2c4d6e0f1a3b5c7d9e2f4a6b
+Encoding: Hex
+Algorithm: HS256
