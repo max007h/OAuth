@@ -404,3 +404,18 @@ Symmetric Key configuration:
 
 IMPORTANT: This key must match in Spring Boot application.properties:
   spring.security.oauth2.resourceserver.jwt.hmac-secret=6a4f8c2d1e9b3f7a5c0d8e2f4b6a9c1d3e5f7a8b2c4d6e0f1a3b5c7d9e2f4a6b
+
+=============================================================
+CHECK isMemberOf ATTRIBUTE IN PINGDIRECTORY
+=============================================================
+
+docker exec env-pingdirectory-1 ldapsearch \
+  --hostname localhost --port 1636 \
+  --useSSL --trustAll \
+  --bindDN "cn=administrator" \
+  --bindPassword "2FederateM0re" \
+  --baseDN "uid=Customer_1,ou=People,dc=example,dc=com" \
+  --searchScope base "(objectClass=*)" isMemberOf
+
+If isMemberOf is empty or missing, it needs to be enabled
+as a Virtual Attribute in PingDirectory.
