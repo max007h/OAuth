@@ -2,118 +2,138 @@
 TEST PAR+RAR FLOW - PINGFEDERATE
 =============================================================
 
-STEP 1 - Verify Discovery Endpoint
+DISCOVERY ENDPOINT (corrigé - sans /as)
 -------------------------------------------------------------
-Open in browser:
-https://localhost:9031/as/.well-known/openid-configuration
+URL: https://localhost:9031/.well-known/openid-configuration
 
-Check the following fields are present:
-  - pushed_authorization_request_endpoint
-  - authorization_details_types_supported: ["banking_transfer"]
-  - scopes_supported: ["openid", "payment:read", "banking_transfer"]
+Champs confirmés présents (29/04/2026) :
+  - pushed_authorization_request_endpoint : https://localhost:9031/as/par.oauth2
+  - require_pushed_authorization_requests : true
+  - authorization_details_types_supported : ["bankingTransfert"]
+  - scopes_supported                      : ["openid", "payment:read", "banking_transfert"]
+  - token_endpoint                        : https://localhost:9031/as/token.oauth2
+  - authorization_endpoint                : https://localhost:9031/as/authorization.oauth2
 
 =============================================================
-STEP 2 - Send PAR Request
+STEP 1 - PAR Request
 =============================================================
 
-curl -k -X POST https://localhost:9031/as/par \
+curl -k -X POST https://localhost:9031/as/par.oauth2 \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "client_id=banking-spa" \
   -d "response_type=code" \
   -d "redirect_uri=http://localhost:4200" \
-  -d "scope=openid payment:read banking_transfer" \
-  -d "code_challenge=abc123" \
-  -d "code_challenge_method=S256" \
-  -d 'authorization_details=[{"type":"banking_transfer","amount":15000,"currency":"EUR","iban":"FR7630004000031234567890143","label":"rent"}]'
+  -d "scope=openid payment:read banking_transfert" \
+  -d 'authorization_details=[{"type":"bankingTransfert","amount":15000,"currency":"EUR","iban":"FR7630004000031234567890143","label":"loyer"}]'
 
 Expected response:
   {
     "request_uri": "urn:ietf:params:oauth:request_uri:...",
-    "expires_in": 90
+    "expires_in": 60
   }
 
 =============================================================
-STEP 3 - Authorization Request with request_uri
+STEP 2 - Authorization Request (browser)
 =============================================================
 
-Open in browser:
-https://localhost:9031/as/authorization.oauth2?client_id=banking-spa&request_uri=<request_uri_from_step2>
+Ouvrir dans le navigateur :
+https://localhost:9031/as/authorization.oauth2?client_id=banking-spa&request_uri=<request_uri_from_step1>
 
--> Login with Customer_1 / Password1234!
--> Should redirect to http://localhost:4200?code=<auth_code>
+-> Login : Customer_1 / Password1234!
+-> Redirect vers : http://localhost:4200?code=<auth_code>
 
 =============================================================
-STEP 4 - Exchange Code for Token
+STEP 3 - Token Exchange
 =============================================================
 
 curl -k -X POST https://localhost:9031/as/token.oauth2 \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=authorization_code" \
   -d "client_id=banking-spa" \
-  -d "code=<auth_code_from_step3>" \
-  -d "redirect_uri=http://localhost:4200" \
-  -d "code_verifier=<pkce_verifier>"
+  -d "code=<auth_code_from_step2>" \
+  -d "redirect_uri=http://localhost:4200"
+
+Expected response:
+  {
+    "access_token": "<jwt>",
+    "token_type": "Bearer",
+    "expires_in": 7200
+  }
 
 =============================================================
-STEP 5 - Decode JWT and Verify Claims
+STEP 4 - Decode JWT et vérification claims
 =============================================================
 
-Paste the access_token at https://jwt.io and verify:
+Coller l'access_token sur https://jwt.io et vérifier :
   {
     "sub": "Customer_1",
     "ibanAccount": "FR7630006000011234567890189",
     "isMemberOf": ["cn=CUSTOMERS,ou=groups,dc=example,dc=com"],
     "authorization_details": [
       {
-        "type": "banking_transfer",
+        "type": "bankingTransfert",
         "amount": 15000,
         "currency": "EUR",
         "iban": "FR7630004000031234567890143",
-        "label": "rent"
+        "label": "loyer"
       }
     ]
   }
 
 =============================================================
-HMAC KEY FOR JWT VERIFICATION
+STEP 5 - Appel Resource Server (Spring Boot)
 =============================================================
 
-Key ID  : poc-key
-Key     : 6a4f8c2d1e9b3f7a5c0d8e2f4b6a9c1d3e5f7a8b2c4d6e0f1a3b5c7d9e2f4a6b
-Encoding: Hex
-Algorithm: HS256
+curl -k -X GET https://localhost:8443/api/payments \
+  -H "Authorization: Bearer <access_token_from_step3>"
+
+Expected: HTTP 200 avec la liste des paiements
 
 =============================================================
-AUTHORIZATION SERVER SETTINGS – SNAPSHOT (29/04/2026)
+CONFIGURATION REFERENCE
 =============================================================
 
-[General]
-- Authorization Code Timeout      : 60s
-- Authorization Code Entropy      : 30 bytes
-- Disallow Plain PKCE             : NON (décoché)
-- Include Issuer in Auth Response : NON
-- Track User Sessions for Logout  : NON
-- Client Secret Retention Period  : 0 min
+[Endpoints runtime]
+- Discovery     : https://localhost:9031/.well-known/openid-configuration
+- PAR           : https://localhost:9031/as/par.oauth2
+- Authorize     : https://localhost:9031/as/authorization.oauth2
+- Token         : https://localhost:9031/as/token.oauth2
+- Introspect    : https://localhost:9031/as/introspect.oauth2
+- JWKS          : https://localhost:9031/pf/JWKS
+- UserInfo      : https://localhost:9031/idp/userinfo.openid
 
-[PAR Settings]
-- PAR Status                      : REQUIRED ✓
-- PAR Reference Timeout           : 60s
-- PAR Reference Entropy           : 24 bytes
+[Client banking-spa]
+- client_id     : banking-spa
+- PKCE          : désactivé
+- PAR           : requis
+- redirect_uri  : http://localhost:4200
+- scopes        : openid payment:read banking_transfert
+- RAR type      : bankingTransfert
 
-[Refresh Token / Persistent Grant]
-- Persistent Grant Max Lifetime   : Grants Do Not Expire
-- Persistent Grant Idle Timeout   : 30 Days
-- Refresh Token Length            : 42 chars
-- Roll Refresh Token Values       : NON
-- Minimum Interval to Roll        : 0 Hours
-- Rolling Grace Period            : 60s
-- Reuse Existing Grants           : IMPLICIT only ✓
+[Users de test]
+- Customer_1 / Password1234!   (groupe: CUSTOMERS)
+- Approbateur_1 / Password1234! (groupe: APPROVERS)
 
-[Authorization Consent]
-- Bypass Approved Persistent Grants : NON
-- Bypass Approved Consents          : NON
-- Consent UI                        : Default
+[JWT Access Token]
+- Algo          : HS256
+- Key ID        : poc-key
+- Secret (hex)  : 6a4f8c2d1e9b3f7a5c0d8e2f4b6a9c1d3e5f7a8b2c4d6e0f1a3b5c7d9e2f4a6b
+- Durée         : 120 min
 
-[OAuth Admin Web Services]
-- Password Credential Validator   : (non configuré)
-- Persistent Grant Mgmt ATM       : (non configuré)
+[Authorization Server Settings]
+- PAR Status                    : Required
+- PAR Reference Timeout         : 60s
+- PAR Reference Entropy         : 24 bytes
+- Authorization Code Timeout    : 60s
+- Authorization Code Entropy    : 30 bytes
+- Persistent Grant Max Lifetime : Grants Do Not Expire
+- Persistent Grant Idle Timeout : 30 Days
+- Refresh Token Length          : 42 chars
+- Rolling Grace Period          : 60s
+
+[Ports Docker]
+- PingFederate runtime  : 9031
+- PingFederate admin    : 9999
+- PingAuthorize         : 7443
+- PAP                   : 9443
+- PingDirectory         : 1636
