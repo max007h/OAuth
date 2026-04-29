@@ -2,9 +2,10 @@
 TEST PAR+RAR FLOW - PINGFEDERATE
 =============================================================
 
-DISCOVERY ENDPOINT (corrigé - sans /as)
+DISCOVERY ENDPOINT
 -------------------------------------------------------------
 URL: https://localhost:9031/.well-known/openid-configuration
+(sans /as - corrigé)
 
 Champs confirmés présents (29/04/2026) :
   - pushed_authorization_request_endpoint : https://localhost:9031/as/par.oauth2
@@ -15,7 +16,19 @@ Champs confirmés présents (29/04/2026) :
   - authorization_endpoint                : https://localhost:9031/as/authorization.oauth2
 
 =============================================================
-STEP 1 - PAR Request
+STEP 1 - Générer PKCE code_verifier + code_challenge
+=============================================================
+
+# Générer un code_verifier aléatoire (43-128 chars)
+CODE_VERIFIER=$(openssl rand -base64 32 | tr -d '=+/' | cut -c1-43)
+echo "code_verifier: $CODE_VERIFIER"
+
+# Générer le code_challenge (SHA256 du verifier, base64url)
+CODE_CHALLENGE=$(echo -n "$CODE_VERIFIER" | openssl dgst -sha256 -binary | openssl base64 | tr '+/' '-_' | tr -d '=')
+echo "code_challenge: $CODE_CHALLENGE"
+
+=============================================================
+STEP 2 - PAR Request
 =============================================================
 
 curl -k -X POST https://localhost:9031/as/par.oauth2 \
@@ -24,6 +37,8 @@ curl -k -X POST https://localhost:9031/as/par.oauth2 \
   -d "response_type=code" \
   -d "redirect_uri=http://localhost:4200" \
   -d "scope=openid payment:read banking_transfert" \
+  -d "code_challenge=$CODE_CHALLENGE" \
+  -d "code_challenge_method=S256" \
   -d 'authorization_details=[{"type":"bankingTransfert","amount":15000,"currency":"EUR","iban":"FR7630004000031234567890143","label":"loyer"}]'
 
 Expected response:
@@ -33,25 +48,26 @@ Expected response:
   }
 
 =============================================================
-STEP 2 - Authorization Request (browser)
+STEP 3 - Authorization Request (browser)
 =============================================================
 
 Ouvrir dans le navigateur :
-https://localhost:9031/as/authorization.oauth2?client_id=banking-spa&request_uri=<request_uri_from_step1>
+https://localhost:9031/as/authorization.oauth2?client_id=banking-spa&request_uri=<request_uri_from_step2>
 
 -> Login : Customer_1 / Password1234!
 -> Redirect vers : http://localhost:4200?code=<auth_code>
 
 =============================================================
-STEP 3 - Token Exchange
+STEP 4 - Token Exchange
 =============================================================
 
 curl -k -X POST https://localhost:9031/as/token.oauth2 \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=authorization_code" \
   -d "client_id=banking-spa" \
-  -d "code=<auth_code_from_step2>" \
-  -d "redirect_uri=http://localhost:4200"
+  -d "code=<auth_code_from_step3>" \
+  -d "redirect_uri=http://localhost:4200" \
+  -d "code_verifier=$CODE_VERIFIER"
 
 Expected response:
   {
@@ -61,7 +77,7 @@ Expected response:
   }
 
 =============================================================
-STEP 4 - Decode JWT et vérification claims
+STEP 5 - Decode JWT et vérification claims
 =============================================================
 
 Coller l'access_token sur https://jwt.io et vérifier :
@@ -80,12 +96,16 @@ Coller l'access_token sur https://jwt.io et vérifier :
     ]
   }
 
+Pour vérifier la signature HS256 sur jwt.io :
+  Secret (hex) : 6a4f8c2d1e9b3f7a5c0d8e2f4b6a9c1d3e5f7a8b2c4d6e0f1a3b5c7d9e2f4a6b
+  Cocher "secret base64 encoded" : NON (c'est du hex)
+
 =============================================================
-STEP 5 - Appel Resource Server (Spring Boot)
+STEP 6 - Appel Resource Server (Spring Boot)
 =============================================================
 
 curl -k -X GET https://localhost:8443/api/payments \
-  -H "Authorization: Bearer <access_token_from_step3>"
+  -H "Authorization: Bearer <access_token_from_step4>"
 
 Expected: HTTP 200 avec la liste des paiements
 
@@ -104,21 +124,26 @@ CONFIGURATION REFERENCE
 
 [Client banking-spa]
 - client_id     : banking-spa
-- PKCE          : désactivé
-- PAR           : requis
+- PKCE          : REQUIS (S256) ✓
+- PAR           : REQUIS ✓
 - redirect_uri  : http://localhost:4200
 - scopes        : openid payment:read banking_transfert
 - RAR type      : bankingTransfert
+- Default ATM   : JWTAccessToken (poc-key, HS256)
 
 [Users de test]
-- Customer_1 / Password1234!   (groupe: CUSTOMERS)
+- Customer_1 / Password1234!    (groupe: CUSTOMERS)
 - Approbateur_1 / Password1234! (groupe: APPROVERS)
 
-[JWT Access Token]
-- Algo          : HS256
-- Key ID        : poc-key
-- Secret (hex)  : 6a4f8c2d1e9b3f7a5c0d8e2f4b6a9c1d3e5f7a8b2c4d6e0f1a3b5c7d9e2f4a6b
-- Durée         : 120 min
+[JWT Access Token - ATM]
+- Algo                    : HMAC using SHA-256 (HS256)
+- Key ID                  : poc-key
+- Secret (hex)            : 6a4f8c2d1e9b3f7a5c0d8e2f4b6a9c1d3e5f7a8b2c4d6e0f1a3b5c7d9e2f4a6b
+- Encoding                : Hex
+- Token Lifetime          : 120 min
+- Use Centralized Signing : false
+- Include Key ID Header   : true
+- Enable Token Revocation : false
 
 [Authorization Server Settings]
 - PAR Status                    : Required
