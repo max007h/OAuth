@@ -281,3 +281,20 @@ docker logs env-pingfederate-1 --tail=100 2>&1
 
 # Logs en temps réel pendant le test
 docker logs env-pingfederate-1 -f 2>&1 | grep -i "error\|warn\|banking"
+
+=============================================================
+DEBUG – EXCEPTION DURING REQUEST PROCESSING
+=============================================================
+
+Erreur identifiée dans les logs :
+ERROR [org.sourceid.websso.profiles.ExceptionLoggingSupport]
+Exception occurred during request processing
+
+# Voir l'exception complète avec stack trace
+docker logs env-pingfederate-1 2>&1 | grep -A 20 "Exception occurred during request processing" | tail -40
+
+# Voir toutes les erreurs ERROR avec contexte
+docker logs env-pingfederate-1 2>&1 | grep -B 5 -A 20 "ERROR" | tail -80
+
+# Chercher cause racine spécifique
+docker logs env-pingfederate-1 2>&1 | grep -i "caused by\|rootcause\|NullPointer\|NoSuch\|banking\|BankingTransfert"
