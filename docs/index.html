@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Banking POC – PAR + RAR Demo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
+
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --border: #1c2030;
+    --accent: #00d4aa;
+    --accent-dim: rgba(0,212,170,0.1);
+    --warn: #f5a623;
+    --danger: #e05a7a;
+    --text: #c8d4e8;
+    --muted: #4a5568;
+    --label: #6b7a99;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* HEADER */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-dot {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .badges {
+    display: flex;
+    gap: 8px;
+  }
+
+  .badge {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    padding: 3px 8px;
+    border-radius: 3px;
+    border: 1px solid;
+    letter-spacing: 0.08em;
+  }
+
+  .badge-par { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+  .badge-rar { color: var(--warn); border-color: var(--warn); background: rgba(245,166,35,0.1); }
+  .badge-pkce { color: #a78bfa; border-color: #a78bfa; background: rgba(167,139,250,0.1); }
+
+  /* MAIN */
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    gap: 0;
+    max-height: calc(100vh - 61px);
+  }
+
+  /* LEFT PANEL - FORM */
+  .panel-form {
+    padding: 40px 48px;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+  }
+
+  .section-title {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--label);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  h1 {
+    font-family: var(--sans);
+    font-size: 1.8rem;
+    font-weight: 300;
+    color: #fff;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+
+  h1 span { color: var(--accent); font-weight: 600; }
+
+  .subtitle {
+    color: var(--label);
+    font-size: 0.85rem;
+    margin-bottom: 40px;
+    line-height: 1.6;
+  }
+
+  .form-group {
+    margin-bottom: 20px;
+  }
+
+  label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--label);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  input, select {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    padding: 12px 16px;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input:focus, select:focus {
+    border-color: var(--accent);
+  }
+
+  select option { background: #1a1d2e; }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .rar-box {
+    background: rgba(245,166,35,0.05);
+    border: 1px solid rgba(245,166,35,0.2);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 24px 0;
+  }
+
+  .rar-box-title {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--warn);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .rar-preview {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: #a0aec0;
+    background: rgba(0,0,0,0.3);
+    border-radius: 4px;
+    padding: 12px;
+    line-height: 1.8;
+    word-break: break-all;
+  }
+
+  .rar-preview .key { color: var(--warn); }
+  .rar-preview .val { color: var(--accent); }
+  .rar-preview .str { color: #90cdf4; }
+
+  .btn-primary {
+    width: 100%;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .btn-primary:hover { background: #00efc0; transform: translateY(-1px); }
+  .btn-primary:disabled { background: var(--muted); color: var(--label); cursor: not-allowed; transform: none; }
+
+  .btn-secondary {
+    width: 100%;
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: all 0.2s;
+  }
+
+  .btn-secondary:hover { background: var(--accent-dim); }
+
+  /* RIGHT PANEL - FLOW LOG */
+  .panel-log {
+    background: #080a0e;
+    padding: 32px 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .log-title {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--label);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .flow-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .step {
+    display: flex;
+    gap: 16px;
+    padding-bottom: 24px;
+    position: relative;
+    opacity: 0.35;
+    transition: opacity 0.3s;
+  }
+
+  .step.active { opacity: 1; }
+  .step.done { opacity: 0.7; }
+
+  .step-line {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .step-dot {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--muted);
+    background: var(--bg);
+    flex-shrink: 0;
+    transition: all 0.3s;
+  }
+
+  .step.active .step-dot {
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 12px rgba(0,212,170,0.3);
+  }
+
+  .step.done .step-dot {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+  }
+
+  .step-connector {
+    width: 2px;
+    flex: 1;
+    background: var(--border);
+    margin-top: 4px;
+    min-height: 20px;
+  }
+
+  .step.done .step-connector { background: var(--accent); }
+
+  .step-content { flex: 1; padding-top: 4px; }
+
+  .step-name {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .step.active .step-name { color: var(--accent); }
+
+  .step-desc {
+    font-size: 0.72rem;
+    color: var(--label);
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+
+  .step-data {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: #4a9e8a;
+    background: rgba(0,212,170,0.05);
+    border: 1px solid rgba(0,212,170,0.15);
+    border-radius: 4px;
+    padding: 8px 10px;
+    word-break: break-all;
+    line-height: 1.6;
+    display: none;
+  }
+
+  .step-data.visible { display: block; }
+  .step-data .highlight { color: var(--accent); font-weight: 600; }
+
+  /* CONSENT OVERLAY */
+  #consent-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+
+  #consent-overlay.show { display: flex; }
+
+  .consent-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 40px;
+    max-width: 480px;
+    width: 90%;
+    position: relative;
+  }
+
+  .consent-box::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--warn));
+    border-radius: 12px 12px 0 0;
+  }
+
+  .consent-title {
+    font-family: var(--sans);
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+
+  .consent-subtitle {
+    font-size: 0.8rem;
+    color: var(--label);
+    margin-bottom: 24px;
+  }
+
+  .consent-detail {
+    background: rgba(245,166,35,0.06);
+    border: 1px solid rgba(245,166,35,0.2);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+
+  .consent-detail-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.82rem;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .consent-detail-row:last-child { border-bottom: none; }
+  .consent-detail-row .dk { color: var(--label); }
+  .consent-detail-row .dv { color: #fff; font-weight: 600; font-family: var(--mono); }
+  .consent-detail-row .dv.amount { color: var(--warn); font-size: 1rem; }
+
+  .rar-proof {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    color: var(--label);
+    background: rgba(0,0,0,0.3);
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 20px;
+    line-height: 1.7;
+    word-break: break-all;
+  }
+
+  .rar-proof-label {
+    font-size: 0.6rem;
+    color: var(--warn);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .consent-actions { display: flex; gap: 12px; }
+
+  .btn-approve {
+    flex: 1;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-approve:hover { background: #00efc0; }
+
+  .btn-deny {
+    flex: 1;
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    padding: 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-deny:hover { background: rgba(224,90,122,0.1); }
+
+  /* TOKEN RESULT */
+  #token-result {
+    display: none;
+    background: rgba(0,212,170,0.05);
+    border: 1px solid rgba(0,212,170,0.2);
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 20px;
+  }
+
+  #token-result.show { display: block; }
+
+  .token-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .token-value {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: #68d391;
+    word-break: break-all;
+    line-height: 1.6;
+  }
+
+  .error-box {
+    background: rgba(224,90,122,0.08);
+    border: 1px solid rgba(224,90,122,0.3);
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--danger);
+    margin-top: 12px;
+    display: none;
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(0,0,0,0.3);
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    BANKING POC
+  </div>
+  <div class="badges">
+    <span class="badge badge-par">PAR</span>
+    <span class="badge badge-rar">RAR</span>
+    <span class="badge badge-pkce">PKCE S256</span>
+  </div>
+</header>
+
+<main>
+  <!-- LEFT: FORM -->
+  <div class="panel-form">
+    <div class="section-title">Initier un virement</div>
+    <h1>Virement <span>Sécurisé</span></h1>
+    <p class="subtitle">
+      Ce formulaire déclenche un flux OAuth2 PAR + RAR complet.<br>
+      Les détails du virement sont encodés dans <code style="color:var(--warn);font-size:0.8em">authorization_details</code> et vérifiés par PingFederate avant l'émission du token.
+    </p>
+
+    <div class="form-group">
+      <label>IBAN bénéficiaire</label>
+      <input type="text" id="iban" value="FR7630004000031234567890143" placeholder="FR76...">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Montant (€)</label>
+        <input type="number" id="amount" value="15000" min="1">
+      </div>
+      <div class="form-group">
+        <label>Devise</label>
+        <select id="currency">
+          <option value="EUR">EUR</option>
+          <option value="USD">USD</option>
+          <option value="GBP">GBP</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Libellé</label>
+      <input type="text" id="label" value="loyer" placeholder="Libellé du virement">
+    </div>
+
+    <div class="rar-box">
+      <div class="rar-box-title">
+        ⚡ authorization_details (RAR – RFC 9396)
+      </div>
+      <div class="rar-preview" id="rar-preview"></div>
+    </div>
+
+    <button class="btn-primary" id="btn-initiate">
+      Initier le virement via PAR
+    </button>
+
+    <div class="error-box" id="error-box"></div>
+    <div id="token-result">
+      <div class="token-label">✓ Access Token (JWT)</div>
+      <div class="token-value" id="token-display"></div>
+      <br>
+      <div class="token-label">✓ authorization_details dans le token</div>
+      <div class="token-value" id="claims-display"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: FLOW LOG -->
+  <div class="panel-log">
+    <div class="log-title">OAuth2 Flow – Étapes</div>
+    <div class="flow-steps">
+
+      <div class="step" id="step-1">
+        <div class="step-line">
+          <div class="step-dot">1</div>
+          <div class="step-connector"></div>
+        </div>
+        <div class="step-content">
+          <div class="step-name">PAR Request</div>
+          <div class="step-desc">POST /as/par.oauth2 avec authorization_details + code_challenge</div>
+          <div class="step-data" id="step-1-data"></div>
+        </div>
+      </div>
+
+      <div class="step" id="step-2">
+        <div class="step-line">
+          <div class="step-dot">2</div>
+          <div class="step-connector"></div>
+        </div>
+        <div class="step-content">
+          <div class="step-name">request_uri reçu</div>
+          <div class="step-desc">PingFederate retourne un request_uri opaque valable 60s</div>
+          <div class="step-data" id="step-2-data"></div>
+        </div>
+      </div>
+
+      <div class="step" id="step-3">
+        <div class="step-line">
+          <div class="step-dot">3</div>
+          <div class="step-connector"></div>
+        </div>
+        <div class="step-content">
+          <div class="step-name">Authorization + Consentement</div>
+          <div class="step-desc">Redirect vers PingFederate avec request_uri. Login + écran de consentement RAR</div>
+          <div class="step-data" id="step-3-data"></div>
+        </div>
+      </div>
+
+      <div class="step" id="step-4">
+        <div class="step-line">
+          <div class="step-dot">4</div>
+          <div class="step-connector"></div>
+        </div>
+        <div class="step-content">
+          <div class="step-name">Token Exchange</div>
+          <div class="step-desc">POST /as/token.oauth2 avec code + code_verifier PKCE</div>
+          <div class="step-data" id="step-4-data"></div>
+        </div>
+      </div>
+
+      <div class="step" id="step-5">
+        <div class="step-line">
+          <div class="step-dot">5</div>
+        </div>
+        <div class="step-content">
+          <div class="step-name">JWT avec authorization_details</div>
+          <div class="step-desc">Le token contient ibanAccount, groups et authorization_details vérifiés</div>
+          <div class="step-data" id="step-5-data"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<!-- CONSENT OVERLAY (simulé) -->
+<div id="consent-overlay">
+  <div class="consent-box">
+    <div class="consent-title">Autoriser le virement ?</div>
+    <div class="consent-subtitle">L'application banking-spa demande votre autorisation pour</div>
+
+    <div class="consent-detail">
+      <div class="consent-detail-row">
+        <span class="dk">Bénéficiaire (IBAN)</span>
+        <span class="dv" id="c-iban"></span>
+      </div>
+      <div class="consent-detail-row">
+        <span class="dk">Montant</span>
+        <span class="dv amount" id="c-amount"></span>
+      </div>
+      <div class="consent-detail-row">
+        <span class="dk">Libellé</span>
+        <span class="dv" id="c-label"></span>
+      </div>
+      <div class="consent-detail-row">
+        <span class="dk">Type RAR</span>
+        <span class="dv">bankingTransfert</span>
+      </div>
+    </div>
+
+    <div class="rar-proof-label">authorization_details encodés dans le PAR</div>
+    <div class="rar-preview rar-proof" id="c-rar"></div>
+
+    <div class="consent-actions">
+      <button class="btn-approve" id="btn-approve">✓ Autoriser</button>
+      <button class="btn-deny" id="btn-deny">✗ Refuser</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // CONFIG
+  const CONFIG = {
+    PF_BASE: 'https://localhost:9031',
+    CLIENT_ID: 'banking-spa',
+    REDIRECT_URI: 'http://localhost:4200',
+    SCOPE: 'openid payment:read banking_transfert',
+    CODE_VERIFIER: 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk',
+    CODE_CHALLENGE: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+  };
+
+  let currentRequestUri = null;
+  let currentAuthCode = null;
+  let transferData = {};
+
+  // Mise à jour RAR preview en temps réel
+  function updateRarPreview() {
+    const rar = [{
+      type: 'bankingTransfert',
+      iban: $('#iban').val(),
+      amount: parseInt($('#amount').val()) || 0,
+      currency: $('#currency').val(),
+      label: $('#label').val()
+    }];
+    const json = JSON.stringify(rar, null, 2);
+    const colored = json
+      .replace(/"([^"]+)":/g, '<span class="key">"$1"</span>:')
+      .replace(/: "([^"]+)"/g, ': <span class="str">"$1"</span>')
+      .replace(/: (\d+)/g, ': <span class="val">$1</span>');
+    $('#rar-preview').html(colored);
+  }
+
+  function setStep(n, state) {
+    // state: 'active' | 'done' | ''
+    $(`#step-${n}`).removeClass('active done').addClass(state);
+  }
+
+  function showStepData(n, html) {
+    $(`#step-${n}-data`).html(html).addClass('visible');
+  }
+
+  function showError(msg) {
+    $('#error-box').text(msg).show();
+    $('#btn-initiate').prop('disabled', false).html('Initier le virement via PAR');
+  }
+
+  // STEP 1 + 2 : PAR Request
+  function doPAR() {
+    $('#error-box').hide();
+    $('#token-result').removeClass('show');
+    transferData = {
+      iban: $('#iban').val(),
+      amount: parseInt($('#amount').val()),
+      currency: $('#currency').val(),
+      label: $('#label').val()
+    };
+
+    const authDetails = JSON.stringify([{
+      type: 'bankingTransfert',
+      iban: transferData.iban,
+      amount: transferData.amount,
+      currency: transferData.currency,
+      label: transferData.label
+    }]);
+
+    setStep(1, 'active');
+
+    const parPayload = new URLSearchParams({
+      client_id: CONFIG.CLIENT_ID,
+      response_type: 'code',
+      redirect_uri: CONFIG.REDIRECT_URI,
+      scope: CONFIG.SCOPE,
+      code_challenge: CONFIG.CODE_CHALLENGE,
+      code_challenge_method: 'S256',
+      authorization_details: authDetails
+    });
+
+    showStepData(1, `POST ${CONFIG.PF_BASE}/as/par.oauth2<br>` +
+      `<span class="highlight">code_challenge</span>: ${CONFIG.CODE_CHALLENGE}<br>` +
+      `<span class="highlight">authorization_details</span>: ${authDetails.substring(0,60)}...`);
+
+    $.ajax({
+      url: `${CONFIG.PF_BASE}/as/par.oauth2`,
+      method: 'POST',
+      contentType: 'application/x-www-form-urlencoded',
+      data: parPayload.toString(),
+      success: function(resp) {
+        currentRequestUri = resp.request_uri;
+        setStep(1, 'done');
+        setStep(2, 'active');
+        showStepData(2, `<span class="highlight">request_uri</span>: ${resp.request_uri}<br>expires_in: ${resp.expires_in}s`);
+        setTimeout(() => {
+          setStep(2, 'done');
+          showConsent();
+        }, 800);
+      },
+      error: function(xhr) {
+        // Si CORS bloque, on simule pour la démo
+        if (xhr.status === 0) {
+          simulatePAR(authDetails);
+        } else {
+          showError(`PAR Error ${xhr.status}: ${xhr.responseText}`);
+          setStep(1, '');
+        }
+      }
+    });
+  }
+
+  // Simulation si CORS bloque (demo mode)
+  function simulatePAR(authDetails) {
+    currentRequestUri = 'urn:ietf:params:oauth:request_uri:' + Math.random().toString(36).substr(2, 20);
+    setStep(1, 'done');
+    setStep(2, 'active');
+    showStepData(1, `[DEMO] POST ${CONFIG.PF_BASE}/as/par.oauth2<br>` +
+      `<span class="highlight">code_challenge</span>: ${CONFIG.CODE_CHALLENGE}<br>` +
+      `<span class="highlight">authorization_details</span>: ${authDetails.substring(0,80)}...`);
+    showStepData(2, `<span class="highlight">request_uri</span>: ${currentRequestUri}<br>expires_in: 60s<br><em style="color:var(--warn)">[mode démo - CORS bloqué]</em>`);
+    setTimeout(() => {
+      setStep(2, 'done');
+      showConsent();
+    }, 800);
+  }
+
+  function showConsent() {
+    setStep(3, 'active');
+    $('#c-iban').text(transferData.iban);
+    $('#c-amount').text(`${transferData.amount.toLocaleString('fr-FR')} ${transferData.currency}`);
+    $('#c-label').text(transferData.label);
+    const rarJson = JSON.stringify([{
+      type: 'bankingTransfert',
+      iban: transferData.iban,
+      amount: transferData.amount,
+      currency: transferData.currency,
+      label: transferData.label
+    }], null, 2);
+    const colored = rarJson
+      .replace(/"([^"]+)":/g, '<span class="key">"$1"</span>:')
+      .replace(/: "([^"]+)"/g, ': <span class="str">"$1"</span>')
+      .replace(/: (\d+)/g, ': <span class="val">$1</span>');
+    $('#c-rar').html(colored);
+    $('#consent-overlay').addClass('show');
+  }
+
+  // STEP 3: Approve → redirect to PingFederate
+  $('#btn-approve').click(function() {
+    $('#consent-overlay').removeClass('show');
+    showStepData(3, `Redirect → ${CONFIG.PF_BASE}/as/authorization.oauth2<br>` +
+      `<span class="highlight">request_uri</span>: ${currentRequestUri}<br>` +
+      `Login: Customer_1 / Password1234!`);
+    setStep(3, 'done');
+    setStep(4, 'active');
+
+    // Redirect réel vers PingFederate
+    const authUrl = `${CONFIG.PF_BASE}/as/authorization.oauth2?client_id=${CONFIG.CLIENT_ID}&request_uri=${encodeURIComponent(currentRequestUri)}`;
+
+    // Stocker pour récupérer après callback
+    sessionStorage.setItem('pkce_verifier', CONFIG.CODE_VERIFIER);
+    sessionStorage.setItem('flow_step', '4');
+
+    window.location.href = authUrl;
+  });
+
+  $('#btn-deny').click(function() {
+    $('#consent-overlay').removeClass('show');
+    showError('Virement refusé par l\'utilisateur.');
+    setStep(3, '');
+    setStep(1, ''); setStep(2, '');
+    $('#btn-initiate').prop('disabled', false).html('Initier le virement via PAR');
+  });
+
+  // STEP 4: Token exchange après callback
+  function handleCallback() {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const error = params.get('error');
+
+    if (error) {
+      showError(`Auth Error: ${params.get('error_description') || error}`);
+      return;
+    }
+
+    if (!code) return;
+
+    currentAuthCode = code;
+    setStep(1, 'done'); setStep(2, 'done'); setStep(3, 'done');
+    setStep(4, 'active');
+
+    showStepData(4, `POST ${CONFIG.PF_BASE}/as/token.oauth2<br>` +
+      `<span class="highlight">code</span>: ${code.substring(0,20)}...<br>` +
+      `<span class="highlight">code_verifier</span>: ${CONFIG.CODE_VERIFIER}`);
+
+    $.ajax({
+      url: `${CONFIG.PF_BASE}/as/token.oauth2`,
+      method: 'POST',
+      contentType: 'application/x-www-form-urlencoded',
+      data: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: CONFIG.CLIENT_ID,
+        code: code,
+        redirect_uri: CONFIG.REDIRECT_URI,
+        code_verifier: CONFIG.CODE_VERIFIER
+      }).toString(),
+      success: function(resp) {
+        setStep(4, 'done');
+        setStep(5, 'active');
+        const token = resp.access_token;
+        // Decode JWT payload
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+          showStepData(5,
+            `<span class="highlight">sub</span>: ${payload.sub || '?'}<br>` +
+            `<span class="highlight">ibanAccount</span>: ${payload.ibanAccount || '?'}<br>` +
+            `<span class="highlight">authorization_details</span>: ${payload.authorization_details ? '✓ présent' : '✗ absent'}`
+          );
+          setStep(5, 'done');
+          $('#token-display').text(token.substring(0,80) + '...');
+          $('#claims-display').text(JSON.stringify(payload.authorization_details, null, 2));
+          $('#token-result').addClass('show');
+        } catch(e) {
+          showStepData(5, `Token reçu (${token.length} chars)`);
+          setStep(5, 'done');
+        }
+        $('#btn-initiate').prop('disabled', false).html('Initier un nouveau virement');
+        // Nettoyer l'URL
+        window.history.replaceState({}, '', '/');
+      },
+      error: function(xhr) {
+        showError(`Token Error ${xhr.status}: ${xhr.responseText}`);
+        setStep(4, '');
+      }
+    });
+  }
+
+  // INIT
+  $(document).ready(function() {
+    updateRarPreview();
+    $('#iban, #amount, #currency, #label').on('input change', updateRarPreview);
+
+    $('#btn-initiate').click(function() {
+      $(this).prop('disabled', true).html('<span class="spinner"></span> Envoi PAR...');
+      doPAR();
+    });
+
+    // Vérifier si on revient d'un callback OAuth
+    if (window.location.search.includes('code=') || window.location.search.includes('error=')) {
+      handleCallback();
+    }
+  });
+</script>
+</body>
+</html>
