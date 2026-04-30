@@ -1,0 +1,45 @@
+sequenceDiagram
+    actor U as User Browser
+    participant C as Client Application
+    participant AS as Authorization Server<br/>(PingFederate)
+    participant PL as BankingTransferProcessor<br/>(Plugin JAR)
+    participant DB as Database<br/>(User/Account/Plafond)
+    participant RS as Resource Server (API)
+
+    U->>C: Initiate wire transfer<br/>(amount, IBAN, beneficiary)
+    C->>C: Build authorization_details object<br/>{"type":"bankingTransfert","iban":"FR76...","amount":15000}
+
+    C->>AS: POST /par<br/>(authorization_details + PKCE params + scopes)
+    
+    AS->>PL: processAuthorization()<br/>structural validation only
+    PL->>PL: Check JSON structure<br/>Check required fields<br/>Check type is known
+    PL-->>AS: OK (no user context yet)
+    
+    AS-->>C: {request_uri: "urn:ietf:...xyz", expires_in: 60}
+
+    AS->>U: Redirect to /authorize?client_id=...&request_uri=urn:ietf:...xyz
+    Note over U: URL contains no sensitive data<br/>safe in history, logs, proxies
+
+    U->>AS: Authenticate and confirm
+    AS->>U: Consent: "Authorize EUR 15,000 to FR76...?"
+    U->>AS: User approves
+    AS-->>U: 302 redirect → callback?code=AUTH_CODE
+
+    U->>C: callback?code=AUTH_CODE
+    C->>AS: POST /token (code + code_verifier)
+
+    AS->>PL: validate()<br/>user identity now known
+    PL->>DB: SELECT plafond, accounts<br/>WHERE user_id = 'Customer_1'<br/>AND iban = 'FR76...'
+    DB-->>PL: {plafond: 50000, accountId: "ACC001", actif: true}
+    PL->>PL: Check amount <= plafond ✓<br/>Check IBAN belongs to user ✓<br/>Check account is active ✓
+    PL->>DB: SELECT additional attributes<br/>(typeCompte, devise, risk_score)
+    DB-->>PL: {typeCompte: "COURANT", devise: "EUR"}
+    PL-->>AS: enriched authorization_details<br/>{type, iban, amount, accountId, plafond}
+
+    AS->>AS: Build JWT with<br/>ibanAccount, isMemberOf,<br/>authorization_details (enriched)
+    AS-->>C: access_token {authorization_details: [{...}]}
+
+    C->>RS: POST /transfers (Bearer token)
+    RS->>RS: Verify JWT signature ✓<br/>Check authorization_details<br/>matches request parameters<br/>amount == token.amount ✓<br/>iban == token.iban ✓
+    RS-->>C: 200 Transfer initiated
+    C-->>U: Transfer confirmed
