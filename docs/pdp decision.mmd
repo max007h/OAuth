@@ -1,0 +1,38 @@
+sequenceDiagram
+    actor User
+    participant SPA as Angular SPA
+    participant PF as PingFederate AS
+    participant RS as Spring Boot RS
+    participant PDP as PingAuthorize (PDP)
+    participant Core as Core Banking API
+
+    User->>SPA: Initiate payment transfer
+    SPA->>PF: GET /as/authorize?authorization_details=[{type:banking_transfer,...}]
+    PF->>User: Display login form
+    User->>PF: Submit credentials
+
+    PF->>PF: Issue token (no business validation)
+    PF->>SPA: Redirect with auth_code
+    SPA->>PF: POST /as/token.oauth2 (code)
+    PF-->>SPA: access_token (JWT with authorization_details)
+
+    SPA->>RS: POST /api/payments (Bearer token)
+    RS->>RS: Validate JWT
+
+    RS->>PF: POST /as/token.oauth2 (client_credentials)
+    PF-->>RS: access_token (RS identity)
+
+    RS->>PDP: POST /decisionEndpoints/{id} (actionId, ibanAccount, amount, groups)
+    PDP->>Core: GET /api/users/{uid}/status
+    Core-->>PDP: { blocked: false }
+    PDP->>Core: GET /api/ibans/{iban}/status
+    Core-->>PDP: { frozen: false }
+
+    alt PDP permits
+        PDP-->>RS: { decision: "PERMIT" }
+        RS-->>SPA: 200 OK
+    else PDP denies
+        PDP-->>RS: { decision: "DENY", advice: "IBAN_FROZEN" }
+        RS-->>SPA: 403 Forbidden
+        SPA->>User: Display denial reason
+    end
