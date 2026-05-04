@@ -3,47 +3,44 @@ sequenceDiagram
     actor User
     participant Browser
     participant Client as Client Frontend
-    participant AS as Authorization Server
-    participant RS as Resource Server
+    participant AS as Serveur d'Autorisation
+    participant RS as Serveur de Ressources
 
-    User->>Browser: 1. Initiate payment 650 EUR to Dupont Jean
-    Browser->>Client: 2. Forward user action
+    User->>Browser: 1. Initie un virement 650 EUR vers Dupont Jean
+    Browser->>Client: 2. Transmet l'action utilisateur
 
-    Client->>AS: 3. POST /as/par RFC 9126 - authorization_details RAR<br/>type: payment_initiation, amount: 650 EUR, creditorIban: FR7612345600012345678901
+    Client->>AS: 3. POST /as/par RFC 9126 - authorization_details RAR<br/>type: payment_initiation, montant: 650 EUR, creditorIban: FR7612345600012345678901
 
     AS-->>Client: 4. { request_uri: urn:...XYZ, expires_in: 60 }
 
     Client->>Browser: 5. Redirect /authorize?client_id=lbp&request_uri=urn:...XYZ
 
     Browser->>AS: 6. GET /authorize
-    AS->>AS: 7. Retrieve authorization_details from request_uri
+    AS->>AS: 7. Recupere les authorization_details depuis request_uri
 
-    AS->>Browser: 8. Display consent page - Beneficiary: Dupont Jean - IBAN: FR76...8901 - Amount: 650 EUR
-    Note over AS,Browser: Displaying payment details BEFORE SCA is mandatory Art.5 RTS DSP2
+    AS->>Browser: 8. Affiche la page de consentement - Beneficiaire: Dupont Jean - IBAN: FR76...8901 - Montant: 650 EUR
+    Note over AS,Browser: Affichage des details AVANT la SCA obligatoire Art.5 RTS DSP2
 
-    AS->>AS: 9. Dynamic Linking: OTP = HMAC(user_key, 65000 || FR7612345600012345678901 || 20240315)
-    Note over AS: OTP generated and LINKED to this specific payment BEFORE sending to user
+    AS->>AS: 9. Dynamic Linking: OTP = HMAC(cle_user, 65000 || FR7612345600012345678901 || 20240315)
+    Note over AS: OTP genere et lie a ce paiement specifique AVANT envoi a l'utilisateur
 
-    AS->>User: 10. Send OTP linked to payment details via SMS or push notification
+    AS->>User: 10. Envoi OTP lie aux details du paiement par SMS ou notification push
 
-    User->>AS: 11. Submit OTP on consent page
+    User->>AS: 11. Saisit et soumet l'OTP sur la page de consentement
 
-    AS->>AS: 12. Verify: HMAC(user_key, 65000 || FR7612345600012345678901 || 20240315) == submitted OTP
-    Note over AS: If amount or IBAN modified - HMAC would not match - payment rejected
+    AS->>AS: 12. Verification: HMAC(cle_user, 65000 || FR7612345600012345678901 || 20240315) == OTP soumis
+    Note over AS: Si montant ou IBAN modifie - le HMAC ne correspond pas - paiement rejete
 
     AS-->>Browser: 13. Redirect callback?code=CODE&state=S&iss=https://as.lbp.fr
-    Browser->>Client: 14. Return authorization code
+    Browser->>Client: 14. Retourne le code d'autorisation
 
     Client->>AS: 15. POST /token { code, code_verifier, DPoP-Proof RFC 9449 }
     AS-->>Client: 16. { access_token DPoP-bound, token_type: DPoP }
 
-    Client->>RS: 17. POST /payments - Authorization: DPoP access_token - Body: { creditorIban, amount, remittanceInfo }
+    Client->>RS: 17. POST /payments - Authorization: DPoP access_token - Body: { creditorIban, montant, remittanceInfo }
 
-    RS->>RS: 18. Validate DPoP binding - verify authorization_details == body
+    RS->>RS: 18. Valide le DPoP binding - verifie authorization_details == body
     RS-->>Client: 19. { paymentId: PAY-2024-LBP-001, status: AcceptedSettlementInProcess }
 
-    Client->>Browser: 20. Display payment confirmation
-    Browser-->>User: 21. Payment confirmed - 650 EUR - Loyer Mars 2024
-
-    Note over Client,RS: Token single use - scope payment:initiate one-shot
-    Note over AS,Browser: RGPD log consent + timestamp + IP + device
+    Client->>Browser: 20. Affiche la confirmation du virement
+    Browser-->>User: 21. Virement confirme - 650 EUR - Loye
