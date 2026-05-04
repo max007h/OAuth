@@ -1,0 +1,29 @@
+sequenceDiagram
+    actor User
+    participant SPA as Angular SPA
+    participant PF as PingFederate AS
+    participant Plugin as BankingTransferProcessor (Plugin JAR)
+    participant Core as Core Banking API
+
+    User->>SPA: Initiate payment transfer
+    SPA->>PF: GET /as/authorize?authorization_details=[{type:banking_transfer,...}]
+    PF->>User: Display login form
+    User->>PF: Submit credentials
+
+    PF->>Plugin: Invoke processor with authorization_details + user attributes
+    Plugin->>Core: GET /api/users/{uid}/status
+    Core-->>Plugin: { blocked: false }
+    Plugin->>Core: GET /api/ibans/{iban}/status
+    Core-->>Plugin: { frozen: false }
+
+    alt All checks passed
+        Plugin-->>PF: Authorization granted
+        PF->>SPA: Redirect with auth_code
+        SPA->>PF: POST /as/token.oauth2 (code)
+        PF-->>SPA: access_token (JWT with authorization_details)
+        SPA->>SPA: Payment flow continues
+    else Check failed
+        Plugin-->>PF: Authorization denied
+        PF-->>SPA: error=access_denied
+        SPA->>User: Display error (no token issued)
+    end
