@@ -1,46 +1,49 @@
 sequenceDiagram
     autonumber
-    actor User as User (Client LBP)
-    participant Browser as Browser (App Ma Banque LBP)
-    participant Client as Client (Frontend LBP)
-    participant AS as Authorization Server LBP
-    participant RS as Resource Server LBP
+    actor User
+    participant Browser
+    participant Client as Client Frontend
+    participant AS as Authorization Server
+    participant RS as Resource Server
 
-    User->>Browser: 1. Initie un virement loyer 650 EUR vers Dupont Jean
+    User->>Browser: 1. Initiate payment 650 EUR to Dupont Jean
+    Browser->>Client: 2. Forward user action
 
-    Note over Client: 2. Prépare authorization_details RAR (RFC 9396)<br/>type: payment_initiation, amount: 650.00 EUR,<br/>creditorName: Dupont Jean, creditorIban: FR7612345600012345678901,<br/>remittanceInfo: Loyer Mars 2024
+    Client->>AS: 3. POST /as/par RFC 9126 - authorization_details RAR<br/>type: payment_initiation, amount: 650 EUR, creditorIban: FR7612345600012345678901
 
-    Client->>AS: 3. POST /as/par (RFC 9126)<br/>response_type: code, client_id, scope: openid payment:initiate,<br/>code_challenge PKCE S256, authorization_details: [...]
+    AS-->>Client: 4. { request_uri: urn:...XYZ, expires_in: 60 }
 
-    AS-->>Client: 4. { request_uri: urn:ietf:params:oauth:request_uri:XYZ, expires_in: 60 }
-
-    Client->>Browser: 5. Redirect /authorize?client_id=lbp-app&request_uri=urn:...XYZ
+    Client->>Browser: 5. Redirect /authorize?client_id=lbp&request_uri=urn:...XYZ
 
     Browser->>AS: 6. GET /authorize
-    AS->>AS: 7. Recupere authorization_details depuis request_uri
+    AS->>AS: 7. Retrieve authorization_details from request_uri
 
-    AS->>Browser: 8. Affiche page de consentement avec details RAR
-    Note over AS,Browser: CONFIRMATION DE VIREMENT<br/>Beneficiaire : Dupont Jean<br/>IBAN : FR76...8901<br/>Montant : 650,00 EUR<br/>Motif : Loyer Mars 2024<br/>Affichage AVANT SCA obligatoire (Art.5 RTS DSP2)
+    AS->>Browser: 8. Display consent page - Beneficiary: Dupont Jean - IBAN: FR76...8901 - Amount: 650 EUR
+    Note over AS,Browser: Displaying payment details BEFORE SCA is mandatory Art.5 RTS DSP2
 
-    User->>AS: 9. Confirme + SCA via empreinte digitale (FIDO2)
-    AS->>AS: 10. Dynamic Linking: HMAC(cle_User, 65000 || FR7612345600012345678901 || 20240315)
+    AS->>AS: 9. Dynamic Linking: OTP = HMAC(user_key, 65000 || FR7612345600012345678901 || 20240315)
+    Note over AS: OTP generated and LINKED to this specific payment BEFORE sending to user
 
-    AS->>Browser: 11. Redirect lbp-app://callback?code=CODE&state=S&iss=https://as.lbp.fr
+    AS->>User: 10. Send OTP linked to payment details via SMS or push notification
 
-    Browser->>Client: 12. Retourne code au Client
+    User->>AS: 11. Submit OTP on consent page
 
-    Client->>AS: 13. POST /token { code, code_verifier, DPoP-Proof RFC 9449 }
-    AS-->>Client: 14. { access_token DPoP-bound avec authorization_details, token_type: DPoP }
+    AS->>AS: 12. Verify: HMAC(user_key, 65000 || FR7612345600012345678901 || 20240315) == submitted OTP
+    Note over AS: If amount or IBAN modified - HMAC would not match - payment rejected
 
-    Client->>RS: 15. POST /payments<br/>Authorization: DPoP access_token<br/>DPoP: new DPoP-Proof<br/>Body: { creditorIban: FR76...8901, amount: 650.00, remittanceInfo: Loyer Mars 2024 }
+    AS-->>Browser: 13. Redirect callback?code=CODE&state=S&iss=https://as.lbp.fr
+    Browser->>Client: 14. Return authorization code
 
-    RS->>RS: 16. Valide DPoP binding<br/>Verifie authorization_details == body<br/>Idempotency check (Idempotency-Key header)
+    Client->>AS: 15. POST /token { code, code_verifier, DPoP-Proof RFC 9449 }
+    AS-->>Client: 16. { access_token DPoP-bound, token_type: DPoP }
 
-    RS-->>Client: 17. { paymentId: PAY-2024-LBP-001, status: AcceptedSettlementInProcess }
+    Client->>RS: 17. POST /payments - Authorization: DPoP access_token - Body: { creditorIban, amount, remittanceInfo }
 
-    Client->>Browser: 18. Affiche confirmation virement
+    RS->>RS: 18. Validate DPoP binding - verify authorization_details == body
+    RS-->>Client: 19. { paymentId: PAY-2024-LBP-001, status: AcceptedSettlementInProcess }
 
-    Browser-->>User: 19. Virement confirme - Loyer Mars 2024 - 650,00 EUR
+    Client->>Browser: 20. Display payment confirmation
+    Browser-->>User: 21. Payment confirmed - 650 EUR - Loyer Mars 2024
 
-    Note over Client,RS: Token a usage unique - scope payment:initiate one-shot
-    Note over AS,Browser: RGPD : journaliser consentement + timestamp + IP + device
+    Note over Client,RS: Token single use - scope payment:initiate one-shot
+    Note over AS,Browser: RGPD log consent + timestamp + IP + device
