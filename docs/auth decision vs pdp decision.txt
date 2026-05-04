@@ -1,0 +1,45 @@
+Part X — Authorization Decision: RAR Processor vs. Policy Decision Point (PDP)
+Context
+OAuth 2.0 RAR (Rich Authorization Requests) introduces a structured authorization_details object into the authorization flow. Once this data is available, a key architectural question arises: where should the actual authorization decision be enforced? Two patterns exist, each with distinct trade-offs.
+
+Option 1 — Decision at the Authorization Server (RAR Processor / Plugin)
+In this approach, the RAR Processor plugin — running inside PingFederate — evaluates the authorization request before the access token is issued. It can call external web services at runtime (e.g., a core banking API) to validate business conditions: is the user blocked? Is the source IBAN frozen? Is the transfer amount within the user's daily limit?
+If any condition fails, the plugin rejects the authorization request entirely — no token is issued.
+Advantages:
+
+Decision is made early in the flow (pre-token), preventing issuance of a token that would later be rejected anyway
+Can invoke arbitrary external services (REST APIs, core banking systems) for real-time business context
+No additional module required — runs natively within PingFederate's existing infrastructure
+Simpler architecture for use cases where the business rules are well-defined at authorization time
+Fail-fast behavior: the client receives an error immediately, before any resource access is attempted
+
+Disadvantages:
+
+Increases latency at the authorization endpoint (synchronous external calls during login flow)
+Business logic is embedded in a Java plugin JAR, which is harder to maintain and version than a policy DSL
+Processor has limited context: it knows the RAR request, but not downstream API behavior or resource-level context
+Harder to audit — decisions are made inside plugin code, not in a dedicated policy engine with native logging/tracing
+
+
+Option 2 — Decision at the Resource Server via PingAuthorize (PDP)
+In this approach, the access token is issued unconditionally (or with minimal RAR validation). The actual authorization decision is delegated to PingAuthorize, which acts as a Policy Decision Point (PDP). The Resource Server (RS) calls the PDP on each incoming API request, passing the token claims and request context, and enforces the returned decision.
+Advantages:
+
+Fine-grained, context-aware decisions at the resource level — the PDP sees the full API request, not just the authorization intent
+Policy is managed centrally in PingAuthorize's policy engine (Trust Framework), with versioning, simulation, and audit trail
+Cleaner separation of concerns: PingFederate handles identity/token issuance, PingAuthorize handles authorization logic
+Policies can be updated without redeploying the authorization server or plugin JARs
+Better suited for multi-resource, multi-action scenarios where the same token may be used across multiple endpoints with different rules
+
+Disadvantages:
+
+Requires PingAuthorize as an additional component — increases infrastructure complexity and licensing cost
+Authorization decision happens late in the flow — a token is already issued before the PDP can reject the request
+The RS must be instrumented to call the PDP on every request, adding latency per API call (mitigated with caching, e.g., Caffeine)
+More moving parts: PDP URL, decision endpoint configuration, Trust Framework versioning, worker token for PDP authentication — all must be managed
+Risk of misconfiguration at the RS layer: if the RS fails to call the PDP (e.g., due to a bug or network issue), authorization is silently bypassed
+
+
+Decision Summary
+CriterionProcessor (Option 1)PDP / PingAuthorize (Option 2)Decision timingPre-token (early)Post-token (at API call)External service calls✅ Yes, flexible✅ Yes, via policyAdditional module needed❌ No✅ Yes (PingAuthorize)Policy manageability⚠️ JAR-based, hard to update✅ Centralized, versionedFine-grained resource control⚠️ Limited✅ FullAudit & traceability⚠️ Plugin logs only✅ Native PDP auditInfrastructure complexityLowHigher
+Recommendation: Use the Processor approach when the authorization logic is relatively simple, must be enforced pre-issuance, and no PDP infrastructure is available. Use PingAuthorize when the use case requires fine-grained, resource-level policy enforcement across multiple endpoints with centralized governance — accepting the trade-off of additional infrastructure and late-binding decision timing.
