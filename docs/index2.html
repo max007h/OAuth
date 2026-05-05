@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Banking POC</title>
+</head>
+<body>
+
+<h2>Virement Bancaire – PAR + RAR</h2>
+
+<!-- STATUS SECTION -->
+<fieldset>
+  <legend><b>État Session & Consentement</b></legend>
+
+  <b>Authentification :</b>
+  <span id="status-auth" style="color:gray">Non vérifié</span>
+  &nbsp;|&nbsp;
+  <b>Consentement :</b>
+  <span id="status-consent" style="color:gray">Non vérifié</span>
+  &nbsp;|&nbsp;
+  <b>Token :</b>
+  <span id="status-token" style="color:gray">Absent</span>
+
+  <br><br>
+
+  <button onclick="verifierSession()">Vérifier session Ping</button>
+  <button onclick="faireRequeteSilencieuse()">Rejouer /authorize (prompt=none)</button>
+  <button onclick="deconnecter()">Déconnecter</button>
+
+  <br><br>
+
+  <b>Access Token stocké :</b><br>
+  <textarea id="token-display" rows="4" cols="80" readonly></textarea>
+
+  <br><br>
+
+  <b>Token décodé (payload) :</b><br>
+  <textarea id="token-decoded" rows="6" cols="80" readonly></textarea>
+
+  <br><br>
+
+  <b>Consentement détecté :</b><br>
+  <textarea id="consent-display" rows="4" cols="80" readonly></textarea>
+
+  <br><br>
+
+  <b>Log des actions :</b><br>
+  <textarea id="log" rows="10" cols="80" readonly></textarea>
+</fieldset>
+
+<br>
+
+<!-- VIREMENT SECTION -->
+<fieldset>
+  <legend><b>Initier un Virement</b></legend>
+
+  <label>IBAN:</label><br>
+  <input type="text" id="iban" value="FR7630004000031234567890143" size="40"><br><br>
+
+  <label>Montant:</label><br>
+  <input type="number" id="amount" value="15000"><br><br>
+
+  <label>Devise:</label><br>
+  <select id="currency">
+    <option>EUR</option>
+    <option>USD</option>
+    <option>GBP</option>
+  </select><br><br>
+
+  <label>Libellé:</label><br>
+  <input type="text" id="lbl" value="loyer"><br><br>
+
+  <button onclick="initier()">Initier le virement</button>
+  <button onclick="initierSansConsentement()">Rejouer MÊME virement (sans re-consentement ?)</button>
+</fieldset>
+
+<br>
+<div id="result"></div>
+
+<script>
+  const PF       = 'https://localhost:9031';
+  const PROXY    = 'http://localhost:9032';
+  const CLIENT   = 'banking-spa';
+  const REDIRECT = 'http://localhost:4200';
+  const SCOPE    = 'openid payment:read banking_transfert';
+  const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+  const CHALLENGE= 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
+
+  // ─── STORAGE ───────────────────────────────────────────
+  function sauvegarderToken(data) {
+    sessionStorage.setItem('access_token',  data.access_token  || '');
+    sessionStorage.setItem('id_token',      data.id_token      || '');
+    sessionStorage.setItem('refresh_token', data.refresh_token || '');
+    sessionStorage.setItem('token_expiry',  Date.now() + ((data.expires_in || 300) * 1000));
+    sessionStorage.setItem('consent_stored', JSON.stringify(dernierRar || {}));
+    log('Token sauvegardé en sessionStorage');
+  }
+
+  function lireToken() {
+    return sessionStorage.getItem('access_token');
+  }
+
+  function lireIdToken() {
+    return sessionStorage.getItem('id_token');
+  }
+
+  function tokenExpire() {
+    const expiry = sessionStorage.getItem('token_expiry');
+    if (!expiry) return true;
+    return Date.now() > parseInt(expiry);
+  }
+
+  // ─── LOGGING ───────────────────────────────────────────
+  function log(msg) {
+    const t = new Date().toLocaleTimeString();
+    const zone = document.getElementById('log');
+    zone.value = `[${t}] ${msg}\n` + zone.value;
+  }
+
+  // ─── DECODE JWT ────────────────────────────────────────
+  function decodeJwt(token) {
+    try {
+      const payload = token.split('.')[1];
+      return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+    } catch(e) {
+      return null;
+    }
+  }
+
+  // ─── AFFICHER ÉTAT ─────────────────────────────────────
+  function afficherEtat() {
+    const token     = lireToken();
+    const idToken   = lireIdToken();
+    const expiry    = sessionStorage.getItem('token_expiry');
+    const consent   = sessionStorage.getItem('consent_stored');
+
+    // Auth status
+    const authEl = document.getElementById('status-auth');
+    if (idToken) {
+      const decoded = decodeJwt(idToken);
+      authEl.textContent = decoded
+        ? `Authentifié (sub: ${decoded.sub || decoded.uid || 'N/A'})`
+        : 'id_token présent';
+      authEl.style.color = 'green';
+    } else {
+      authEl.textContent = 'Non authentifié';
+      authEl.style.color = 'red';
+    }
+
+    // Token status
+    const tokenEl = document.getElementById('status-token');
+    if (token) {
+      const expired = tokenExpire();
+      tokenEl.textContent = expired ? 'Expiré' : 'Valide';
+      tokenEl.style.color = expired ? 'orange' : 'green';
+      document.getElementById('token-display').value = token;
+      const decoded = decodeJwt(token);
+      if (decoded) {
+        document.getElementById('token-decoded').value = JSON.stringify(decoded, null, 2);
+      }
+    } else {
+      tokenEl.textContent = 'Absent';
+      tokenEl.style.color = 'red';
+      document.getElementById('token-display').value = '';
+      document.getElementById('token-decoded').value = '';
+    }
+
+    // Consent status
+    const consentEl = document.getElementById('status-consent');
+    if (consent && consent !== '{}') {
+      consentEl.textContent = 'Consentement mémorisé';
+      consentEl.style.color = 'green';
+      document.getElementById('consent-display').value = JSON.stringify(JSON.parse(consent), null, 2);
+    } else {
+      consentEl.textContent = 'Aucun consentement';
+      consentEl.style.color = 'red';
+      document.getElementById('consent-display').value = '';
+    }
+  }
+
+  // ─── VÉRIFIER SESSION PING (userinfo) ──────────────────
+  function verifierSession() {
+    const token = lireToken();
+    if (!token) {
+      log('Pas de token — impossible de vérifier la session');
+      afficherEtat();
+      return;
+    }
+    log('Appel /userinfo pour vérifier session Ping...');
+    fetch(PROXY + '/idp/userinfo.openid', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    })
+    .then(r => {
+      if (r.status === 401) {
+        log('Session Ping expirée ou token invalide → 401');
+        document.getElementById('status-auth').textContent = 'Session expirée';
+        document.getElementById('status-auth').style.color = 'red';
+        return null;
+      }
+      return r.json();
+    })
+    .then(data => {
+      if (!data) return;
+      log('Session Ping active : ' + JSON.stringify(data));
+      document.getElementById('status-auth').textContent =
+        `Session active (sub: ${data.sub || data.uid || 'N/A'})`;
+      document.getElementById('status-auth').style.color = 'green';
+    })
+    .catch(e => log('Erreur userinfo: ' + e));
+  }
+
+  // ─── REJOUER /authorize SILENCIEUX (prompt=none) ───────
+  // Teste si Ping garde la session SSO sans redemander login/consentement
+  function faireRequeteSilencieuse() {
+    log('Test prompt=none → vérifie si session SSO Ping est préservée...');
+
+    const state   = Math.random().toString(36).substring(2);
+    const silentUrl = PF + '/as/authorization.oauth2?' + new URLSearchParams({
+      client_id:             CLIENT,
+      response_type:         'code',
+      redirect_uri:          REDIRECT,
+      scope:                 SCOPE,
+      code_challenge:        CHALLENGE,
+      code_challenge_method: 'S256',
+      prompt:                'none',     // ← clé : pas d'interaction utilisateur
+      state:                 state
+    }).toString();
+
+    // On ouvre dans une iframe invisible pour capter la réponse sans navigation
+    let iframe = document.getElementById('silent-iframe');
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'silent-iframe';
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+    }
+
+    iframe.onload = function() {
+      try {
+        const iUrl = new URL(iframe.contentWindow.location.href);
+        const code  = iUrl.searchParams.get('code');
+        const err   = iUrl.searchParams.get('error');
+
+        if (code) {
+          log('prompt=none → code reçu ✅ Session SSO préservée, consentement mémorisé');
+          document.getElementById('status-auth').textContent = 'Session SSO active ✅';
+          document.getElementById('status-auth').style.color = 'green';
+          document.getElementById('status-consent').textContent = 'Consentement mémorisé par Ping ✅';
+          document.getElementById('status-consent').style.color = 'green';
+        } else if (err === 'login_required') {
+          log('prompt=none → login_required ❌ Session SSO expirée');
+          document.getElementById('status-auth').textContent = 'Session expirée ❌';
+          document.getElementById('status-auth').style.color = 'red';
+        } else if (err === 'consent_required') {
+          log('prompt=none → consent_required ⚠️ Auth OK mais consentement non mémorisé');
+          document.getElementById('status-auth').textContent = 'Auth OK ✅';
+          document.getElementById('status-auth').style.color = 'green';
+          document.getElementById('status-consent').textContent = 'Consentement requis ⚠️';
+          document.getElementById('status-consent').style.color = 'orange';
+        } else {
+          log('prompt=none → réponse: ' + err);
+        }
+      } catch(e) {
+        log('prompt=none → cross-origin bloqué (normal si Ping sur domaine différent)');
+      }
+    };
+
+    iframe.src = silentUrl;
+  }
+
+  // ─── DÉCONNECTER ───────────────────────────────────────
+  function deconnecter() {
+    const idToken = lireIdToken();
+    sessionStorage.clear();
+    log('SessionStorage vidé');
+    afficherEtat();
+
+    // Logout Ping (révoque session SSO)
+    if (idToken) {
+      const logoutUrl = PF + '/idp/startSLO.ping?id_token_hint=' + idToken
+        + '&post_logout_redirect_uri=' + encodeURIComponent(REDIRECT);
+      log('Logout Ping → ' + logoutUrl);
+      window.location.href = logoutUrl;
+    }
+  }
+
+  // ─── RAR ───────────────────────────────────────────────
+  let dernierRar = null;
+
+  function rar() {
+    dernierRar = [{
+      type:     'bankingTransfert',
+      iban:     document.getElementById('iban').value,
+      amount:   parseInt(document.getElementById('amount').value),
+      currency: document.getElementById('currency').value,
+      label:    document.getElementById('lbl').value
+    }];
+    return JSON.stringify(dernierRar);
+  }
+
+  // ─── INITIER VIREMENT (PAR complet) ────────────────────
+  function initier() {
+    document.getElementById('result').textContent = 'Envoi PAR...';
+    log('Initiation PAR + RAR...');
+
+    const body = new URLSearchParams({
+      client_id:             CLIENT,
+      response_type:         'code',
+      redirect_uri:          REDIRECT,
+      scope:                 SCOPE,
+      code_challenge:        CHALLENGE,
+      code_challenge_method: 'S256',
+      authorization_details: rar()
+    });
+
+    fetch(PROXY + '/as/par.oauth2', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body:    body.toString()
+    })
+    .then(r => r.json())
+    .then(data => {
+      log('PAR OK → request_uri: ' + data.request_uri);
+      document.getElementById('result').textContent = 'PAR OK - redirect...';
+      window.location.href = PF + '/as/authorization.oauth2?client_id='
+        + CLIENT + '&request_uri=' + encodeURIComponent(data.request_uri);
+    })
+    .catch(e => {
+      log('Erreur PAR: ' + e);
+      document.getElementById('result').textContent = 'Erreur PAR: ' + e;
+    });
+  }
+
+  // ─── REJOUER MÊME VIREMENT (teste si consentement mémorisé) ──
+  function initierSansConsentement() {
+    log('Rejouer même virement → Ping va-t-il redemander le consentement ?');
+    initier(); // même appel — si Ping a mémorisé le consentement, pas de page consent
+  }
+
+  // ─── CALLBACK ──────────────────────────────────────────
+  const params = new URLSearchParams(window.location.search);
+  const code   = params.get('code');
+  const error  = params.get('error');
+
+  if (error) {
+    log('Erreur callback: ' + error + ' - ' + (params.get('error_description') || ''));
+    document.getElementById('result').textContent =
+      'Erreur: ' + (params.get('error_description') || error);
+    afficherEtat();
+
+  } else if (code) {
+    log('Code reçu → échange token...');
+    document.getElementById('result').textContent = 'Token exchange...';
+
+    fetch(PROXY + '/as/token.oauth2', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({
+        grant_type:    'authorization_code',
+        client_id:     CLIENT,
+        code:          code,
+        redirect_uri:  REDIRECT,
+        code_verifier: VERIFIER
+      }).toString()
+    })
+    .then(r => r.json())
+    .then(data => {
+      sauvegarderToken(data);
+      log('Token exchange OK');
+      document.getElementById('result').textContent = 'Token obtenu ✅';
+      window.history.replaceState({}, '', '/');
+      afficherEtat();
+    })
+    .catch(e => {
+      log('Erreur token exchange: ' + e);
+      document.getElementById('result').textContent = 'Erreur token: ' + e;
+    });
+
+  } else {
+    afficherEtat();
+  }
+</script>
+</body>
+</html>
