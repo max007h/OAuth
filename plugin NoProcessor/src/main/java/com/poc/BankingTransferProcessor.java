@@ -25,19 +25,30 @@ public class BankingTransferProcessor implements AuthorizationDetailProcessor {
         AuthorizationDetailContext context,
         Map<String, Object> params) {
 
+        System.out.println("=== VALIDATE CALLED ===");
+
         Map<String, Object> fields = detail.getDetail();
+        System.out.println("VALIDATE fields : " + fields);
 
-        // Verifier que les champs obligatoires sont presents
         if (fields.get("iban") == null) {
-            return AuthorizationDetailValidationResult.createInvalidResult("IBAN manquant");
-        }
-        if (fields.get("amount") == null) {
-            return AuthorizationDetailValidationResult.createInvalidResult("Montant manquant");
-        }
-        if (fields.get("currency") == null) {
-            return AuthorizationDetailValidationResult.createInvalidResult("Devise manquante");
+            System.out.println("VALIDATE INVALID : iban manquant");
+            return AuthorizationDetailValidationResult
+                .createInvalidResult("Champ iban manquant");
         }
 
+        if (fields.get("amount") == null) {
+            System.out.println("VALIDATE INVALID : amount manquant");
+            return AuthorizationDetailValidationResult
+                .createInvalidResult("Champ amount manquant");
+        }
+
+        if (fields.get("currency") == null) {
+            System.out.println("VALIDATE INVALID : currency manquante");
+            return AuthorizationDetailValidationResult
+                .createInvalidResult("Champ currency manquant");
+        }
+
+        System.out.println("VALIDATE OK");
         return AuthorizationDetailValidationResult.createValidResult();
     }
 
@@ -46,6 +57,9 @@ public class BankingTransferProcessor implements AuthorizationDetailProcessor {
         AuthorizationDetail detail,
         AuthorizationDetailContext context,
         Map<String, Object> params) throws AuthorizationDetailProcessingException {
+
+        System.out.println("=== ENRICH CALLED ===");
+        System.out.println("ENRICH detail : " + detail.getDetail());
         return detail;
     }
 
@@ -55,12 +69,19 @@ public class BankingTransferProcessor implements AuthorizationDetailProcessor {
         AuthorizationDetailContext context,
         Map<String, Object> params) throws AuthorizationDetailProcessingException {
 
+        System.out.println("=== GET_USER_CONSENT_DESCRIPTION CALLED ===");
+
         Map<String, Object> fields = detail.getDetail();
 
         Object amount   = fields.get("amount");
         Object currency = fields.get("currency");
         Object label    = fields.get("label");
         Object iban     = fields.get("iban");
+
+        System.out.println("CONSENT DESC amount   : " + amount   + " type=" + (amount   != null ? amount.getClass().getName()   : "null"));
+        System.out.println("CONSENT DESC currency : " + currency + " type=" + (currency != null ? currency.getClass().getName() : "null"));
+        System.out.println("CONSENT DESC label    : " + label    + " type=" + (label    != null ? label.getClass().getName()    : "null"));
+        System.out.println("CONSENT DESC iban     : " + iban     + " type=" + (iban     != null ? iban.getClass().getName()     : "null"));
 
         String amountStr = "N/A";
         if (amount != null) {
@@ -76,13 +97,13 @@ public class BankingTransferProcessor implements AuthorizationDetailProcessor {
         String currencyStr = currency != null ? currency.toString() : "EUR";
         String labelStr    = label    != null ? label.toString()    : "N/A";
 
-        return String.format(
+        String result = String.format(
             "Virement de %s %s vers IBAN %s | Reference : %s",
-            amountStr,
-            currencyStr,
-            ibanStr,
-            labelStr
+            amountStr, currencyStr, ibanStr, labelStr
         );
+
+        System.out.println("CONSENT DESC result : " + result);
+        return result;
     }
 
     @Override
@@ -92,31 +113,51 @@ public class BankingTransferProcessor implements AuthorizationDetailProcessor {
         AuthorizationDetailContext context,
         Map<String, Object> params) throws AuthorizationDetailProcessingException {
 
+        System.out.println("=== IS_EQUAL_OR_SUBSET CALLED ===");
+
         Map<String, Object> req = requested.getDetail();
         Map<String, Object> acc = accepted.getDetail();
 
-        // IBAN different → nouveau consentement obligatoire
-        Object reqIban = req.get("iban");
-        Object accIban = acc.get("iban");
-        if (reqIban == null || !reqIban.equals(accIban)) {
+        System.out.println("REQ full map : " + req);
+        System.out.println("ACC full map : " + acc);
+
+        // IBAN
+        Object reqIbanObj = req.get("iban");
+        Object accIbanObj = acc.get("iban");
+        String reqIban = reqIbanObj != null ? reqIbanObj.toString() : "";
+        String accIban = accIbanObj != null ? accIbanObj.toString() : "";
+        System.out.println("REQ iban : " + reqIban + " type=" + (reqIbanObj != null ? reqIbanObj.getClass().getName() : "null"));
+        System.out.println("ACC iban : " + accIban + " type=" + (accIbanObj != null ? accIbanObj.getClass().getName() : "null"));
+        if (!reqIban.equals(accIban)) {
+            System.out.println("IS_EQUAL_OR_SUBSET FALSE : iban different");
             return false;
         }
 
-        // Montant different → nouveau consentement obligatoire
-        Object reqAmount = req.get("amount");
-        Object accAmount = acc.get("amount");
-        if (reqAmount == null || !reqAmount.equals(accAmount)) {
+        // AMOUNT
+        Object reqAmountObj = req.get("amount");
+        Object accAmountObj = acc.get("amount");
+        String reqAmount = reqAmountObj != null ? reqAmountObj.toString() : "";
+        String accAmount = accAmountObj != null ? accAmountObj.toString() : "";
+        System.out.println("REQ amount : " + reqAmount + " type=" + (reqAmountObj != null ? reqAmountObj.getClass().getName() : "null"));
+        System.out.println("ACC amount : " + accAmount + " type=" + (accAmountObj != null ? accAmountObj.getClass().getName() : "null"));
+        if (!reqAmount.equals(accAmount)) {
+            System.out.println("IS_EQUAL_OR_SUBSET FALSE : amount different");
             return false;
         }
 
-        // Currency differente → nouveau consentement obligatoire
-        Object reqCurrency = req.get("currency");
-        Object accCurrency = acc.get("currency");
-        if (reqCurrency == null || !reqCurrency.equals(accCurrency)) {
+        // CURRENCY
+        Object reqCurrencyObj = req.get("currency");
+        Object accCurrencyObj = acc.get("currency");
+        String reqCurrency = reqCurrencyObj != null ? reqCurrencyObj.toString() : "";
+        String accCurrency = accCurrencyObj != null ? accCurrencyObj.toString() : "";
+        System.out.println("REQ currency : " + reqCurrency + " type=" + (reqCurrencyObj != null ? reqCurrencyObj.getClass().getName() : "null"));
+        System.out.println("ACC currency : " + accCurrency + " type=" + (accCurrencyObj != null ? accCurrencyObj.getClass().getName() : "null"));
+        if (!reqCurrency.equals(accCurrency)) {
+            System.out.println("IS_EQUAL_OR_SUBSET FALSE : currency differente");
             return false;
         }
 
-        // Tout identique → grant reutilisable
+        System.out.println("IS_EQUAL_OR_SUBSET TRUE : RAR identique");
         return true;
     }
 }
