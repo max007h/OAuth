@@ -366,3 +366,5 @@ public boolean isEqualOrSubset(
 
 
 docker logs env-pingfederate-1 2>&1 | grep -E "VALIDATE|ENRICH|CONSENT|IS_EQUAL|REQ|ACC"
+
+docker logs env-pingfederate-1 2>&1 | grep -E "IS_EQUAL|REQ iban|ACC iban|REQ amount|ACC amount|TRUE|FALSE"
