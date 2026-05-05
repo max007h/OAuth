@@ -312,3 +312,24 @@ docker logs env-pingfederate-1 2>&1 | grep -i "NoMappedAdapters\|Exception\|ERRO
 
 # Vérifier les adapters configurés
 docker logs env-pingfederate-1 2>&1 | grep -i "adapter\|HTMLForm" | tail -20
+
+
+
+
+
+docker exec -it env-pingdirectory-1 ldapsearch \
+  -h localhost \
+  -p 1389 \
+  -D "cn=administrator" \
+  -w password \
+  -b "dc=example,dc=com" \
+  "(uid=Customer_1)"
+
+
+docker exec -it env-pingdirectory-1 ldapsearch \
+  -h localhost \
+  -p 1389 \
+  -D "cn=administrator" \
+  -w password \
+  -b "dc=example,dc=com" \
+  "(objectClass=person)" uid
