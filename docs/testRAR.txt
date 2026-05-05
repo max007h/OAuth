@@ -333,3 +333,32 @@ docker exec -it env-pingdirectory-1 ldapsearch \
   -w password \
   -b "dc=example,dc=com" \
   "(objectClass=person)" uid
+
+
+
+@Override
+public boolean isEqualOrSubset(
+    AuthorizationDetail requested,
+    AuthorizationDetail accepted,
+    AuthorizationDetailContext context,
+    Map<String, Object> params) throws AuthorizationDetailProcessingException {
+
+    Map<String, Object> req = requested.getDetail();
+    Map<String, Object> acc = accepted.getDetail();
+
+    // Comparer en String pour eviter probleme de type
+    String reqIban = req.get("iban") != null ? req.get("iban").toString() : "";
+    String accIban = acc.get("iban") != null ? acc.get("iban").toString() : "";
+    if (!reqIban.equals(accIban)) return false;
+
+    String reqAmount = req.get("amount") != null ? req.get("amount").toString() : "";
+    String accAmount = acc.get("amount") != null ? acc.get("amount").toString() : "";
+    if (!reqAmount.equals(accAmount)) return false;
+
+    String reqCurrency = req.get("currency") != null ? req.get("currency").toString() : "";
+    String accCurrency = acc.get("currency") != null ? acc.get("currency").toString() : "";
+    if (!reqCurrency.equals(accCurrency)) return false;
+
+    return true;
+}
+
