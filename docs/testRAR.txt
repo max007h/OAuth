@@ -362,3 +362,7 @@ public boolean isEqualOrSubset(
     return true;
 }
 
+
+
+
+docker logs env-pingfederate-1 2>&1 | grep -E "VALIDATE|ENRICH|CONSENT|IS_EQUAL|REQ|ACC"
