@@ -24,6 +24,20 @@ public class BankingTransferProcessor implements AuthorizationDetailProcessor {
         AuthorizationDetail detail,
         AuthorizationDetailContext context,
         Map<String, Object> params) {
+
+        Map<String, Object> fields = detail.getDetail();
+
+        // Verifier que les champs obligatoires sont presents
+        if (fields.get("iban") == null) {
+            return AuthorizationDetailValidationResult.createInvalidResult("IBAN manquant");
+        }
+        if (fields.get("amount") == null) {
+            return AuthorizationDetailValidationResult.createInvalidResult("Montant manquant");
+        }
+        if (fields.get("currency") == null) {
+            return AuthorizationDetailValidationResult.createInvalidResult("Devise manquante");
+        }
+
         return AuthorizationDetailValidationResult.createValidResult();
     }
 
@@ -63,7 +77,7 @@ public class BankingTransferProcessor implements AuthorizationDetailProcessor {
         String labelStr    = label    != null ? label.toString()    : "N/A";
 
         return String.format(
-            "Transfer of %s %s to IBAN %s | Reference: %s",
+            "Virement de %s %s vers IBAN %s | Reference : %s",
             amountStr,
             currencyStr,
             ibanStr,
@@ -77,6 +91,32 @@ public class BankingTransferProcessor implements AuthorizationDetailProcessor {
         AuthorizationDetail accepted,
         AuthorizationDetailContext context,
         Map<String, Object> params) throws AuthorizationDetailProcessingException {
+
+        Map<String, Object> req = requested.getDetail();
+        Map<String, Object> acc = accepted.getDetail();
+
+        // IBAN different → nouveau consentement obligatoire
+        Object reqIban = req.get("iban");
+        Object accIban = acc.get("iban");
+        if (reqIban == null || !reqIban.equals(accIban)) {
+            return false;
+        }
+
+        // Montant different → nouveau consentement obligatoire
+        Object reqAmount = req.get("amount");
+        Object accAmount = acc.get("amount");
+        if (reqAmount == null || !reqAmount.equals(accAmount)) {
+            return false;
+        }
+
+        // Currency differente → nouveau consentement obligatoire
+        Object reqCurrency = req.get("currency");
+        Object accCurrency = acc.get("currency");
+        if (reqCurrency == null || !reqCurrency.equals(accCurrency)) {
+            return false;
+        }
+
+        // Tout identique → grant reutilisable
         return true;
     }
 }
