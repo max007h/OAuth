@@ -1,3 +1,20 @@
+async verifySession(): Promise<Record<string, any> | null> {
+  const token = this.getToken();
+  if (!token) return null;
+
+  try {
+    const resp = await fetch('http://localhost:9032/idp/userinfo.openid', {
+      method: 'GET',
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch {
+    return null;
+  }
+}
+
+
 proxy.conf.json
 {
   "/as": {
