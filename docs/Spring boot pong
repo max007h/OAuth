@@ -1,0 +1,606 @@
+# Banking Spring Boot POC — Resource Server JWT HS256
+
+## Création du projet
+
+Aller sur https://start.spring.io avec :
+- Java 21
+- Maven
+- Spring Boot 3.x
+- Dependencies : Spring Web, Spring Security, OAuth2 Resource Server, Spring Data JPA, H2 Database, Lombok
+
+---
+
+## Structure du projet
+
+```
+src/main/java/com/poc/banking/
+├── config/
+│   └── SecurityConfig.java
+├── controller/
+│   └── VirementController.java
+├── service/
+│   └── VirementService.java
+├── repository/
+│   └── VirementRepository.java
+├── entity/
+│   └── VirementEntity.java
+├── dto/
+│   ├── VirementRequest.java
+│   └── VirementResponse.java
+└── util/
+    └── JwtClaimsExtractor.java
+```
+
+---
+
+## `pom.xml`
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.0</version>
+    </parent>
+
+    <groupId>com.poc</groupId>
+    <artifactId>banking</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>banking</name>
+
+    <properties>
+        <java.version>21</java.version>
+    </properties>
+
+    <dependencies>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
+```
+
+---
+
+## `src/main/resources/application.yml`
+
+```yaml
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:bankingdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+
+# Cle HS256 en hex - meme valeur que dans PingFederate
+jwt:
+  secret: 6a4f8c2d1e9b7f3a5d8c2e4f1a6b9d3e7f2c5a8b4d7e1f3a9c6b2d5e8f4a7c1
+
+# CORS - autoriser Angular
+cors:
+  allowed-origins: http://localhost:4200
+```
+
+---
+
+## `src/main/java/com/poc/banking/config/SecurityConfig.java`
+
+```java
+package com.poc.banking.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import javax.crypto.spec.SecretKeySpec;
+import java.util.List;
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    @Value("${jwt.secret}")
+    private String jwtSecret;
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session ->
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                // H2 console accessible sans token
+                .requestMatchers("/h2-console/**").permitAll()
+                // Tous les endpoints API requierent un token valide
+                .requestMatchers("/api/**").authenticated()
+                .anyRequest().authenticated()
+            )
+            .oauth2ResourceServer(oauth2 ->
+                oauth2.jwt(jwt -> jwt.decoder(jwtDecoder()))
+            )
+            // H2 console a besoin de frames
+            .headers(headers ->
+                headers.frameOptions(frame -> frame.disable())
+            );
+
+        return http.build();
+    }
+
+    // Decodeur JWT HS256 avec la cle partagee avec PingFederate
+    @Bean
+    public JwtDecoder jwtDecoder() {
+        byte[] keyBytes = hexToBytes(jwtSecret);
+        SecretKeySpec secretKey = new SecretKeySpec(keyBytes, "HmacSHA256");
+        return NimbusJwtDecoder.withSecretKey(secretKey).build();
+    }
+
+    // CORS - autorise Angular sur 4200
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOrigins(List.of("http://localhost:4200"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("*"));
+        config.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
+    }
+
+    // Convertit la cle hex en bytes
+    private byte[] hexToBytes(String hex) {
+        int len = hex.length();
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
+                + Character.digit(hex.charAt(i + 1), 16));
+        }
+        return data;
+    }
+}
+```
+
+---
+
+## `src/main/java/com/poc/banking/entity/VirementEntity.java`
+
+```java
+package com.poc.banking.entity;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "virements")
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class VirementEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    // IBAN du compte de l'utilisateur connecte (depuis le token JWT)
+    private String fromIban;
+
+    // IBAN destinataire (depuis le body de la requete)
+    private String toIban;
+
+    private Double amount;
+    private String currency;
+    private String label;
+
+    // Identifiant de l'utilisateur proprietaire (sub du token)
+    private String owner;
+
+    // PENDING, COMPLETED, FAILED
+    private String status;
+
+    private LocalDateTime createdAt;
+}
+```
+
+---
+
+## `src/main/java/com/poc/banking/repository/VirementRepository.java`
+
+```java
+package com.poc.banking.repository;
+
+import com.poc.banking.entity.VirementEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface VirementRepository extends JpaRepository<VirementEntity, Long> {
+
+    // Virements d'un utilisateur specifique
+    List<VirementEntity> findByOwner(String owner);
+}
+```
+
+---
+
+## `src/main/java/com/poc/banking/dto/VirementRequest.java`
+
+```java
+package com.poc.banking.dto;
+
+import lombok.Data;
+
+@Data
+public class VirementRequest {
+    private String toIban;
+    private Double amount;
+    private String currency;
+    private String label;
+}
+```
+
+---
+
+## `src/main/java/com/poc/banking/dto/VirementResponse.java`
+
+```java
+package com.poc.banking.dto;
+
+import lombok.Builder;
+import lombok.Data;
+
+import java.time.LocalDateTime;
+
+@Data
+@Builder
+public class VirementResponse {
+    private Long id;
+    private String fromIban;
+    private String toIban;
+    private Double amount;
+    private String currency;
+    private String label;
+    private String owner;
+    private String status;
+    private LocalDateTime createdAt;
+}
+```
+
+---
+
+## `src/main/java/com/poc/banking/util/JwtClaimsExtractor.java`
+
+```java
+package com.poc.banking.util;
+
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Map;
+
+@Component
+public class JwtClaimsExtractor {
+
+    // Retourne l'IBAN du compte de l'utilisateur connecte
+    public String getIbanAccount(Jwt jwt) {
+        return jwt.getClaimAsString("ibanAccount");
+    }
+
+    // Retourne le sub (identifiant unique) de l'utilisateur
+    public String getSub(Jwt jwt) {
+        return jwt.getSubject();
+    }
+
+    // Retourne les authorization_details du token
+    public List<Map<String, Object>> getAuthorizationDetails(Jwt jwt) {
+        return jwt.getClaim("authorization_details");
+    }
+
+    // Retourne le premier authorization_details de type bankingTransfert
+    public Map<String, Object> getBankingTransfert(Jwt jwt) {
+        List<Map<String, Object>> details = getAuthorizationDetails(jwt);
+        if (details == null || details.isEmpty()) return null;
+
+        return details.stream()
+            .filter(d -> "bankingTransfert".equals(d.get("type")))
+            .findFirst()
+            .orElse(null);
+    }
+
+    // Verifie si l'utilisateur est dans le groupe APPROVERS
+    public boolean isApprover(Jwt jwt) {
+        List<String> groups = jwt.getClaim("isMemberOf");
+        if (groups == null) return false;
+        return groups.stream().anyMatch(g -> g.contains("APPROVERS"));
+    }
+}
+```
+
+---
+
+## `src/main/java/com/poc/banking/service/VirementService.java`
+
+```java
+package com.poc.banking.service;
+
+import com.poc.banking.dto.VirementRequest;
+import com.poc.banking.dto.VirementResponse;
+import com.poc.banking.entity.VirementEntity;
+import com.poc.banking.repository.VirementRepository;
+import com.poc.banking.util.JwtClaimsExtractor;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+
+@Service
+@RequiredArgsConstructor
+public class VirementService {
+
+    private final VirementRepository repository;
+    private final JwtClaimsExtractor extractor;
+
+    // Effectuer un virement
+    // Verifie que le body correspond aux authorization_details du token
+    public VirementResponse effectuerVirement(VirementRequest request, Jwt jwt) {
+
+        Map<String, Object> rar = extractor.getBankingTransfert(jwt);
+
+        // Pas d'authorization_details dans le token - consentement manquant
+        if (rar == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "Token sans authorization_details bankingTransfert");
+        }
+
+        // Verification que le body correspond au consentement donne
+        String ibanToken  = (String) rar.get("iban");
+        Number amountToken = (Number) rar.get("amount");
+
+        if (!ibanToken.equals(request.getToIban())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "IBAN ne correspond pas au consentement");
+        }
+
+        if (amountToken.doubleValue() != request.getAmount()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "Montant ne correspond pas au consentement");
+        }
+
+        // Sauvegarde le virement en base
+        VirementEntity entity = VirementEntity.builder()
+            .fromIban(extractor.getIbanAccount(jwt))
+            .toIban(request.getToIban())
+            .amount(request.getAmount())
+            .currency(request.getCurrency())
+            .label(request.getLabel())
+            .owner(extractor.getSub(jwt))
+            .status("COMPLETED")
+            .createdAt(LocalDateTime.now())
+            .build();
+
+        VirementEntity saved = repository.save(entity);
+        return toResponse(saved);
+    }
+
+    // Mes virements uniquement - filtre par owner (sub du token)
+    public List<VirementResponse> getMesVirements(Jwt jwt) {
+        String owner = extractor.getSub(jwt);
+        return repository.findByOwner(owner)
+            .stream()
+            .map(this::toResponse)
+            .toList();
+    }
+
+    // Tous les virements - reserve aux APPROVERS
+    public List<VirementResponse> getTousVirements(Jwt jwt) {
+        if (!extractor.isApprover(jwt)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "Acces reserve aux approbateurs");
+        }
+        return repository.findAll()
+            .stream()
+            .map(this::toResponse)
+            .toList();
+    }
+
+    // Convertit une entite en DTO de reponse
+    private VirementResponse toResponse(VirementEntity e) {
+        return VirementResponse.builder()
+            .id(e.getId())
+            .fromIban(e.getFromIban())
+            .toIban(e.getToIban())
+            .amount(e.getAmount())
+            .currency(e.getCurrency())
+            .label(e.getLabel())
+            .owner(e.getOwner())
+            .status(e.getStatus())
+            .createdAt(e.getCreatedAt())
+            .build();
+    }
+}
+```
+
+---
+
+## `src/main/java/com/poc/banking/controller/VirementController.java`
+
+```java
+package com.poc.banking.controller;
+
+import com.poc.banking.dto.VirementRequest;
+import com.poc.banking.dto.VirementResponse;
+import com.poc.banking.service.VirementService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/virements")
+@RequiredArgsConstructor
+public class VirementController {
+
+    private final VirementService service;
+
+    // Effectuer un virement
+    // Le token doit contenir authorization_details bankingTransfert
+    @PostMapping
+    public ResponseEntity<VirementResponse> effectuerVirement(
+        @RequestBody VirementRequest request,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        VirementResponse response = service.effectuerVirement(request, jwt);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    // Mes virements uniquement
+    @GetMapping("/me")
+    public ResponseEntity<List<VirementResponse>> getMesVirements(
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        return ResponseEntity.ok(service.getMesVirements(jwt));
+    }
+
+    // Tous les virements - APPROVERS seulement
+    @GetMapping
+    public ResponseEntity<List<VirementResponse>> getTousVirements(
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        return ResponseEntity.ok(service.getTousVirements(jwt));
+    }
+}
+```
+
+---
+
+## Lancer le backend
+
+```bash
+mvn spring-boot:run
+```
+
+Backend sur `http://localhost:8080`
+H2 console sur `http://localhost:8080/h2-console`
+
+---
+
+## Tester avec curl
+
+```bash
+# Recupere ton token depuis Angular (sessionStorage -> access_token)
+TOKEN="eyJhb..."
+
+# Effectuer un virement
+curl -X POST http://localhost:8080/api/virements \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"toIban":"FR7630004000031234567890143","amount":15000,"currency":"EUR","label":"loyer"}'
+
+# Mes virements
+curl http://localhost:8080/api/virements/me \
+  -H "Authorization: Bearer $TOKEN"
+
+# Tous les virements (token Approbateur_1 requis)
+curl http://localhost:8080/api/virements \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## Ce que Spring Boot verifie automatiquement
+
+- Signature JWT HS256 avec la cle `poc-key`
+- Expiration du token (`exp` claim)
+- Token present dans le header `Authorization: Bearer`
+
+## Ce que le service verifie en plus
+
+- `authorization_details` present dans le token
+- `iban` du body == `iban` du token
+- `amount` du body == `amount` du token
+- `isMemberOf` contient APPROVERS pour `GET /api/virements`
