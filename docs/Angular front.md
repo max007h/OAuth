@@ -1,3 +1,19 @@
+proxy.conf.json
+{
+  "/as": {
+    "target": "http://localhost:9032",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/idp": {
+    "target": "http://localhost:9032",
+    "secure": false,
+    "changeOrigin": true
+  }
+}
+
+
+
 # Banking Angular POC — PAR + RAR
 
 ## Structure du projet
