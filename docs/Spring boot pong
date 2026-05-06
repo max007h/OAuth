@@ -1,3 +1,10 @@
+curl -v -X OPTIONS http://localhost:8080/api/virements \
+  -H "Origin: http://localhost:4200" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: Authorization, Content-Type"
+
+
+
 
 package com.poc.banking.config;
 
