@@ -908,3 +908,35 @@ tr:hover td { background: #fafafa; }
 .empty { color: #999; font-size: .85rem; padding: .75rem 0; }
 ```
 
+
+
+
+
+‐------- on init virement
+
+
+
+
+import { OnInit } from '@angular/core';
+
+export class VirementComponent implements OnInit {
+
+  async ngOnInit() {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+
+    if (code) {
+      this.logService.add('Code recu - echange token...');
+      try {
+        const data = await this.auth.exchangeCode(code);
+        this.auth.saveToken(data);
+        this.logService.add('Token exchange OK');
+        window.history.replaceState({}, '', '/virement');
+      } catch (e) {
+        this.logService.add('Erreur token exchange: ' + e);
+      }
+    }
+  }
+  // ...reste du code
+}
+
