@@ -1,0 +1,32 @@
+sequenceDiagram
+    participant COM2 as Commercial 2 (Browser)
+    participant RS   as Spring Boot (RS)
+    participant PF   as PingFederate
+    participant PD   as PingDirectory
+ 
+    note over COM2,RS: Magic link clicked
+ 
+    COM2->>RS:  GET /set-password?token=MAGIC_TOKEN
+    note right of RS: Verify magic token:<br/>signature + expiry (24h)
+    RS-->>COM2: Password-set form
+ 
+    note over COM2,PD: Password submission
+ 
+    COM2->>RS:  POST /set-password
+    note right of COM2: { token, newPassword,<br/>confirmPassword }
+    note right of RS: 1. Verify magic token<br/>2. Check passwords match<br/>3. Validate password policy
+    RS->>PD:    SCIM PATCH /Users/{id}
+    note right of RS: userPassword = newPassword<br/>ds-pwp-account-disabled: false
+    PD-->>RS:   200 OK
+    RS-->>COM2: 302 → /as/authorization
+ 
+    note over COM2,PF: First login — standard OAuth2
+ 
+    COM2->>PF:  GET /as/authorization
+    PF->>PD:    LDAP bind (uid=commercial2, newPassword)
+    PD-->>PF:   Auth OK + attrs + groups
+    PF-->>COM2: Login + Consent UI
+    COM2->>PF:  POST credentials + consent
+    PF-->>COM2: 302 /callback?code=AUTH_CODE
+    COM2->>PF:  POST /as/token (code + code_verifier)
+    PF-->>COM2: access_token (JWT) — account active
