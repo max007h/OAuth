@@ -1,1 +1,1 @@
-docker logs env-pingfederate-1 2>&1 | grep -i "subject\|USER_KEY\|puma" | tail -30
+docker exec env-pingfederate-1 find /opt/out/instance -name "*.xml" | xargs grep -l "puma-portal" 2>/dev/null
