@@ -1,3 +1,17 @@
+# 1. Extraire le cert de PingFederate
+openssl s_client -connect localhost:9031 </dev/null 2>/dev/null \
+  | openssl x509 -outform PEM > pf.pem
+
+# 2. L'importer dans le truststore JDK
+keytool -importcert -alias pingfederate \
+  -file pf.pem \
+  -keystore "%JAVA_HOME%\lib\security\cacerts" \
+  -storepass changeit -noprompt
+
+
+
+
+
 import org.springframework.beans.factory.annotation.Autowired;
 
 
