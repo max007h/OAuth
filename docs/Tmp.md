@@ -1,3 +1,57 @@
+package com.poc.puma.security;
+
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private final JwtDecoder jwtDecoder;
+
+    public JwtAuthenticationFilter(JwtDecoder jwtDecoder) {
+        this.jwtDecoder = jwtDecoder;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain)
+            throws ServletException, IOException {
+
+        String header = request.getHeader("Authorization");
+
+        if (header != null && header.startsWith("Bearer ")) {
+            String token = header.substring(7);
+            try {
+                Jwt jwt = jwtDecoder.decode(token);
+                JwtAuthenticationToken authentication =
+                    new JwtAuthenticationToken(jwt);
+                org.springframework.security.core.context
+                    .SecurityContextHolder.getContext()
+                    .setAuthentication(authentication);
+            } catch (Exception e) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                return;
+            }
+        }
+        filterChain.doFilter(request, response);
+    }
+}
+
+
+
+
+
+
+
+
 # PUMA Portal — Complete Source Code
 
 ## Architecture
