@@ -1,3 +1,7 @@
+https://localhost:9031/as/authorization.oauth2?client_id=puma-portal&response_type=code&scope=openid&acr_values=urn:pingidentity:self-service:password-reset
+
+
+
 https://localhost:9031/ext/localIdentityProfiles/TEgOfvAak6lBLI7R/registration
 
 
