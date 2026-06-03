@@ -1,3 +1,9 @@
+https://localhost:9031/idp/startSSO.ping?PartnerSpId=PasswordResetPOC
+
+https://localhost:9031/ext/localIdentityProfiles/PasswordResetPOC/registration
+
+
+
 <dependency>
     <groupId>com.fasterxml.jackson.core</groupId>
     <artifactId>jackson-databind</artifactId>
