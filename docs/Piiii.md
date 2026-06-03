@@ -6,6 +6,11 @@
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+curl -k -s \
+  -u "administrator:2FederateM0re" \
+  -H "X-XSRF-Header: PingFederate" \
+  "https://localhost:9999/pf-admin-api/v1/version"
+
 
 # Feature : Liste Utilisateurs + Reset Password URL
 
