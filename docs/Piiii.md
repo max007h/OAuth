@@ -1,3 +1,16 @@
+docker run -d \
+  --name mailhog \
+  --network env_default \
+  -p 1025:1025 \
+  -p 8025:8025 \
+  dockerhub.artifactory-dogen.group.echonet/mailhog/mailhog
+
+docker network ls
+
+  
+
+
+
 mailhog:
   image: mailhog/mailhog
   ports:
