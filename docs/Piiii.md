@@ -1,3 +1,7 @@
+ldapsearch -h localhost -p 1389 -D 'cn=administrator' -w 2FederateM0re -b 'ou=people,dc=example,dc=com' '(uid=thomas)' mail
+
+
+
 ldappasswd -h localhost -p 1389 \
   -D "cn=administrator,dc=example,dc=com" \
   -w 2FederateM0re \
