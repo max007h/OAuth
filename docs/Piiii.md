@@ -1,5 +1,11 @@
 docker pull dockerhub.artifactory-dogen.group.echonet/axllent/mailpit
 
+docker run -d \
+  --name mailpit \
+  --network $(docker inspect env-pingfederate-1 --format='{{range .NetworkSettings.Networks}}{{.NetworkID}}{{end}}' | head -1) \
+  -p 1025:1025 \
+  -p 8025:8025 \
+  dockerhub.artifactory-dogen.group.echonet/axllent/mailpit
 
 
   docker run -d \
