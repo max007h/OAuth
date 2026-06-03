@@ -11,6 +11,15 @@ curl -k -s \
   -H "X-XSRF-Header: PingFederate" \
   "https://localhost:9999/pf-admin-api/v1/version"
 
+curl -k -s \
+  -u "administrator:2FederateM0re" \
+  -H "X-XSRF-Header: PingFederate" \
+  "https://localhost:9999/pf-admin-api/v1/passwordResetLinks" \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"username": "Customer_1"}'
+
+
 
 # Feature : Liste Utilisateurs + Reset Password URL
 
