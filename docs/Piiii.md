@@ -1,3 +1,6 @@
+https://localhost:9031/ext/localIdentityProfiles/TEgOfvAak6lBLI7R/registration
+
+
 https://localhost:9031/idp/startSSO.ping?PartnerSpId=PasswordResetPOC
 
 https://localhost:9031/ext/localIdentityProfiles/PasswordResetPOC/registration
