@@ -1,13 +1,14 @@
-docker run -d \
+docker pull dockerhub.artifactory-dogen.group.echonet/axllent/mailpit
+
+
+
+  docker run -d \
   --name mailhog \
-  --network env_default \
+  --platform linux/amd64 \
+  --network nom_du_reseau \
   -p 1025:1025 \
   -p 8025:8025 \
   dockerhub.artifactory-dogen.group.echonet/mailhog/mailhog
-
-docker network ls
-
-  
 
 
 
