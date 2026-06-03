@@ -1,3 +1,21 @@
+# Voir toutes les password policies
+docker exec env-pingdirectory-1 /opt/out/instance/bin/dsconfig \
+  --hostname localhost --port 1636 --useSSL --trustAll \
+  --bindDN "cn=administrator" --bindPassword 2FederateM0re \
+  --no-prompt \
+  list-password-policies
+
+
+# Voir les détails de la policy par défaut
+docker exec env-pingdirectory-1 /opt/out/instance/bin/dsconfig \
+  --hostname localhost --port 1636 --useSSL --trustAll \
+  --bindDN "cn=administrator" --bindPassword 2FederateM0re \
+  --no-prompt \
+  get-password-policy-prop \
+  --policy-name "Default Password Policy"
+
+
+
 # Vérifier la password policy appliquée à l'utilisateur
 docker exec env-pingdirectory-1 /opt/out/instance/bin/ldapsearch \
   --hostname localhost --port 1636 --useSSL --trustAll \
