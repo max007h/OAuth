@@ -1,3 +1,7 @@
+https://localhost:9031/ext/localIdentityProfiles/TEgOfvAak6lBLI7R/registration
+
+
+
 docker inspect mailpit --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
 
 
