@@ -2,7 +2,11 @@ https://localhost:9031/idp/startSSO.ping?PartnerSpId=PasswordResetPOC
 
 https://localhost:9031/ext/localIdentityProfiles/PasswordResetPOC/registration
 
-
+curl -k -s \
+  -u "administrator:2FederateM0re" \
+  -H "X-XSRF-Header: PingFederate" \
+  "https://localhost:9999/pf-admin-api/v1/localIdentityProfiles" \
+  | python3 -m json.tool
 
 <dependency>
     <groupId>com.fasterxml.jackson.core</groupId>
