@@ -6,6 +6,10 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtException;
 
+curl -k https://localhost:1443/scim/v2/Users \
+  -u "cn=administrator,dc=example,dc=com:2FederateM0re"
+  
+
 
 @Bean
 public JwtDecoder jwtDecoder() {
