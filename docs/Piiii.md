@@ -1,3 +1,23 @@
+# Vérifier la password policy appliquée à l'utilisateur
+docker exec env-pingdirectory-1 /opt/out/instance/bin/ldapsearch \
+  --hostname localhost --port 1636 --useSSL --trustAll \
+  --bindDN "cn=Directory Manager" --bindPassword 2FederateM0re \
+  --baseDN "uid=Customer_1,ou=people,dc=example,dc=com" \
+  --searchScope base "(objectclass=*)" pwdPolicySubentry passwordPolicySubentry
+
+# Tenter un reset direct en ldapmodify
+docker exec env-pingdirectory-1 /opt/out/instance/bin/ldappasswordmodify \
+  --hostname localhost --port 1636 --useSSL --trustAll \
+  --bindDN "cn=Directory Manager" --bindPassword 2FederateM0re \
+  --authzID "uid=Customer_1,ou=people,dc=example,dc=com" \
+  --newPassword "Password1234!"
+
+
+
+
+
+
+
 docker exec env-pingdirectory-1 /opt/out/instance/bin/dsconfig \
   set-root-dn-prop \
   --root-dn-name "administrator" \
