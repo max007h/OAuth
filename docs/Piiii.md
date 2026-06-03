@@ -1,3 +1,11 @@
+mailhog:
+  image: mailhog/mailhog
+  ports:
+    - "1025:1025"
+    - "8025:8025"
+
+
+
 https://localhost:9031/idp/startSSO.ping?AdapterId=HTMLFormAdapter&ForceAuthn=true
 
 
