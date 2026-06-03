@@ -1,3 +1,7 @@
+https://localhost:9031/idp/startSSO.ping?AdapterId=HTMLFormAdapter
+
+
+
 https://localhost:9031/ext/localIdentityProfiles/TEgOfvAak6lBLI7R/registration
 
 
