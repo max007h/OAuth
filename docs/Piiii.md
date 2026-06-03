@@ -1,3 +1,17 @@
+docker exec env-pingdirectory-1 /opt/out/instance/bin/dsconfig \
+  set-root-dn-prop \
+  --root-dn-name "administrator" \
+  --add default-root-privilege-name:proxied-auth \
+  --hostname localhost \
+  --port 1636 \
+  --useSSL \
+  --trustAll \
+  --bindDN "cn=Directory Manager" \
+  --bindPassword 2FederateM0re \
+  --no-prompt
+
+
+
 ldapsearch -h localhost -p 1389 -D 'cn=administrator' -w 2FederateM0re -b 'ou=people,dc=example,dc=com' '(uid=thomas)' mail
 
 
