@@ -1,3 +1,11 @@
+ldappasswd -h localhost -p 1389 \
+  -D "cn=administrator,dc=example,dc=com" \
+  -w 2FederateM0re \
+  -s "NewPassword123!" \
+  "uid=Customer_1,ou=people,dc=example,dc=com"
+
+
+
 https://localhost:9031/idp/startSSO.ping?AdapterId=HTMLFormAdapter
 
 
