@@ -1,3 +1,12 @@
+docker inspect mailpit --format='{{range .NetworkSettings.Networks}}{{.NetworkID}} {{end}}'
+docker inspect env-pingfederate-1 --format='{{range .NetworkSettings.Networks}}{{.NetworkID}} {{end}}'
+
+
+docker network connect env_default mailpit
+
+
+
+
 docker pull dockerhub.artifactory-dogen.group.echonet/axllent/mailpit
 
 docker run -d \
