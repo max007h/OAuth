@@ -1,3 +1,12 @@
+ldapsearch -h localhost -p 1389 \
+  -D "cn=administrator,dc=example,dc=com" \
+  -w 2FederateM0re \
+  -b "dc=example,dc=com" \
+  "(objectClass=*)" dn
+
+
+
+
 docker exec env-pingfederate-1 grep -r "puma-portal" /opt/out/instance/server/default/data/ 2>/dev/null
 
 docker exec env-pingfederate-1 cat /opt/out/instance/server/default/data/oauth-clients/0/2faf3053c30c13380aa110ff25e4a87bdfa83996.xml
