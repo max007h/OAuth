@@ -6,6 +6,28 @@ docker exec env-pingdirectory-1 /opt/out/instance/bin/dsconfig \
   list-password-policies
 
 
+
+# Voir les détails de la policy par défaut
+docker exec env-pingdirectory-1 /opt/out/instance/bin/dsconfig \
+  --hostname localhost --port 1636 --useSSL --trustAll \
+  --bindDN "cn=administrator" --bindPassword 2FederateM0re \
+  --no-prompt \
+  get-password-policy-prop \
+  --policy-name "Default Password Policy"
+
+
+
+
+
+
+# Voir toutes les password policies
+docker exec env-pingdirectory-1 /opt/out/instance/bin/dsconfig \
+  --hostname localhost --port 1636 --useSSL --trustAll \
+  --bindDN "cn=administrator" --bindPassword 2FederateM0re \
+  --no-prompt \
+  list-password-policies
+
+
 # Voir les détails de la policy par défaut
 docker exec env-pingdirectory-1 /opt/out/instance/bin/dsconfig \
   --hostname localhost --port 1636 --useSSL --trustAll \
