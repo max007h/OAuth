@@ -1,3 +1,6 @@
+docker inspect mailpit --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
+
+
 docker exec env-pingfederate-1 bash -c "echo 'QUIT' | nc mailpit 1025"
 
 docker exec env-pingfederate-1 bash -c "cat /dev/null > /dev/tcp/mailpit/1025 && echo OK || echo FAIL"
