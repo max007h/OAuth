@@ -1,3 +1,8 @@
+docker exec env-pingdirectory-1 /bin/sh -c \
+  'printf "dn: cn=administrator,cn=root dns,cn=config\nchangetype: modify\nadd: ds-cfg-default-root-privilege-name\nds-cfg-default-root-privilege-name: proxied-auth\n" > /tmp/proxied.ldif'
+
+
+
 dn: cn=administrator,cn=root dns,cn=config
 changetype: modify
 add: ds-cfg-default-root-privilege-name
