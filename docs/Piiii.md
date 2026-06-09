@@ -1,3 +1,6 @@
+docker exec env-pingdirectory-1 /opt/out/instance/bin/ldapsearch --baseDN "cn=Directory Manager,cn=Root DNs,cn=config" --searchScope base "(objectclass=*)" ds-cfg-alternate-bind-dn ds-cfg-default-root-privilege-name
+
+
 docker exec env-pingdirectory-1 /opt/out/instance/bin/ldapsearch --baseDN "cn=Root DNs,cn=config" --searchScope sub "(objectclass=*)" objectClass dn
 
 
