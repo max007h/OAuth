@@ -1,3 +1,13 @@
+dn: cn=Directory Manager,cn=Root DNs,cn=config
+changetype: modify
+add: ds-cfg-default-root-privilege-name
+ds-cfg-default-root-privilege-name: proxied-auth
+
+docker cp proxied.ldif env-pingdirectory-1:/tmp/proxied.ldif && docker exec env-pingdirectory-1 /opt/out/instance/bin/ldapmodify --filename /tmp/proxied.ldif
+
+
+
+
 docker exec env-pingdirectory-1 /opt/out/instance/bin/ldapsearch --baseDN "cn=Directory Manager,cn=Root DNs,cn=config" --searchScope base "(objectclass=*)" ds-cfg-alternate-bind-dn ds-cfg-default-root-privilege-name
 
 
