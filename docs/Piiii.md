@@ -1,3 +1,6 @@
+docker exec env-pingdirectory-1 /opt/out/instance/bin/ldapsearch --hostname localhost --port 1636 --useSSL --trustAll --bindDN "cn=Directory Manager" --bindPassword 2FederateM0re --baseDN "cn=Root DNs,cn=config" --searchScope sub "(objectclass=*)" cn ds-cfg-alternate-bind-dn ds-cfg-default-root-privilege-name
+
+
 docker exec env-pingdirectory-1 /opt/out/instance/bin/ldapsearch \
   --hostname localhost --port 1636 --useSSL --trustAll \
   --bindDN "cn=administrator" --bindPassword 2FederateM0re \
