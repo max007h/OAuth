@@ -1,3 +1,21 @@
+dn: cn=administrator,cn=root dns,cn=config
+changetype: modify
+add: ds-cfg-default-root-privilege-name
+ds-cfg-default-root-privilege-name: proxied-auth
+
+
+docker cp /tmp/proxied.ldif env-pingdirectory-1:/tmp/proxied.ldif
+
+# 3. Appliquer
+docker exec env-pingdirectory-1 /opt/out/instance/bin/ldapmodify \
+  --hostname localhost --port 1636 --useSSL --trustAll \
+  --bindDN "cn=administrator" --bindPassword 2FederateM0re \
+  --filename /tmp/proxied.ldif
+
+
+
+
+
 docker exec env-pingdirectory-1 bash -c "cat > /tmp/proxied.ldif << 'EOF'
 dn: cn=administrator,cn=root dns,cn=config
 changetype: modify
