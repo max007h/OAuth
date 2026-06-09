@@ -1,3 +1,12 @@
+docker exec env-pingdirectory-1 /opt/out/instance/bin/ldapsearch \
+  --hostname localhost --port 1636 --useSSL --trustAll \
+  --bindDN "cn=administrator" --bindPassword 2FederateM0re \
+  --baseDN "cn=root dns,cn=config" \
+  --searchScope sub "(objectclass=*)" dn
+
+
+
+
 docker exec env-pingdirectory-1 /bin/sh -c \
   'printf "dn: cn=administrator,cn=root dns,cn=config\nchangetype: modify\nadd: ds-cfg-default-root-privilege-name\nds-cfg-default-root-privilege-name: proxied-auth\n" > /tmp/proxied.ldif'
 
