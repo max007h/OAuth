@@ -1,3 +1,14 @@
+docker exec env-pingdirectory-1 /opt/out/instance/bin/ldapmodify \
+  --hostname localhost --port 1636 --useSSL --trustAll \
+  --bindDN "cn=administrator" --bindPassword 2FederateM0re << 'EOF'
+dn: cn=administrator,cn=root dns,cn=config
+changetype: modify
+add: ds-cfg-default-root-privilege-name
+ds-cfg-default-root-privilege-name: proxied-auth
+EOF
+
+
+
 # Voir toutes les password policies
 docker exec env-pingdirectory-1 /opt/out/instance/bin/dsconfig \
   --hostname localhost --port 1636 --useSSL --trustAll \
