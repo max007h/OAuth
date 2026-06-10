@@ -1,3 +1,16 @@
+C'est l'inverse — c'est toi qui mélanges deux choses distinctes.
+
+Le SCA classique que tu décris (présence d'une lib/version = CVE associée) c'est la génération 1. Ce que j'appelle applicability detection, c'est une feature SCA next-gen qui nécessite un mini-SAST embarqué dans le SCA pour déterminer si la fonction vulnérable est réellement appelée dans ton code. C'est différent du SAST pur qui, lui, cherche des vulnérabilités propres à ton code source.
+
+J'ai travaillé avec des éditeurs américains sur ces deux domaines — la frontière entre SCA next-gen et SAST est précisément le sujet des benchmarks que j'ai menés, d'où les échanges avec Checkmarx, JFrog et Backduck.
+
+Donc oui, si on parle de SCA génération 1 tu as raison sur sa définition. Mais le marché est déjà passé à autre chose — et c'est précisément là que les limites que je cite apparaissent.
+
+
+
+
+
+
 Non, ce n'est pas une question de granularité des CVE — c'est structurel.
 
 Les vraies limites des SCA aujourd'hui :
