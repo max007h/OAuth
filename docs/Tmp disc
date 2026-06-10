@@ -1,3 +1,14 @@
+et justement c'est le point : tu dis "ce sera intégré", pas "c'est intégré". Aujourd'hui, aucune solution SAST/IAST du marché n'utilise réellement de l'IA au sens LLM. Ce qu'ils appellent "basé sur l'IA" c'est du ML classique — modèles de classification, détection d'anomalies sur des patterns connus, réduction de faux positifs par scoring. C'est utile, mais ce n'est pas du raisonnement.
+
+Les éditeurs ont tenté l'intégration LLM et se sont heurtés à des problèmes réels : volume de code à traiter, coût d'inférence, confidentialité du code source envoyé vers des APIs externes, hallucinations sur des codebases complexes. Aucun n'a résolu ça proprement à ce jour.
+
+Donc dans l'intervalle, Mythos existe et fonctionne. Attendre que Checkmarx ou Veracode intègre "vraiment" un LLM efficace, c'est un pari sur l'avenir — pas une réponse au présent.
+
+
+
+
+
+
 Je ne suis pas d'accord sur le fait de réduire Mythos à un buzzword. La vraie différence avec un SCA classique c'est que Mythos ne se contente pas d'analyser les manifestes ou les fingerprints — il fait de la reachability analysis sur le call graph réel pour déterminer si le code path vulnérable est effectivement atteignable.
 
 Ensuite, il va plus loin : il peut générer et exécuter un payload pour confirmer l'exploitabilité (PoC calc.exe, injection SQL bénigne, etc.), et même proposer des shellcodes graduels selon l'objectif visé. C'est du DAST piloté par la CVE, pas du scan de manifeste.
