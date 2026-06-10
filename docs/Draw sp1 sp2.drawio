@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxGraphModel>
+  <root>
+    <mxCell id="0"/><mxCell id="1" parent="0"/>
+    <mxCell id="10" value="PUMA Portal" style="rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="80" y="160" width="160" height="60" as="geometry"/></mxCell>
+    <mxCell id="11" value="PingDirectory (LDAP)" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="80" y="340" width="160" height="60" as="geometry"/></mxCell>
+    <mxCell id="12" value="PingFederate (AS/OIDC)" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="490" y="250" width="180" height="60" as="geometry"/></mxCell>
+    <mxCell id="13" value="Partner SPA (:4300)" style="rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="860" y="160" width="180" height="60" as="geometry"/></mxCell>
+    <mxCell id="14" value="Utilisateur (onglet anonyme)" style="ellipse;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="870" y="360" width="160" height="60" as="geometry"/></mxCell>
+    <mxCell id="20" value="1. Provisionne utilisateur (LDAP)" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="10" target="11" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="21" value="2. Reset mot de passe" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="10" target="12" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="22" value="3. Ouvre Partner SPA" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="14" target="13" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="23" value="4. /authorization (PKCE S256)" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="13" target="12" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="24" value="5. LDAP bind" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="12" target="11" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="25" value="6. redirect + code" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="12" target="13" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="26" value="7. POST /token (code + verifier)" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="13" target="12" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="27" value="8. id_token + access_token" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="12" target="13" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="28" value="9. Affiche profil + JWT" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#b85450;" edge="1" source="13" target="14" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+  </root>
+</mxGraphModel>
