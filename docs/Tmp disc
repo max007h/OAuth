@@ -1,3 +1,20 @@
+Non, ce n'est pas une question de granularité des CVE — c'est structurel.
+
+Les vraies limites des SCA aujourd'hui :
+
+1. Faux positifs élevés sur les dépendances transitives : une lib vulnérable détectée dans le graph de dépendances ne signifie pas qu'elle est appelée. La majorité des SCA ne font pas la distinction entre une transitive jamais invoquée et une dépendance directement utilisée par le développeur.
+
+2. Chargement dynamique invisible : quand une lib est chargée via Class.forName(), loadLibrary(), ou réflexion, elle n'apparaît pas dans le manifeste ni dans le SBOM. Le SCA ne la voit tout simplement pas.
+
+3. Injection conditionnelle : des dépendances injectées sous conditions runtime (feature flags, configuration, environnement) sont hors de portée de toute analyse statique de manifeste.
+
+Ce n'est pas un problème de déclaration CVE — c'est un problème fondamental d'observabilité du SCA face à du code dynamique.
+
+
+
+
+
+
 et justement c'est le point : tu dis "ce sera intégré", pas "c'est intégré". Aujourd'hui, aucune solution SAST/IAST du marché n'utilise réellement de l'IA au sens LLM. Ce qu'ils appellent "basé sur l'IA" c'est du ML classique — modèles de classification, détection d'anomalies sur des patterns connus, réduction de faux positifs par scoring. C'est utile, mais ce n'est pas du raisonnement.
 
 Les éditeurs ont tenté l'intégration LLM et se sont heurtés à des problèmes réels : volume de code à traiter, coût d'inférence, confidentialité du code source envoyé vers des APIs externes, hallucinations sur des codebases complexes. Aucun n'a résolu ça proprement à ce jour.
