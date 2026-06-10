@@ -1,0 +1,7 @@
+Je ne suis pas d'accord sur le fait de réduire Mythos à un buzzword. La vraie différence avec un SCA classique c'est que Mythos ne se contente pas d'analyser les manifestes ou les fingerprints — il fait de la reachability analysis sur le call graph réel pour déterminer si le code path vulnérable est effectivement atteignable.
+
+Ensuite, il va plus loin : il peut générer et exécuter un payload pour confirmer l'exploitabilité (PoC calc.exe, injection SQL bénigne, etc.), et même proposer des shellcodes graduels selon l'objectif visé. C'est du DAST piloté par la CVE, pas du scan de manifeste.
+
+La comparaison avec ChatGPT ne tient pas non plus : les LLMs grand public sont durcis et refusent les prompts offensifs. Mythos est entraîné spécifiquement pour la recherche de vulnérabilités, sans ces garde-fous — c'est structurellement différent.
+
+Donc oui, les hackers utilisent déjà l'IA depuis longtemps, mais Mythos n'est pas juste un accélérateur pour eux — c'est aussi un outil défensif qui valide l'exploitabilité réelle là où nos SCA actuels génèrent du bruit.
