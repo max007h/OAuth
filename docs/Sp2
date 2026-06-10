@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Partner SPA 2</title>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <style>
+    body { font-family: monospace; padding: 2rem; }
+    pre { background: #f0f0f0; padding: 1rem; white-space: pre-wrap; word-break: break-all; }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    // ---- CONFIG ----
+    const CONFIG = {
+      clientId: 'partner-spa2',
+      redirectUri: window.location.href.split('?')[0],
+      scope: 'openid profile email',
+      authorizationEndpoint: 'https://localhost:9031/as/authorization.oauth2',
+      tokenEndpoint: 'https://localhost:9031/as/token.oauth2',
+    };
+
+    // ---- JWT DECODE ----
+    function decodeJwt(token) {
+      try {
+        return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      } catch(e) { return null; }
+    }
+
+    // ---- RENDER ----
+    function renderLogin() {
+      $('#app').html(`
+        <h2>Partner SPA 2 — Test Auth</h2>
+        <button id="btnLogin">Se connecter</button>
+      `);
+      $('#btnLogin').click(login);
+    }
+
+    function renderProfile(idToken, accessToken) {
+      const c = decodeJwt(idToken);
+      $('#app').html(`
+        <h2>Authentification réussie</h2>
+        <p>Bienvenue <strong>${c.given_name || ''} ${c.family_name || c.name || ''}</strong></p>
+        <p><b>Email :</b> ${c.email || '-'}</p>
+        <p><b>Sub :</b> ${c.sub || '-'}</p>
+        <p><b>Rôle :</b> ${Array.isArray(c.groups) ? c.groups.join(', ') : (c.groups || c.role || '-')}</p>
+
+        <p><b>ID Token brut :</b></p>
+        <pre>${idToken}</pre>
+
+        <p><b>ID Token décodé :</b></p>
+        <pre>${JSON.stringify(c, null, 2)}</pre>
+
+        ${accessToken ? `<p><b>Access Token :</b></p><pre>${accessToken}</pre>` : ''}
+
+        <button id="btnLogout">Se déconnecter</button>
+      `);
+      $('#btnLogout').click(() => { sessionStorage.clear(); renderLogin(); });
+    }
+
+    // ---- AUTH ----
+    function login() {
+      const state = Math.random().toString(36).substring(2);
+      sessionStorage.setItem('oauth_state', state);
+
+      const params = new URLSearchParams({
+        response_type: 'code',
+        client_id: CONFIG.clientId,
+        redirect_uri: CONFIG.redirectUri,
+        scope: CONFIG.scope,
+        state: state,
+      });
+
+      window.location.href = CONFIG.authorizationEndpoint + '?' + params;
+    }
+
+    function handleCallback(code, state) {
+      if (state !== sessionStorage.getItem('oauth_state')) {
+        $('#app').html('<p class="error">State invalide.</p>');
+        return;
+      }
+      sessionStorage.removeItem('oauth_state');
+
+      $.post(CONFIG.tokenEndpoint, {
+        grant_type: 'authorization_code',
+        client_id: CONFIG.clientId,
+        redirect_uri: CONFIG.redirectUri,
+        code: code,
+      })
+      .done(tokens => {
+        window.history.replaceState({}, '', CONFIG.redirectUri);
+        renderProfile(tokens.id_token, tokens.access_token);
+      })
+      .fail((xhr) => {
+        $('#app').html(`<p class="error">Erreur token : ${xhr.responseText}</p>`);
+      });
+    }
+
+    // ---- INIT ----
+    $(function() {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      const state = params.get('state');
+      const error = params.get('error');
+
+      if (error) {
+        $('#app').html(`<p class="error">Erreur OAuth : ${error}</p>`);
+      } else if (code && state) {
+        handleCallback(code, state);
+      } else {
+        renderLogin();
+      }
+    });
+  </script>
+</body>
+</html>
