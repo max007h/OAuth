@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>POC PAR</title>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .box {
+      background: #fff;
+      border-radius: 6px;
+      padding: 40px;
+      width: 340px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    }
+    .check { font-size: 48px; color: #27ae60; margin-bottom: 16px; }
+    .cross { font-size: 48px; color: #c0392b; margin-bottom: 16px; }
+    h2 { font-size: 20px; color: #2c3e50; margin-bottom: 8px; }
+    .sub { font-size: 13px; color: #888; margin-bottom: 28px; }
+    button {
+      width: 100%;
+      padding: 11px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      background: #e74c3c;
+      color: #fff;
+    }
+    button:hover { background: #c0392b; }
+    .spinner { font-size: 14px; color: #888; }
+    #errMsg { font-size: 13px; color: #c0392b; margin-bottom: 20px; }
+    #retour {
+      margin-top: 12px;
+      background: none;
+      color: #2980b9;
+      text-decoration: underline;
+      font-size: 13px;
+      cursor: pointer;
+      border: none;
+      padding: 0;
+      width: auto;
+    }
+  </style>
+</head>
+<body>
+<div class="box" id="content">
+  <p class="spinner">Authentification en cours...</p>
+</div>
+
+<script>
+const PF_BASE   = 'https://localhost:9031';
+const CLIENT_ID = 'poc-par-validation';
+const REDIRECT  = 'http://localhost:8080/callback.html';
+
+function showAuthentifie(subject) {
+  $('#content').html(
+    '<div class="check">&#10003;</div>' +
+    '<h2>Authentifie</h2>' +
+    '<p class="sub">' + (subject || '') + '</p>' +
+    '<button id="btnLogout">Deconnexion</button>'
+  );
+  $('#btnLogout').on('click', function() {
+    sessionStorage.clear();
+    window.location.href = 'index.html';
+  });
+}
+
+function showErreur(msg) {
+  $('#content').html(
+    '<div class="cross">&#10007;</div>' +
+    '<h2>Echec</h2>' +
+    '<p id="errMsg">' + msg + '</p>' +
+    '<button id="btnRetour" onclick="window.location.href=\'index.html\'">Retour</button>'
+  );
+}
+
+async function echangerCode(code, state) {
+  const savedState = sessionStorage.getItem('oauth_state');
+  if (state !== savedState) {
+    showErreur('Etat invalide, recommencez.');
+    return;
+  }
+
+  const body = new URLSearchParams({
+    grant_type:   'authorization_code',
+    code:          code,
+    redirect_uri:  REDIRECT,
+    client_id:     CLIENT_ID
+  });
+
+  let resp, data;
+  try {
+    resp = await fetch(PF_BASE + '/as/token.oauth2', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body:    body.toString()
+    });
+    data = await resp.json();
+  } catch(e) {
+    showErreur('Token endpoint inaccessible : ' + e.message);
+    return;
+  }
+
+  if (!resp.ok) {
+    showErreur(data.error_description || data.error || 'Erreur token');
+    return;
+  }
+
+  sessionStorage.removeItem('oauth_state');
+  sessionStorage.setItem('access_token', data.access_token);
+
+  // Decode subject depuis le JWT (sans verif signature, POC)
+  let subject = '';
+  try {
+    const payload = JSON.parse(atob(data.access_token.split('.')[1]));
+    subject = payload.sub || payload.username || '';
+  } catch(e) {}
+
+  showAuthentifie(subject);
+}
+
+// Lecture des params retour PF
+const params = new URLSearchParams(window.location.search);
+const code   = params.get('code');
+const state  = params.get('state');
+const error  = params.get('error');
+
+if (error) {
+  const desc = params.get('error_description') || error;
+  showErreur(desc);
+} else if (code) {
+  echangerCode(code, state);
+} else {
+  showErreur('Aucun code recu.');
+}
+</script>
+</body>
+</html>
