@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -54,7 +55,8 @@
 </div>
 
 <script>
-const PF_BASE     = 'https://localhost:9031';
+const PF_BASE     = 'http://localhost:8080';   // proxy (fetch PAR + token)
+const PF_DIRECT   = 'https://localhost:9031';  // redirect browser vers PF
 const CLIENT_ID   = 'poc-par-validation';
 const REDIRECT    = 'http://localhost:8080/callback.html';
 const SCOPE       = 'openid';
@@ -112,7 +114,7 @@ $('#btnLogin').on('click', async function() {
   }
 
   // PAR OK → redirect vers PF avec le request_uri
-  window.location.href = PF_BASE + '/as/authorization.oauth2'
+  window.location.href = PF_DIRECT + '/as/authorization.oauth2'
     + '?client_id='    + encodeURIComponent(CLIENT_ID)
     + '&request_uri='  + encodeURIComponent(data.request_uri);
 });
