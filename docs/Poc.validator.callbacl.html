@@ -38,18 +38,6 @@
     }
     button:hover { background: #c0392b; }
     .spinner { font-size: 14px; color: #888; }
-    #errMsg { font-size: 13px; color: #c0392b; margin-bottom: 20px; }
-    #retour {
-      margin-top: 12px;
-      background: none;
-      color: #2980b9;
-      text-decoration: underline;
-      font-size: 13px;
-      cursor: pointer;
-      border: none;
-      padding: 0;
-      width: auto;
-    }
   </style>
 </head>
 <body>
@@ -58,7 +46,8 @@
 </div>
 
 <script>
-const PF_BASE   = 'https://localhost:9031';
+// Proxy local - pas de CORS, pas de SSL
+const PROXY     = 'http://localhost:8080';
 const CLIENT_ID = 'poc-par-validation';
 const REDIRECT  = 'http://localhost:8080/callback.html';
 
@@ -79,28 +68,22 @@ function showErreur(msg) {
   $('#content').html(
     '<div class="cross">&#10007;</div>' +
     '<h2>Echec</h2>' +
-    '<p id="errMsg">' + msg + '</p>' +
-    '<button id="btnRetour" onclick="window.location.href=\'index.html\'">Retour</button>'
+    '<p style="font-size:13px;color:#c0392b;margin-bottom:20px">' + msg + '</p>' +
+    '<button onclick="window.location.href=\'index.html\'">Retour</button>'
   );
 }
 
-async function echangerCode(code, state) {
-  const savedState = sessionStorage.getItem('oauth_state');
-  if (state !== savedState) {
-    showErreur('Etat invalide, recommencez.');
-    return;
-  }
-
+async function echangerCode(code) {
   const body = new URLSearchParams({
-    grant_type:   'authorization_code',
-    code:          code,
-    redirect_uri:  REDIRECT,
-    client_id:     CLIENT_ID
+    grant_type:  'authorization_code',
+    code:         code,
+    redirect_uri: REDIRECT,
+    client_id:    CLIENT_ID
   });
 
   let resp, data;
   try {
-    resp = await fetch(PF_BASE + '/as/token.oauth2', {
+    resp = await fetch(PROXY + '/as/token.oauth2', {
       method:  'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body:    body.toString()
@@ -116,10 +99,7 @@ async function echangerCode(code, state) {
     return;
   }
 
-  sessionStorage.removeItem('oauth_state');
-  sessionStorage.setItem('access_token', data.access_token);
-
-  // Decode subject depuis le JWT (sans verif signature, POC)
+  // Decode subject depuis JWT (POC - sans verification signature)
   let subject = '';
   try {
     const payload = JSON.parse(atob(data.access_token.split('.')[1]));
@@ -129,17 +109,15 @@ async function echangerCode(code, state) {
   showAuthentifie(subject);
 }
 
-// Lecture des params retour PF
+// Lecture params retour PF
 const params = new URLSearchParams(window.location.search);
 const code   = params.get('code');
-const state  = params.get('state');
 const error  = params.get('error');
 
 if (error) {
-  const desc = params.get('error_description') || error;
-  showErreur(desc);
+  showErreur(params.get('error_description') || error);
 } else if (code) {
-  echangerCode(code, state);
+  echangerCode(code);
 } else {
   showErreur('Aucun code recu.');
 }
