@@ -31,6 +31,15 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_response(200)
         self.end_headers()
 
+    def do_GET(self):
+        # Force le navigateur a toujours recharger le fichier complet
+        # (evite les 304 Not Modified qui servent une version en cache)
+        if 'If-Modified-Since' in self.headers:
+            del self.headers['If-Modified-Since']
+        if 'If-None-Match' in self.headers:
+            del self.headers['If-None-Match']
+        super().do_GET()
+
     def do_POST(self):
         # Intercepte /as/par.oauth2 et /as/token.oauth2
         if self.path.startswith("/as/"):
@@ -70,4 +79,3 @@ print(f"  CTRL+C pour arreter\n")
 
 threading.Timer(1.0, open_browser).start()
 HTTPServer(("localhost", PORT), Handler).serve_forever()
-
