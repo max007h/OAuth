@@ -1,3 +1,15 @@
+unzip -l target/poc-par-validation-adapter.jar | grep -E "ParValidationAdapter|META-INF/com.pingidentity"
+
+
+
+docker exec env-pingfederate-1 ls -la /opt/out/instance/server/default/deploy/
+
+
+docker logs env-pingfederate-1 2>&1 | grep -i ParValidation
+docker logs env-pingfederate-1 2>&1 | grep -iE "error|exception" | grep -i deploy
+
+
+
 docker cp target/poc-par-validation-adapter.jar env-pingfederate-1:/opt/out/instance/server/default/deploy/
 docker restart env-pingfederate-1
 
