@@ -1,3 +1,14 @@
+// Remplace
+ok.setAuthnStatus(AUTHN_STATUS.SUCCESS);
+ok.setAttributeMap(Collections.emptyMap());
+return ok;
+
+// Par
+ok.setAuthnStatus(AUTHN_STATUS.IN_PROGRESS);
+return ok;
+
+
+
 // DEBUG - à supprimer après
 java.util.Enumeration<String> attrs = request.getAttributeNames();
 while (attrs.hasMoreElements()) {
