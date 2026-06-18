@@ -1,3 +1,11 @@
+docker cp target/poc-par-validation-adapter.jar env-pingfederate-1:/opt/out/instance/server/default/deploy/
+docker restart env-pingfederate-1
+
+
+
+
+
+
 @Override
 public IdpAuthnAdapterDescriptor getAdapterDescriptor() {
     return new IdpAuthnAdapterDescriptor(
