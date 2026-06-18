@@ -1,3 +1,5 @@
+import javax.servlet.http.HttpSession;
+
 HttpSession session = request.getSession(false);
 String canal = null;
 String userId = null;
