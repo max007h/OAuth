@@ -1,3 +1,12 @@
+docker cp env-pingfederate-1:/opt/out/instance/server/default/deploy/opentoken-adapter-2.9.1.jar ./opentoken-adapter.jar
+unzip -l opentoken-adapter.jar | grep -E "PF-INF|META-INF"
+
+
+unzip -p opentoken-adapter.jar META-INF/pluginDescriptor.xml
+
+
+
+
 unzip -l target/poc-par-validation-adapter.jar | grep -E "ParValidationAdapter|META-INF/com.pingidentity"
 
 
