@@ -3,6 +3,7 @@ package com.poc.adapter;
 import com.pingidentity.sdk.IdpAuthenticationAdapterV2;
 import com.pingidentity.sdk.AuthnAdapterResponse;
 import com.pingidentity.sdk.AuthnAdapterResponse.AUTHN_STATUS;
+import com.pingidentity.sdk.IdpAuthenticationAdapterDescriptor;
 import org.sourceid.saml20.adapter.idp.authn.IdpAuthnAdapterDescriptor;
 import org.sourceid.saml20.adapter.idp.authn.AuthnPolicy;
 import org.sourceid.saml20.adapter.AuthnAdapterException;
@@ -11,6 +12,7 @@ import org.sourceid.saml20.adapter.gui.AdapterConfigurationGuiDescriptor;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.*;
@@ -26,15 +28,13 @@ public class ParValidationAdapter implements IdpAuthenticationAdapterV2 {
 
     @Override
     public IdpAuthnAdapterDescriptor getAdapterDescriptor() {
-        AdapterConfigurationGuiDescriptor guiDesc =
-            new AdapterConfigurationGuiDescriptor("POC PAR Validation - sans configuration");
-
         return new IdpAuthnAdapterDescriptor(
             this,
             "POC PAR Validation Adapter",
             Collections.emptySet(),
             false,
-            guiDesc
+            new AdapterConfigurationGuiDescriptor(),
+            false
         );
     }
 
@@ -44,25 +44,46 @@ public class ParValidationAdapter implements IdpAuthenticationAdapterV2 {
 
     @Override
     public Map lookupAuthN(HttpServletRequest req, HttpServletResponse resp,
-                            String partnerSpEntityId, AuthnPolicy policy, String resumePath)
+                           String partnerSpEntityId, AuthnPolicy policy, String resumePath)
             throws AuthnAdapterException, IOException {
         return Collections.emptyMap();
     }
 
     @Override
     public boolean logoutAuthN(Map authnIdentifiers, HttpServletRequest req,
-                                HttpServletResponse resp, String resumePath)
+                               HttpServletResponse resp, String resumePath)
             throws AuthnAdapterException, IOException {
         return false;
     }
 
     @Override
     public AuthnAdapterResponse lookupAuthN(HttpServletRequest request,
-                                             HttpServletResponse response,
-                                             Map<String, Object> inParameters) throws Exception {
+                                            HttpServletResponse response,
+                                            Map<String, Object> inParameters) {
 
-        String canal  = getParam(request, inParameters, "canal");
-        String userId = getParam(request, inParameters, "userId");
+        // 1. Priorité : inParameters (contexte PF, inclut les Tracked HTTP Parameters)
+        String canal = null;
+        String userId = null;
+
+        if (inParameters != null) {
+            Object c = inParameters.get("canal");
+            Object u = inParameters.get("userId");
+            canal  = (c != null) ? c.toString() : null;
+            userId = (u != null) ? u.toString() : null;
+        }
+
+        // 2. Fallback : session HTTP
+        if (canal == null || userId == null) {
+            HttpSession session = request.getSession(false);
+            if (session != null) {
+                if (canal  == null) canal  = (String) session.getAttribute("canal");
+                if (userId == null) userId = (String) session.getAttribute("userId");
+            }
+        }
+
+        // 3. Fallback : paramètre HTTP direct
+        if (canal  == null) canal  = request.getParameter("canal");
+        if (userId == null) userId = request.getParameter("userId");
 
         LOG.info("[ParValidationAdapter] canal=" + canal + " userId=" + userId);
 
@@ -114,20 +135,7 @@ public class ParValidationAdapter implements IdpAuthenticationAdapterV2 {
             + "\"userId\":\"" + userId + "\","
             + "\"timestamp\":\"" + Instant.now() + "\""
             + "}";
-
         System.out.println("[KAFKA SIMULATION] topic=pf.authn.events event=" + event);
     }
-
-    @SuppressWarnings("unchecked")
-    private String getParam(HttpServletRequest request,
-                             Map<String, Object> inParameters,
-                             String name) {
-        Object additionalParams = inParameters.get("additionalAuthnParameters");
-        if (additionalParams instanceof Map) {
-            Object val = ((Map<String, Object>) additionalParams).get(name);
-            if (val != null) return val.toString();
-        }
-        return request.getParameter(name);
-    }
 }
-    
+
