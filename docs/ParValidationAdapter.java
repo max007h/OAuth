@@ -3,13 +3,15 @@ package com.poc.adapter;
 import com.pingidentity.sdk.IdpAuthenticationAdapterV2;
 import com.pingidentity.sdk.AuthnAdapterResponse;
 import com.pingidentity.sdk.AuthnAdapterResponse.AUTHN_STATUS;
-import com.pingidentity.sdk.IdpAuthenticationAdapterDescriptor;
-import com.pingidentity.sdk.CheckAuthnStateResult;
+import org.sourceid.saml20.adapter.idp.authn.IdpAuthnAdapterDescriptor;
+import org.sourceid.saml20.adapter.idp.authn.AuthnPolicy;
+import org.sourceid.saml20.adapter.AuthnAdapterException;
 import org.sourceid.saml20.adapter.conf.Configuration;
 import org.sourceid.saml20.adapter.gui.AdapterConfigurationGuiDescriptor;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.*;
 import java.util.logging.Logger;
@@ -23,16 +25,16 @@ public class ParValidationAdapter implements IdpAuthenticationAdapterV2 {
     private static final Pattern USERID_PATTERN = Pattern.compile("^[a-zA-Z0-9_\\-]{3,64}$");
 
     @Override
-    public IdpAuthenticationAdapterDescriptor getAdapterDescriptor() {
+    public IdpAuthnAdapterDescriptor getAdapterDescriptor() {
         AdapterConfigurationGuiDescriptor guiDesc =
             new AdapterConfigurationGuiDescriptor("POC PAR Validation - sans configuration");
 
-        return new IdpAuthenticationAdapterDescriptor(
-            "PocParValidationAdapter",
+        return new IdpAuthnAdapterDescriptor(
+            this,
             "POC PAR Validation Adapter",
-            guiDesc,
             Collections.emptySet(),
-            false
+            false,
+            guiDesc
         );
     }
 
@@ -41,10 +43,23 @@ public class ParValidationAdapter implements IdpAuthenticationAdapterV2 {
     }
 
     @Override
-    public AuthnAdapterResponse initiateAuthnRequest(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            Map<String, Object> inParameters) throws Exception {
+    public Map lookupAuthN(HttpServletRequest req, HttpServletResponse resp,
+                            String partnerSpEntityId, AuthnPolicy policy, String resumePath)
+            throws AuthnAdapterException, IOException {
+        return Collections.emptyMap();
+    }
+
+    @Override
+    public boolean logoutAuthN(Map authnIdentifiers, HttpServletRequest req,
+                                HttpServletResponse resp, String resumePath)
+            throws AuthnAdapterException, IOException {
+        return false;
+    }
+
+    @Override
+    public AuthnAdapterResponse lookupAuthN(HttpServletRequest request,
+                                             HttpServletResponse response,
+                                             Map<String, Object> inParameters) throws Exception {
 
         String canal  = getParam(request, inParameters, "canal");
         String userId = getParam(request, inParameters, "userId");
@@ -66,6 +81,11 @@ public class ParValidationAdapter implements IdpAuthenticationAdapterV2 {
         ok.setAuthnStatus(AUTHN_STATUS.SUCCESS);
         ok.setAttributeMap(Collections.emptyMap());
         return ok;
+    }
+
+    @Override
+    public Map<String, Object> getAdapterInfo() {
+        return Collections.emptyMap();
     }
 
     private String valider(String canal, String userId) {
@@ -109,36 +129,5 @@ public class ParValidationAdapter implements IdpAuthenticationAdapterV2 {
         }
         return request.getParameter(name);
     }
-
-    @Override
-    public AuthnAdapterResponse postAuthnStep(
-            HttpServletRequest request, HttpServletResponse response,
-            Map<String, Object> inParameters, String authnIdentifier) {
-        return null;
-    }
-
-    @Override
-    public boolean logoutAuthN(Map authnIdentifiers, HttpServletRequest req,
-                                HttpServletResponse resp, String resumePath) {
-        return false;
-    }
-
-    @Override
-    public Map<String, Object> getAdapterInfo() {
-        return Collections.emptyMap();
-    }
-
-    @Override
-    public CheckAuthnStateResult checkAuthnState(HttpServletRequest req,
-                                                  HttpServletResponse resp,
-                                                  Map<String, Object> params) {
-        return new CheckAuthnStateResult(false, null);
-    }
-
-    @Override
-    public AuthnAdapterResponse resumeAuthnRequest(HttpServletRequest req,
-                                                    HttpServletResponse resp,
-                                                    Map<String, Object> params) {
-        return null;
-    }
-                           }
+}
+    
