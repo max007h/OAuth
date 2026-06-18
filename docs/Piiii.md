@@ -1,3 +1,7 @@
+pfidpadapterid: 'PocParValidatorAdapter'
+
+
+
 rm -rf src/main/resources/META-INF
 mkdir -p src/main/resources/PF-INF
 echo "com.poc.adapter.ParValidationAdapter" > src/main/resources/PF-INF/idp-authn-adapters
