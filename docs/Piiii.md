@@ -1,3 +1,11 @@
+String canal = (String) request.getAttribute("canal");
+String userId = (String) request.getAttribute("userId");
+if (canal == null) canal = request.getParameter("canal");
+if (userId == null) userId = request.getParameter("userId");
+
+
+
+
 import javax.servlet.http.HttpSession;
 
 HttpSession session = request.getSession(false);
