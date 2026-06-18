@@ -1,3 +1,7 @@
+src/main/resources/META-INF/com.pingidentity.sdk.IdpAuthenticationAdapter
+
+
+
 mvn install:install-file \
   -Dfile=./pf-authn-api-sdk.jar \
   -DgroupId=com.pingidentity \
