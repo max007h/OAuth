@@ -1,3 +1,17 @@
+@Override
+public IdpAuthnAdapterDescriptor getAdapterDescriptor() {
+    return new IdpAuthnAdapterDescriptor(
+        this,
+        "POC PAR Validation Adapter",
+        Collections.emptySet(),
+        false,
+        false
+    );
+}
+
+
+
+
 javap -p /tmp/pfsdk/org/sourceid/saml20/adapter/idp/authn/IdpAuthenticationAdapter.class | grep "public abstract"
 
 unzip -o pingfederate-sdk.jar -d /tmp/pfsdk org/sourceid/saml20/adapter/ConfigurableAuthnAdapter.class
