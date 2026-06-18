@@ -1,3 +1,12 @@
+docker exec <conteneur_pf> sh -c '
+for j in $(find /opt -iname "*.jar" 2>/dev/null); do
+  if unzip -l "$j" 2>/dev/null | grep -q "IdpAuthenticationAdapterV2.class"; then
+    echo "$j"
+  fi
+done'
+
+
+
 <dependency>
   <groupId>com.pingidentity</groupId>
   <artifactId>pf-authn-api-sdk</artifactId>
