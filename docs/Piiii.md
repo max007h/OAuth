@@ -1,3 +1,19 @@
+HttpSession session = request.getSession(false);
+String canal = null;
+String userId = null;
+if (session != null) {
+    canal = (String) session.getAttribute("canal");
+    userId = (String) session.getAttribute("userId");
+}
+// Fallback sur request.getParameter si session vide
+if (canal == null) canal = request.getParameter("canal");
+if (userId == null) userId = request.getParameter("userId");
+
+
+
+
+
+
 pfidpadapterid: 'PocParValidatorAdapter'
 
 
