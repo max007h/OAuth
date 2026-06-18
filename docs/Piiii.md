@@ -1,3 +1,16 @@
+mvn install:install-file \
+  -Dfile=./pf-authn-api-sdk.jar \
+  -DgroupId=com.pingidentity \
+  -DartifactId=pf-authn-api-sdk \
+  -Dversion=1.0.0.86 \
+  -Dpackaging=jar
+
+
+
+
+
+
+
 dn: cn=Directory Manager,cn=Root DNs,cn=config
 changetype: modify
 add: ds-cfg-default-root-privilege-name
