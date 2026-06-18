@@ -1,3 +1,13 @@
+<dependency>
+  <groupId>com.pingidentity</groupId>
+  <artifactId>pf-authn-api-sdk</artifactId>
+  <version>1.0.0.86</version>
+  <scope>system</scope>
+  <systemPath>${project.basedir}/pf-authn-api-sdk.jar</systemPath>
+</dependency>
+
+
+
 com.poc.adapter.ParValidationAdapter
 
 
