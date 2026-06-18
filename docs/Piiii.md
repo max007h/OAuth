@@ -1,3 +1,19 @@
+// DEBUG - à supprimer après
+java.util.Enumeration<String> attrs = request.getAttributeNames();
+while (attrs.hasMoreElements()) {
+    String attr = attrs.nextElement();
+    LOG.info("[ParValidationAdapter] ATTR: " + attr + " = " + request.getAttribute(attr));
+}
+java.util.Enumeration<String> params = request.getParameterNames();
+while (params.hasMoreElements()) {
+    String param = params.nextElement();
+    LOG.info("[ParValidationAdapter] PARAM: " + param + " = " + request.getParameter(param));
+}
+
+
+
+
+
 String canal = (String) request.getAttribute("canal");
 String userId = (String) request.getAttribute("userId");
 if (canal == null) canal = request.getParameter("canal");
