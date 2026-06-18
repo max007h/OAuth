@@ -1,3 +1,7 @@
+com.poc.adapter.ParValidationAdapter
+
+
+
 src/main/resources/META-INF/com.pingidentity.sdk.IdpAuthenticationAdapter
 
 
