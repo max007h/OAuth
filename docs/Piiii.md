@@ -1,3 +1,11 @@
+javap -p /tmp/pfsdk/org/sourceid/saml20/adapter/idp/authn/IdpAuthenticationAdapter.class | grep "public abstract"
+
+unzip -o pingfederate-sdk.jar -d /tmp/pfsdk org/sourceid/saml20/adapter/ConfigurableAuthnAdapter.class
+javap -p /tmp/pfsdk/org/sourceid/saml20/adapter/ConfigurableAuthnAdapter.class | grep "public abstract"
+
+
+
+
 mkdir -p /tmp/pfsdk
 unzip -o pingfederate-sdk.jar -d /tmp/pfsdk \
   com/pingidentity/sdk/IdpAuthenticationAdapterV2.class \
