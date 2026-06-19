@@ -1,245 +1,259 @@
-# Validation des attributs PAR et publication Kafka dans PingFederate
+# PAR Attribute Validation and Kafka Publication in PingFederate
 
-## Contexte
+## Context
 
-Les SPA envoient des attributs de contexte via un PAR request (Pushed Authorization Request).
-Ces attributs doivent etre valides le plus tot possible dans PingFederate.
-Les attributs valides sont publies dans un topic Kafka a des fins de journalisation et d'historisation des evenements d'autorisation.
+SPAs send context attributes through a PAR request (Pushed Authorization Request).
+These attributes must be validated as early as possible inside PingFederate.
+Valid attributes are published to a Kafka topic for logging and history of authorization events.
 
-Regle fondamentale : **tracke = valide = publie dans Kafka**.
-Aucun attribut non valide ne doit atteindre Kafka.
-Aucun attribut non declare ne doit etre tracke.
+Core rule: **tracked = validated = published to Kafka**.
+No unvalidated attribute may reach Kafka.
+No undeclared attribute may be tracked.
 
 ---
 
-## Diagramme du workflow global
+## Global workflow diagram
 
 ![Workflow PingFederate PAR Kafka](workflow_pf_kafka.png)
 
 ---
 
-## Les trois points d'intervention dans PingFederate
+## Three points where PingFederate can check attributes
 
-### Option A - Custom IdP Adapter (Java) - Recommande
+### Option A - Custom IdP Adapter (Java) - Recommended
 
-**Moment** : avant et apres l'authentification utilisateur.
+**When**: before and after user authentication.
 
-Le Custom IdP Adapter est le point le plus precoce. Il intercepte la requete
-d'autorisation resolue depuis le PAR, valide les attributs, et peut publier
-l'evenement Kafka apres le succes de l'authentification via un hook post-authn.
+The Custom IdP Adapter is the earliest point available. It catches the
+authorization request resolved from the PAR, checks the attributes, and can
+publish the Kafka event after the authentication succeeds, using a
+post-authn hook.
 
-Avantages :
-- Intervention la plus precoce possible
-- Acces direct aux parametres PAR custom via `getAdditionalParameters()`
-- Logique Java typee, testable, versionnee dans Git
-- Un seul adapter configurable pour plusieurs SPA
-- Erreur OAuth propre retournee en cas de rejet (`400 invalid_request`)
-- Peut publier vers Kafka dans le meme composant apres authn success
+Pros:
+- Earliest possible check point
+- Direct access to custom PAR parameters through `getAdditionalParameters()`
+- Typed Java logic, easy to test, stored in Git
+- One single adapter can serve many SPAs
+- Returns a clean OAuth error when rejecting (`400 invalid_request`)
+- Can publish to Kafka from the same component after authn success
 
-Inconvenients :
-- Developpement Java requis
-- Redemarrage PingFederate necessaire apres chaque mise a jour du JAR
-- Dependance Kafka client a integrer dans le classpath PF
+Cons:
+- Requires Java development
+- PingFederate must restart after every JAR update
+- The Kafka client library must be added to the PF classpath
 
-### Option B - Authentication Policy avec OGNL - Deconseille
+### Option B - Authentication Policy with OGNL - Not recommended
 
-**Moment** : pendant le flow d'authentification.
+**When**: during the authentication flow.
 
-Les Policy Nodes et expressions OGNL permettent d'intercepter et conditionner
-le flow d'authentification sans developper de code Java compile.
+Policy Nodes and OGNL expressions let you branch and check the
+authentication flow without writing compiled Java code.
 
-Avantages :
-- Configurable sans redemarrage PF
-- Visible dans l'interface d'administration
+Pros:
+- Can be changed without restarting PF
+- Visible in the admin UI
 
-Inconvenients :
-- OGNL est difficile a maintenir, a tester et a versionner
-- Pas adapte a une logique de validation complexe (listes de pays, patterns, etc.)
-- La publication Kafka depuis OGNL est extremement complexe voire impossible proprement
-- Deconseille pour un contexte bancaire sous DORA
+Cons:
+- OGNL is hard to maintain, test, and track in version control
+- Not suited for complex check logic (country lists, patterns, etc.)
+- Publishing to Kafka from OGNL is very hard, almost impossible to do cleanly
+- Not recommended for a banking context under DORA
 
-### Option C - Policy Contract Mapping - Trop tard
+### Option C - Policy Contract Mapping - Too late
 
-**Moment** : apres l'authentification utilisateur.
+**When**: after the user has authenticated.
 
-Le Policy Contract Mapping intervient apres que l'utilisateur s'est authentifie.
-Il est utile pour mapper des attributs dans le token mais pas pour valider
-des parametres de securite en amont.
+Policy Contract Mapping runs after the user has logged in. It is useful
+for mapping attributes into the token, but not for checking security
+parameters early.
 
-Raison du rejet : trop tard pour bloquer une requete malveillante proprement.
-L'utilisateur a deja vu l'ecran de login.
+Why it is rejected: too late to block a bad request properly. The user
+has already seen the login screen.
 
 ---
 
-## Ou publier l'evenement Kafka
+## Where to publish the Kafka event
 
-### Faut-il absolument que validation et publication soient dans le meme composant Java ?
+### Must validation and publication be in the same Java component?
 
-Non. Ce sont deux responsabilites distinctes et on peut les separer.
+No. These are two separate jobs and can be split.
 
-Trois approches possibles :
+Three possible setups:
 
-**Approche 1 - Tout dans le Custom IdP Adapter (Java)**
+**Setup 1 - Everything in the Custom IdP Adapter (Java)**
 
-La validation et la publication Kafka sont dans le meme JAR.
-Le hook `postAuthnStep()` publie l'evenement apres authn success.
+Validation and Kafka publication live in the same JAR.
+The `postAuthnStep()` hook publishes the event after authn success.
 
 ```
 [Custom Adapter]
-  - initiateAuthnRequest() : valide les attributs PAR
-  - postAuthnStep()        : publie l'evenement Kafka si authn OK
+  - initiateAuthnRequest() : checks PAR attributes
+  - postAuthnStep()        : publishes the Kafka event if authn is OK
 ```
 
-Avantage : un seul composant, logique complete en un endroit.
-Inconvenient : le JAR embarque la dependance Kafka (kafka-clients).
-Recommande pour commencer.
+Pro: one single component, all logic in one place.
+Con: the JAR carries the Kafka dependency (kafka-clients).
+Recommended as a starting point.
 
-**Approche 2 - Validation dans le Custom Adapter, publication dans un Plugin Post-Token separe**
+**Setup 2 - Validation in the Custom Adapter, publication in a separate Post-Token Plugin**
 
-PingFederate permet d'enregistrer des plugins de type `TokenCreationPlugin`
-ou `AccessTokenAttributeContract` qui s'executent apres emission du token.
-La publication Kafka peut y etre placee.
+PingFederate supports plugins of type `TokenCreationPlugin` or
+`AccessTokenAttributeContract` that run after the token is issued.
+Kafka publication can be placed there.
 
 ```
 [Custom Adapter]          [Post-Token Plugin]
-  - validation PAR    -->   - publie Kafka avec claims du token
-  - stocke attributs        - acces a subject, client_id, attributs
-    en session PF             mappes dans l'ATM
+  - checks PAR params -->   - publishes to Kafka using token claims
+  - stores attributes       - reads subject, client_id, attributes
+    in the PF session         mapped in the ATM
 ```
 
-Avantage : separation claire des responsabilites, deux JAR independants.
-Inconvenient : deux composants a maintenir, les attributs PAR doivent etre
-passes via la session PF vers le second plugin.
+Pro: clear split of responsibilities, two independent JARs.
+Con: two components to maintain, PAR attributes must be passed through
+the PF session to reach the second plugin.
 
-**Approche 3 - Validation dans le Custom Adapter, publication dans Spring Boot**
+**Setup 3 - Validation in the Custom Adapter, publication in Spring Boot**
 
-Le Resource Server Spring Boot recoit le token JWT avec les attributs mappes
-dans les claims. Il publie l'evenement Kafka apres avoir valide le token
-et execute la logique metier.
+The Spring Boot Resource Server gets the JWT with attributes mapped into
+claims. It publishes the Kafka event after checking the token and running
+the business logic.
 
 ```
 [Custom Adapter]     [PingFederate ATM]     [Spring Boot]
-  - validation PAR --> mapper attributs  --> valide token
-                       dans JWT claims       publie Kafka
+  - checks PAR    --> maps attributes    --> checks token
+                       into JWT claims        publishes to Kafka
 ```
 
-Avantage : Spring Boot gere nativement Kafka (Spring Kafka), retry,
-dead-letter queue. Plus simple operationnellement.
-Inconvenient : les attributs PAR doivent etre explicitement mappes dans
-l'ATM pour etre presents dans le JWT.
+Pro: Spring Boot natively handles Kafka (Spring Kafka), retry, and
+dead-letter queues. Simpler to run in production.
+Con: PAR attributes must be explicitly mapped in the ATM to show up in
+the JWT.
 
-### Recommandation
+### Recommendation
 
-Pour un premier POC : **Approche 1** (tout dans le Custom Adapter).
-Pour une architecture production multi-SPA : **Approche 3** (publication dans Spring Boot),
-les attributs etant mappes dans le JWT via l'ATM PingFederate.
+For a first POC: **Setup 1** (everything in the Custom Adapter).
+For a production multi-SPA setup: **Setup 3** (publication in Spring
+Boot), with attributes mapped into the JWT through the PingFederate ATM.
 
 ---
 
-## Logique de validation des attributs
+## Attribute check logic
 
-### Principe whitelist stricte
+### Strict whitelist rule
 
 ```
-Pour chaque attribut recu dans le PAR :
+For each attribute received in the PAR:
 
-  Est-il dans la liste des attributs declares (whitelist) ?
+  Is it on the list of declared attributes (whitelist)?
   |
-  NON --> REJECT (400 invalid_request)
+  NO  --> REJECT (400 invalid_request)
   |
-  OUI --> Valider format, valeur, contraintes
+  YES --> Check format, value, and rules
           |
-          KO --> REJECT (400 invalid_request)
+          FAIL --> REJECT (400 invalid_request)
           |
-          OK --> Inclure dans l'evenement Kafka
+          PASS --> Include it in the Kafka event
 ```
 
-Aucun attribut non declare ne passe. Les equipes SPA doivent declarer
-explicitement leurs attributs dans la configuration de l'adapter.
+No undeclared attribute is allowed through. SPA teams must explicitly
+declare their attributes in the adapter configuration.
 
-### Exemple de regles de validation
+### Sample check rules
 
 ```java
-// Dans Custom Adapter - initiateAuthnRequest()
+// Inside Custom Adapter - initiateAuthnRequest()
 HttpServletRequest req = authnAdapterRequest.getHttpRequest();
 Map<String, String> params = authnAdapterRequest.getAdditionalParameters();
 
-// Attributs obligatoires communs
-String pays  = params.get("pays");
-String canal = params.get("canal");
-String userId = params.get("userId");
+// Common required attributes
+String country = params.get("pays");
+String channel = params.get("canal");
+String userId  = params.get("userId");
 
-// Validation pays (liste noire)
-List<String> paysBloquees = List.of("KP", "IR", "SY", "CU");
-if (pays == null || paysBloquees.contains(pays.toUpperCase())) {
-    throw new AuthnAdapterException("pays invalide ou bloque : " + pays);
+// Country check (blocklist)
+List<String> blockedCountries = List.of("KP", "IR", "SY", "CU");
+if (country == null || blockedCountries.contains(country.toUpperCase())) {
+    throw new AuthnAdapterException("invalid or blocked country: " + country);
 }
 
-// Validation canal
-List<String> canauxAutorises = List.of("web", "mobile", "api");
-if (canal == null || !canauxAutorises.contains(canal)) {
-    throw new AuthnAdapterException("canal non autorise : " + canal);
+// Channel check
+List<String> allowedChannels = List.of("web", "mobile", "api");
+if (channel == null || !allowedChannels.contains(channel)) {
+    throw new AuthnAdapterException("channel not allowed: " + channel);
 }
 
-// Validation userId (format)
+// userId format check
 if (userId == null || !userId.matches("[a-zA-Z0-9_-]{3,64}")) {
-    throw new AuthnAdapterException("userId format invalide");
+    throw new AuthnAdapterException("userId has a bad format");
 }
 ```
 
-### Publication Kafka apres authn success
+### Kafka publication after authn success
+
+**Note for the POC**: there is no real Kafka producer yet. Publication is
+simulated with a simple console trace (`System.out` / logger). This lets
+you test the validation flow end to end before adding the real
+`kafka-clients` dependency.
 
 ```java
-// Dans Custom Adapter - postAuthnStep() ou lookupAuthN() apres succes
-private void publierEvenementKafka(Map<String, String> attributs, String subject) {
-    Map<String, Object> event = new LinkedHashMap<>();
-    event.put("event_type", "authn_success");
-    event.put("timestamp", Instant.now().toString());
-    event.put("client_id", attributs.get("client_id"));
-    event.put("subject", subject);
-    event.put("pays", attributs.get("pays"));
-    event.put("canal", attributs.get("canal"));
-    event.put("userId", attributs.get("userId"));
+// Inside Custom Adapter - postAuthnStep(), runs after authn success
+private void publishKafkaEvent(Map<String, String> attributes, String subject) {
+    String event = "{"
+        + "\"event_type\":\"authn_success\","
+        + "\"subject\":\"" + subject + "\","
+        + "\"canal\":\"" + attributes.get("canal") + "\","
+        + "\"userId\":\"" + attributes.get("userId") + "\","
+        + "\"timestamp\":\"" + java.time.Instant.now() + "\""
+        + "}";
 
-    String payload = objectMapper.writeValueAsString(event);
-    ProducerRecord<String, String> record =
-        new ProducerRecord<>("pf.authn.events", subject, payload);
-    kafkaProducer.send(record);
+    // POC: trace only, no real Kafka call yet
+    System.out.println("[KAFKA SIMULATION] topic=pf.authn.events event=" + event);
+
+    /*
+     * Real production code (commented out for the POC):
+     *
+     * ProducerRecord<String, String> record =
+     *     new ProducerRecord<>("pf.authn.events", subject, event);
+     * kafkaProducer.send(record, (meta, ex) -> {
+     *     if (ex != null) logger.severe("Kafka send failed: " + ex.getMessage());
+     *     else logger.info("Kafka OK offset=" + meta.offset());
+     * });
+     */
 }
 ```
 
 ---
 
-## Gestion multi-SPA avec attributs communs et specifiques
+## Multi-SPA setup with shared and specific attributes
 
 ### Situation
 
 ```
-SPA 1 --> pays, canal, userId
-SPA 2 --> pays, canal, userId, agence
-SPA 3 --> pays, canal, userId, contrat
+SPA 1 --> country, channel, userId
+SPA 2 --> country, channel, userId, branch
+SPA 3 --> country, channel, userId, contract
 ```
 
-Attributs communs : pays, canal, userId
-Attributs specifiques : agence (SPA 2), contrat (SPA 3)
+Shared attributes: country, channel, userId
+Specific attributes: branch (SPA 2), contract (SPA 3)
 
-### Configuration de l'adapter par client
+### Per-client adapter configuration
 
-L'adapter expose une configuration declarative dans PingFederate.
-Chaque instance d'adapter (ou la meme instance avec config par client_id)
-declare les attributs obligatoires et les attributs optionnels autorises.
+The adapter exposes a config screen inside PingFederate. Each adapter
+instance (or one shared instance with per-client_id config) declares the
+required attributes and the allowed optional attributes.
 
 ```
-Instance KafkaContextAdapter :
-  attributs_obligatoires = pays, canal, userId
-  attributs_optionnels_par_client :
-    spa2 = agence
-    spa3 = contrat
-  pays_bloques = KP, IR, SY, CU
-  kafka_topic  = pf.authn.events
+KafkaContextAdapter instance:
+  required_attributes = country, channel, userId
+  optional_attributes_per_client:
+    spa2 = branch
+    spa3 = contract
+  blocked_countries = KP, IR, SY, CU
+  kafka_topic = pf.authn.events
 ```
 
-### Structure de l'evenement Kafka
+### Kafka event structure
 
 ```json
 {
@@ -247,59 +261,61 @@ Instance KafkaContextAdapter :
   "timestamp": "2026-06-14T10:00:00Z",
   "client_id": "spa2",
   "subject": "user456",
-  "attributs": {
-    "pays": "DE",
-    "canal": "mobile",
+  "attributes": {
+    "country": "DE",
+    "channel": "mobile",
     "userId": "456",
-    "agence": "75001"
+    "branch": "75001"
   }
 }
 ```
 
 ---
 
-## Acces aux parametres PAR dans le Custom Adapter
+## Reading PAR parameters inside the Custom Adapter
 
-Point technique critique a verifier sur PingFederate 13.x.
+This is a key technical point to confirm on PingFederate 13.x.
 
-Les attributs envoyes dans le PAR (etape 1) doivent etre accessibles
-dans l'adapter (etape 2, apres resolution du request_uri).
+Attributes sent in the PAR (step 1) must be reachable inside the adapter
+(step 2, after the request_uri is resolved).
 
 ```java
-// Methode recommandee sur PF 13
+// Recommended method on PF 13
 Map<String, String> additionalParams =
     authnAdapterRequest.getAdditionalParameters();
 
-// Log de diagnostic a executer en premier
+// First debug step: print every available param
 additionalParams.forEach((k, v) ->
-    logger.info("[KafkaAdapter] PAR param disponible: {} = {}", k, v));
+    logger.info("[KafkaAdapter] PAR param found: {} = {}", k, v));
 ```
 
-Si `getAdditionalParameters()` ne retourne pas les parametres PAR custom,
-solution de repli via la session PF :
+If `getAdditionalParameters()` does not return the custom PAR
+parameters, a fallback through the PF session can be used:
 
 ```java
-// Stocker lors du pre-authn
+// Store during pre-authn
 HttpSession session = request.getSession();
-session.setAttribute("ctx_pays",  request.getParameter("pays"));
-session.setAttribute("ctx_canal", request.getParameter("canal"));
+session.setAttribute("ctx_country", request.getParameter("pays"));
+session.setAttribute("ctx_channel", request.getParameter("canal"));
 
-// Recuperer apres authn success
-String pays  = (String) session.getAttribute("ctx_pays");
-String canal = (String) session.getAttribute("ctx_canal");
+// Read back after authn success
+String country = (String) session.getAttribute("ctx_country");
+String channel = (String) session.getAttribute("ctx_channel");
 ```
 
 ---
 
-## Recapitulatif des decisions
+## Decision summary
 
 | Question | Decision |
 |---|---|
-| Ou valider les attributs ? | Custom IdP Adapter (le plus tot) |
-| Ou publier vers Kafka ? | Dans l'Adapter (postAuthn) ou Spring Boot |
-| Validation et publication dans le meme JAR ? | Non obligatoire, recommande pour POC |
-| Attributs inconnus ? | REJECT (whitelist stricte) |
-| Attributs valides non declares dans ATM ? | Ne pas publier dans Kafka |
-| Acces aux params PAR dans l'Adapter ? | Via getAdditionalParameters() - a verifier PF13 |
-| RAR active ? | Non - attributs en query params custom |
-| PingAuthorize ? | Non dans le perimetre actuel |
+| Where to check attributes? | Custom IdP Adapter (earliest point) |
+| Where to publish to Kafka? | In the Adapter (postAuthn) or in Spring Boot |
+| Same JAR for check and publish? | Not required, recommended for the POC |
+| Unknown attributes? | REJECT (strict whitelist) |
+| Valid attributes not declared in the ATM? | Do not publish to Kafka |
+| Reading PAR params in the Adapter? | Through getAdditionalParameters() - confirm on PF13 |
+| Is RAR enabled? | No - attributes are sent as custom query params |
+| Is PingAuthorize used? | Not in the current scope |
+| Kafka publication in the POC? | Simulated with a console trace, no real producer yet |
+
