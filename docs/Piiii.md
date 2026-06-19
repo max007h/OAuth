@@ -1,3 +1,35 @@
+    // --- BLOC DE VALIDATION ET REJET STRICT ---
+    String erreur = valider(canal, userId);
+    if (erreur != null) {
+        LOG.warning("[ParValidationAdapter] REJET STRATEGIC : " + erreur);
+        
+        // On lève l'exception : PingFederate arrête immédiatement le traitement,
+        // journalise l'erreur et affiche la page d'erreur native (authn.error.template.html).
+        throw new AuthnAdapterException("invalid_request: " + erreur);
+    }
+
+    // Si la validation passe, le code continue vers la simulation Kafka et le statut SUCCESS...
+    simulerPublicationKafka(canal, userId);
+
+
+
+
+
+@Override
+public AuthnAdapterResponse lookupAuthN(HttpServletRequest request,
+                                        HttpServletResponse response,
+                                        Map<String, Object> inParameters) throws AuthnAdapterException, IOException {
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     // --- Remplace la fin de ta méthode par ce bloc ---
 
     // 1. Initialisation de la réponse de succès
