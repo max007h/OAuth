@@ -1,3 +1,39 @@
+    // --- Remplace la fin de ta méthode par ce bloc ---
+
+    // 1. Initialisation de la réponse de succès
+    AuthnAdapterResponse ok = new AuthnAdapterResponse();
+    ok.setAuthnStatus(AUTHN_STATUS.SUCCESS);
+
+    // 2. Préparation des attributs à transmettre à PingFederate
+    Map<String, Object> attributeMap = new HashMap<>();
+    
+    // On associe l'userId validé au 'subject' attendu par défaut
+    if (userId != null) {
+        attributeMap.put("subject", userId);
+    } else {
+        attributeMap.put("subject", "unknown_user");
+    }
+    
+    // Optionnel : Tu peux injecter d'autres variables si ton adaptateur les déclare
+    attributeMap.put("canal", canal); 
+    
+    // On embarque la map dans la réponse
+    ok.setAttributeMap(attributeMap);
+
+    LOG.info("[ParValidationAdapter] Validation réussie. Transmission du statut SUCCESS pour l'utilisateur: " + userId);
+    return ok;
+}
+
+
+
+
+
+
+
+
+
+
+
 simulerPublicationKafka(canal, userId);
 
 String resumePath = (String) inParameters.get("resumePath");
