@@ -1,19 +1,29 @@
-// --- DEBUT DU BLOC DE RECUPERATION DES ATTRIBUTS PAR ---
+// --- REMPLACE TON BLOC DE RÉCUPÉRATION PAR CELUI-CI ---
 String canal = null;
 String userId = null;
 
-// 1. Extraction depuis le contexte chaîné de PingFederate (Paramètres issus du BODY du POST PAR)
+// 1. Extraction depuis le contexte chaîné de PingFederate (Spécifique à PAR)
 Map<String, Object> chainedContext = (Map<String, Object>) inParameters.get("chainedContext");
 if (chainedContext != null) {
-    if (chainedContext.containsKey("canal")) {
+    // Dans un flux PAR, PingFederate stocke les paramètres d'autorisation 
+    // dans une sous-map nommée "authnParameters" à l'intérieur du chainedContext
+    Map<String, String> authnParams = (Map<String, String>) chainedContext.get("authnParameters");
+    
+    if (authnParams != null) {
+        canal = authnParams.get("canal");
+        userId = authnParams.get("userId");
+    }
+    
+    // Fallback 1b : Si ce n'est pas dans authnParameters, on regarde à la racine du chainedContext
+    if (canal == null) {
         canal = (String) chainedContext.get("canal");
     }
-    if (chainedContext.containsKey("userId")) {
+    if (userId == null) {
         userId = (String) chainedContext.get("userId");
     }
 }
 
-// 2. Fallback / Sécurité : Si ce n'est pas un flux PAR et que les données sont dans la requête HTTP standard
+// 2. Fallback 2 : Si ce n'est pas un flux PAR (paramètres classiques passés en Query String ou POST direct)
 if (canal == null) {
     canal = request.getParameter("canal");
     if (canal == null) {
@@ -27,7 +37,8 @@ if (userId == null) {
         userId = (String) request.getAttribute("userId");
     }
 }
-// --- FIN DU BLOC DE RECUPERATION ---
+// --- FIN DU BLOC ---
+
 
     
     
