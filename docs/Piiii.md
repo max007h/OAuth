@@ -1,3 +1,47 @@
+// --- DEBUT DU BLOC DE RECUPERATION DES ATTRIBUTS PAR ---
+String canal = null;
+String userId = null;
+
+// 1. Extraction depuis le contexte chaîné de PingFederate (Paramètres issus du BODY du POST PAR)
+Map<String, Object> chainedContext = (Map<String, Object>) inParameters.get("chainedContext");
+if (chainedContext != null) {
+    if (chainedContext.containsKey("canal")) {
+        canal = (String) chainedContext.get("canal");
+    }
+    if (chainedContext.containsKey("userId")) {
+        userId = (String) chainedContext.get("userId");
+    }
+}
+
+// 2. Fallback / Sécurité : Si ce n'est pas un flux PAR et que les données sont dans la requête HTTP standard
+if (canal == null) {
+    canal = request.getParameter("canal");
+    if (canal == null) {
+        canal = (String) request.getAttribute("canal");
+    }
+}
+
+if (userId == null) {
+    userId = request.getParameter("userId");
+    if (userId == null) {
+        userId = (String) request.getAttribute("userId");
+    }
+}
+// --- FIN DU BLOC DE RECUPERATION ---
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     // --- BLOC DE VALIDATION ET REJET STRICT ---
     String erreur = valider(canal, userId);
     if (erreur != null) {
