@@ -475,3 +475,162 @@ The requirement is therefore to validate these parameters at the earliest possib
         </mxGraphModel>
     </diagram>
 </mxfile>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+<mxGraphModel dx="1422" dy="762" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" />
+
+    <!-- PingFederate container -->
+    <mxCell id="pf" value="PingFederate" style="swimlane;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+      <mxGeometry x="280" y="40" width="560" height="620" as="geometry" />
+    </mxCell>
+
+    <!-- 1. Custom IdP Adapter -->
+    <mxCell id="adapter" value="&lt;b&gt;1. Custom IdP Adapter (Java)&lt;/b&gt;&lt;br/&gt;Validation attributs PAR + whitelist pays" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=11;align=center;" vertex="1" parent="pf">
+      <mxGeometry x="80" y="60" width="380" height="70" as="geometry" />
+    </mxCell>
+
+    <!-- Option A label -->
+    <mxCell id="optA" value="OPTION A : Validation ici (recommande)&lt;br/&gt;attributs OK" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=9;fontColor=#2E7D32;fontStyle=2;" vertex="1" parent="pf">
+      <mxGeometry x="80" y="140" width="380" height="30" as="geometry" />
+    </mxCell>
+
+    <!-- 2. Authentication Policy -->
+    <mxCell id="policy" value="&lt;b&gt;2. Authentication Policy&lt;/b&gt;&lt;br/&gt;OPTION B : OGNL / Policy Node (deconseille)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=11;align=center;" vertex="1" parent="pf">
+      <mxGeometry x="80" y="180" width="380" height="70" as="geometry" />
+    </mxCell>
+
+    <!-- Authentification utilisateur -->
+    <mxCell id="authn" value="&lt;b&gt;Authentification utilisateur&lt;/b&gt;&lt;br/&gt;HTMLFormAdapter / credentials" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2F1;strokeColor=#00695C;fontSize=11;align=center;" vertex="1" parent="pf">
+      <mxGeometry x="80" y="300" width="380" height="70" as="geometry" />
+    </mxCell>
+
+    <!-- AUTH SUCCESS label -->
+    <mxCell id="authSuccess" value="AUTH SUCCESS" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=9;fontColor=#2E7D32;fontStyle=2;" vertex="1" parent="pf">
+      <mxGeometry x="80" y="378" width="380" height="20" as="geometry" />
+    </mxCell>
+
+    <!-- Publication evenement Kafka -->
+    <mxCell id="kafka" value="&lt;b&gt;Publication evenement Kafka&lt;/b&gt;&lt;br/&gt;Dans Adapter (postAuthn) OU Plugin Post-Token separe" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE7F6;strokeColor=#6A1B9A;fontSize=11;align=center;" vertex="1" parent="pf">
+      <mxGeometry x="80" y="405" width="380" height="70" as="geometry" />
+    </mxCell>
+
+    <!-- 3. Policy Contract Mapping -->
+    <mxCell id="contract" value="&lt;b&gt;3. Policy Contract Mapping&lt;/b&gt;&lt;br/&gt;TROP TARD pour validation - apres authn" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#880E4F;fontSize=11;align=center;" vertex="1" parent="pf">
+      <mxGeometry x="80" y="525" width="380" height="70" as="geometry" />
+    </mxCell>
+
+    <!-- Front-end box -->
+    <mxCell id="frontend" value="&lt;b&gt;Front-end&lt;/b&gt;" style="swimlane;startSize=25;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="40" y="80" width="180" height="130" as="geometry" />
+    </mxCell>
+
+    <mxCell id="spa1" value="SPA 1&lt;br/&gt;attr1, attr2, attr3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=10;align=center;" vertex="1" parent="frontend">
+      <mxGeometry x="15" y="35" width="150" height="35" as="geometry" />
+    </mxCell>
+
+    <mxCell id="spa2" value="SPA 2 / SPA 3&lt;br/&gt;attr1, attr2, attrX" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=10;align=center;" vertex="1" parent="frontend">
+      <mxGeometry x="15" y="80" width="150" height="35" as="geometry" />
+    </mxCell>
+
+    <!-- Erreur OAuth -->
+    <mxCell id="error" value="&lt;b&gt;Erreur OAuth&lt;/b&gt;&lt;br/&gt;400 invalid_request" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#B71C1C;fontColor=#B71C1C;fontSize=11;align=center;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="920" y="95" width="170" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- SPA recoit token -->
+    <mxCell id="tokenbox" value="SPA recoit token" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2F1;strokeColor=#00695C;fontSize=11;align=center;" vertex="1" parent="1">
+      <mxGeometry x="920" y="320" width="170" height="50" as="geometry" />
+    </mxCell>
+
+    <!-- Kafka Topic -->
+    <mxCell id="kafkatopic" value="&lt;b&gt;Kafka Topic&lt;/b&gt;&lt;br/&gt;pf.authn.events" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE7F6;strokeColor=#6A1B9A;fontSize=11;align=center;" vertex="1" parent="1">
+      <mxGeometry x="920" y="430" width="170" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- Legende -->
+    <mxCell id="legend" value="&lt;b&gt;Legende&lt;/b&gt;" style="swimlane;startSize=25;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="40" y="580" width="200" height="120" as="geometry" />
+    </mxCell>
+    <mxCell id="leg1" value="Option A : recommandee" style="text;html=1;strokeColor=none;fillColor=#FFE0B2;fontSize=9;align=left;" vertex="1" parent="legend">
+      <mxGeometry x="10" y="30" width="175" height="20" as="geometry" />
+    </mxCell>
+    <mxCell id="leg2" value="Option B : deconseille (OGNL)" style="text;html=1;strokeColor=none;fillColor=#BBDEFB;fontSize=9;align=left;" vertex="1" parent="legend">
+      <mxGeometry x="10" y="52" width="175" height="20" as="geometry" />
+    </mxCell>
+    <mxCell id="leg3" value="Option C : trop tard" style="text;html=1;strokeColor=none;fillColor=#F3E5F5;fontSize=9;align=left;" vertex="1" parent="legend">
+      <mxGeometry x="10" y="74" width="175" height="20" as="geometry" />
+    </mxCell>
+    <mxCell id="leg4" value="Publication Kafka" style="text;html=1;strokeColor=none;fillColor=#EDE7F6;fontSize=9;align=left;" vertex="1" parent="legend">
+      <mxGeometry x="10" y="96" width="175" height="20" as="geometry" />
+    </mxCell>
+
+    <!-- ARROWS -->
+
+    <!-- SPA -> adapter (PAR POST) -->
+    <mxCell id="e1" value="PAR POST&lt;br/&gt;(params custom)" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#1565C0;fontColor=#1565C0;fontSize=9;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="frontend" target="adapter" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- adapter -> error (REJECT) -->
+    <mxCell id="e2" value="REJECT" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#B71C1C;fontColor=#B71C1C;fontSize=9;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="adapter" target="error" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- adapter -> policy (vertical) -->
+    <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#2E7D32;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="adapter" target="policy" parent="pf">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- policy -> authn (vertical) -->
+    <mxCell id="e4" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#333333;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="policy" target="authn" parent="pf">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- authn -> kafka (vertical) -->
+    <mxCell id="e5" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#2E7D32;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="authn" target="kafka" parent="pf">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- kafka -> contract (vertical) -->
+    <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#333333;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="kafka" target="contract" parent="pf">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- authn -> SPA token JWT -->
+    <mxCell id="e7" value="token JWT" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#00695C;fontColor=#00695C;fontSize=9;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="authn" target="tokenbox" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- kafka -> Kafka Topic -->
+    <mxCell id="e8" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6A1B9A;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="kafka" target="kafkatopic" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+  </root>
+</mxGraphModel>
