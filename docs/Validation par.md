@@ -337,3 +337,141 @@ This creates a risk: if those parameters are consumed downstream by a Kafka publ
 The requirement is therefore to validate these parameters at the earliest possible point inside PingFederate, before any downstream system is allowed to consume them, and to reject the request immediately with a proper OAuth error if validation fails.
 
 
+<mxfile host="65bd71144e">
+    <diagram id="PingFederate-Workflow" name="Workflow PingFederate Kafka">
+        <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                
+                <!-- CONTAINER: PingFederate -->
+                <mxCell id="pf_container" value="PingFederate" style="swimlane;whiteSpace=wrap;html=1;childLayout=stackLayout;horizontal=1;startSize=40;horizontalStack=0;fillColor=#ffffff;strokeColor=#000000;fontStyle=1;fontSize=14;align=center;" vertex="1" parent="1">
+                    <mxGeometry x="320" y="40" width="440" height="740" as="geometry"/>
+                </mxCell>
+                
+                <!-- 1. Custom IdP Adapter -->
+                <mxCell id="step1" value="&lt;b&gt;1. Custom IdP Adapter (Java)&lt;/b&gt;&lt;br&gt;Validation attributs PAR + whitelist pays" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE5CC;strokeColor=#D79B00;fontSize=12;" vertex="1" parent="pf_container">
+                    <mxGeometry x="30" y="60" width="380" height="60" as="geometry"/>
+                </mxCell>
+                
+                <!-- 2. Authentication Policy -->
+                <mxCell id="step2" value="&lt;b&gt;2. Authentication Policy&lt;/b&gt;&lt;br&gt;OPTION B : OGNL / Policy Node (deconseille)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="pf_container">
+                    <mxGeometry x="30" y="200" width="380" height="60" as="geometry"/>
+                </mxCell>
+                
+                <!-- Authentification utilisateur -->
+                <mxCell id="step3" value="&lt;b&gt;Authentification utilisateur&lt;/b&gt;&lt;br&gt;HTMLFormAdapter / credentials" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E1F5FE;strokeColor=#00B0FF;fontSize=12;" vertex="1" parent="pf_container">
+                    <mxGeometry x="30" y="340" width="380" height="60" as="geometry"/>
+                </mxCell>
+                
+                <!-- Publication evenement Kafka -->
+                <mxCell id="step4" value="&lt;b&gt;Publication evenement Kafka&lt;/b&gt;&lt;br&gt;Dans Adapter (postAuthn) OU Plugin Post-Token separe" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8D1F5;strokeColor=#9933FF;fontSize=12;" vertex="1" parent="pf_container">
+                    <mxGeometry x="30" y="490" width="380" height="60" as="geometry"/>
+                </mxCell>
+                
+                <!-- 3. Policy Contract Mapping -->
+                <mxCell id="step5" value="&lt;b&gt;3. Policy Contract Mapping&lt;/b&gt;&lt;br&gt;TROP TARD pour validation - apres authn" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#CCCCCC;fontSize=12;" vertex="1" parent="pf_container">
+                    <mxGeometry x="30" y="630" width="380" height="60" as="geometry"/>
+                </mxCell>
+
+                <!-- EXTERNAL: Front-end (Left) -->
+                <mxCell id="frontend" value="Front-end" style="swimlane;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#006699;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+                    <mxGeometry x="30" y="60" width="190" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="spa1" value="SPA 1&lt;br&gt;&lt;font size=&quot;1&quot;&gt;attr1, attr2, attr3&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E1F5FE;strokeColor=#00B0FF;" vertex="1" parent="frontend">
+                    <mxGeometry x="15" y="40" width="160" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="spa2" value="SPA 2 / SPA 3&lt;br&gt;&lt;font size=&quot;1&quot;&gt;attr1, attr2, attrX&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E1F5FE;strokeColor=#00B0FF;" vertex="1" parent="frontend">
+                    <mxGeometry x="15" y="95" width="160" height="40" as="geometry"/>
+                </mxCell>
+
+                <!-- EXTERNAL: Erreur OAuth (Top Right) -->
+                <mxCell id="err_oauth" value="&lt;b&gt;Erreur OAuth&lt;/b&gt;&lt;br&gt;400 invalid_request" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FADBD8;strokeColor=#CD6155;" vertex="1" parent="1">
+                    <mxGeometry x="830" y="100" width="130" height="50" as="geometry"/>
+                </mxCell>
+
+                <!-- EXTERNAL: SPA recoit token (Middle Right) -->
+                <mxCell id="spa_token" value="SPA recoit token" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E1F5FE;strokeColor=#00B0FF;" vertex="1" parent="1">
+                    <mxGeometry x="830" y="380" width="150" height="50" as="geometry"/>
+                </mxCell>
+
+                <!-- EXTERNAL: Kafka Topic (Bottom Right) -->
+                <mxCell id="kafka_topic" value="&lt;b&gt;Kafka Topic&lt;/b&gt;&lt;br&gt;pf.authn.events" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8D1F5;strokeColor=#9933FF;" vertex="1" parent="1">
+                    <mxGeometry x="830" y="530" width="150" height="60" as="geometry"/>
+                </mxCell>
+
+                <!-- CONNECTIONS & LABELS -->
+                <!-- Front-end -> Step 1 -->
+                <mxCell id="edge1" value="PAR POST&lt;br&gt;(params custom)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#006699;labelBackgroundColor=none;fontSize=10;" edge="1" parent="1" source="frontend" target="step1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+
+                <!-- Step 1 -> Erreur OAuth -->
+                <mxCell id="edge2" value="REJECT" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#CD6155;fontColor=#CD6155;labelBackgroundColor=none;fontStyle=1;" edge="1" parent="1" source="step1" target="err_oauth">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+
+                <!-- Step 1 -> Step 2 -->
+                <mxCell id="edge3" value="OPTION A : Validation ici (recommande)&lt;br&gt;&lt;font color=&quot;#27ae60&quot;&gt;attributs OK&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#27ae60;fontSize=10;fontColor=#D79B00;align=center;" edge="1" parent="1" source="step1" target="step2">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+
+                <!-- Step 2 -> Step 3 -->
+                <mxCell id="edge4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#000000;" edge="1" parent="1" source="step2" target="step3">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+
+                <!-- Step 3 -> Step 4 -->
+                <mxCell id="edge5" value="AUTH SUCCESS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#27ae60;fontColor=#27ae60;fontStyle=1;fontSize=10;" edge="1" parent="1" source="step3" target="step4">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+
+                <!-- Step 4 -> Step 5 -->
+                <mxCell id="edge6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#000000;" edge="1" parent="1" source="step4" target="step5">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+
+                <!-- Step 3 -> SPA recoit token -->
+                <mxCell id="edge7" value="token JWT" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#27ae60;fontColor=#27ae60;fontSize=10;" edge="1" parent="1" source="step3" target="spa_token">
+                    <mxGeometry x="-0.2" relative="1" as="geometry">
+                        <mxPoint x="740" y="410" as="sourcePoint"/>
+                    </mxGeometry>
+                </mxCell>
+
+                <!-- Step 4 -> Kafka Topic -->
+                <mxCell id="edge8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#9933FF;" edge="1" parent="1" source="step4" target="kafka_topic">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+
+                <!-- LEGEND BOX -->
+                <mxCell id="legend" value="Legende" style="swimlane;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#CCCCCC;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="30" y="600" width="220" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg_optA" value="" style="whiteSpace=wrap;html=1;fillColor=#FFE5CC;strokeColor=#D79B00;" vertex="1" parent="legend">
+                    <mxGeometry x="15" y="35" width="20" height="15" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg_lblA" value="Option A : recommandee" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;" vertex="1" parent="legend">
+                    <mxGeometry x="45" y="32" width="160" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg_optB" value="" style="whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;" vertex="1" parent="legend">
+                    <mxGeometry x="15" y="60" width="20" height="15" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg_lblB" value="Option B : deconseille (OGNL)" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;" vertex="1" parent="legend">
+                    <mxGeometry x="45" y="57" width="160" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg_optC" value="" style="whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#CCCCCC;" vertex="1" parent="legend">
+                    <mxGeometry x="15" y="85" width="20" height="15" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg_lblC" value="Option C : trop tard" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;" vertex="1" parent="legend">
+                    <mxGeometry x="45" y="82" width="160" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg_optD" value="" style="whiteSpace=wrap;html=1;fillColor=#E8D1F5;strokeColor=#9933FF;" vertex="1" parent="legend">
+                    <mxGeometry x="15" y="110" width="20" height="15" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg_lblD" value="Publication Kafka" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;" vertex="1" parent="legend">
+                    <mxGeometry x="45" y="107" width="160" height="20" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
