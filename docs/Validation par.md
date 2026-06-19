@@ -319,3 +319,21 @@ String channel = (String) session.getAttribute("ctx_channel");
 | Is PingAuthorize used? | Not in the current scope |
 | Kafka publication in the POC? | Simulated with a console trace, no real producer yet |
 
+
+
+
+Custom IdP Adapter — Source Code Walkthrough
+A working example of a PingFederate IdP Adapter that validates PAR parameters before the login screen is shown.
+The adapter below implements the IdpAuthenticationAdapterV2 interface from the PingFederate SDK. It intercepts the authorization request immediately after PingFederate resolves the request_uri (PAR), and before the user sees any login form.
+Two parameters are validated:
+canal must be one of web, mobile, or api, and must not exceed 10 characters. userId must match the pattern [a-zA-Z0-9_\-]{3,64} — alphanumeric, hyphens and underscores allowed, between 3 and 64 characters.
+If either check fails, the adapter returns AUTHN_STATUS.FAILURE immediately, and the user never reaches the login screen. If both checks pass, a simulated Kafka event is printed to the container logs ([KAFKA SIMULATION] topic=pf.authn.events), and the adapter returns AUTHN_STATUS.SUCCESS to hand off to the next node in the policy (HTMLFormAdapter).
+
+
+
+Problem
+When a client application sends a PAR request to PingFederate, the custom parameters included in that request (such as canal and userId) are not validated by PingFederate itself. They are passed through as-is into the authorization flow.
+This creates a risk: if those parameters are consumed downstream by a Kafka publisher, a SIEM ingestion pipeline, or any logging system, unvalidated or malformed data enters those systems without any prior check. A client could send an oversized value, an unexpected format, or an unauthorized channel identifier, and that data would be recorded as-is in audit logs or event streams.
+The requirement is therefore to validate these parameters at the earliest possible point inside PingFederate, before any downstream system is allowed to consume them, and to reject the request immediately with a proper OAuth error if validation fails.
+
+
