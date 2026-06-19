@@ -1,3 +1,23 @@
+simulerPublicationKafka(canal, userId);
+
+String resumePath = (String) inParameters.get("resumePath");
+if (resumePath != null) {
+    response.sendRedirect(resumePath);
+    return null;
+}
+
+AuthnAdapterResponse ok = new AuthnAdapterResponse();
+ok.setAuthnStatus(AUTHN_STATUS.IN_PROGRESS);
+return ok;
+
+
+
+
+
+
+
+
+
 // Remplace
 ok.setAuthnStatus(AUTHN_STATUS.SUCCESS);
 ok.setAttributeMap(Collections.emptyMap());
