@@ -1,3 +1,36 @@
+String canal = null;
+String userId = null;
+
+if (inParameters != null) {
+    Object tracked = inParameters.get("com.pingidentity.adapter.tracked.http.request.params");
+    if (tracked instanceof Map) {
+        @SuppressWarnings("unchecked")
+        Map<String, String[]> trackedMap = (Map<String, String[]>) tracked;
+
+        String[] canalArr = trackedMap.get("canal");
+        if (canalArr != null && canalArr.length > 0) {
+            canal = canalArr[0];
+        }
+
+        String[] userIdArr = trackedMap.get("userId");
+        if (userIdArr != null && userIdArr.length > 0) {
+            userId = userIdArr[0];
+        }
+    }
+}
+
+LOG.info("[ParValidationAdapter] canal extrait = " + canal);
+LOG.info("[ParValidationAdapter] userId extrait = " + userId);
+
+
+
+
+
+
+
+
+
+
 
 LOG.info("===== DUMP inParameters =====");
 if (inParameters != null) {
