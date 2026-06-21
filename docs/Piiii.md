@@ -1,81 +1,41 @@
-import org.sourceid.oauth20.bindings.ContextRef;
-import org.sourceid.oauth20.protocol.AuthorizationRequest;
+import com.pingidentity.sdk.IdentitySelector;
 import java.util.Map;
 
-// ... Au début de ton lookupAuthN ...
+// ... Dans ton lookupAuthN ...
 
 String canal = null;
 String userId = null;
 
-try {
-    // Récupération de l'objet de requête OAuth qui contient le cache du POST PAR initial
-    AuthorizationRequest oauthRequest = ContextRef.getAuthorizationRequest();
-    
-    if (oauthRequest != null) {
-        // Méthode A : Récupération via la map brute de tous les paramètres reçus dans le POST PAR
-        Map<String, String> rawParameters = oauthRequest.getRawParameters();
-        if (rawParameters != null) {
-            canal = rawParameters.get("canal");
-            userId = rawParameters.get("userId");
-        }
-        
-        // Méthode B (Fallback) : Si configurés comme paramètres étendus dans PingFederate
-        if (canal == null) canal = oauthRequest.getExtParameter("canal");
-        if (userId == null) userId = oauthRequest.getExtParameter("userId");
-    }
-} catch (Exception e) {
-    LOG.error("[ParValidationAdapter] Erreur lors de la lecture du contexte PAR OAuth", e);
+// Extraction depuis la map globale des paramètres traqués (Tracked HTTP Parameters)
+// PingFederate y stocke automatiquement les valeurs du POST PAR si configurées dans la console Admin !
+Map<String, Object> trackedParams = (Map<String, Object>) inParameters.get(IdentitySelector.IN_PARAMETER_TRACKED_HTTP_PARAMETERS);
+
+if (trackedParams != null) {
+    canal = (String) trackedParams.get("canal");
+    userId = (String) trackedParams.get("userId");
 }
 
-// Log de contrôle pour ton terminal
-LOG.info("[ParValidationAdapter] Extraction PAR -> canal=" + canal + " userId=" + userId);
-
-
-
-
-
-
-// --- EXTRACTEURS SECURISE DE CORPS DE REQUETE (BODY) ---
-String canal = null;
-String userId = null;
-
-// Étape 1 : Extraction depuis le contexte d'authentification chaîné (Spécifique aux requêtes PAR / POST Body)
-Map<String, Object> chainedContext = (Map<String, Object>) inParameters.get("chainedContext");
-if (chainedContext != null) {
-    // Dans un flux POST PAR, PingFederate parse le body et range les paramètres d'autorisation ici
-    Map<String, String> authnParams = (Map<String, String>) chainedContext.get("authnParameters");
-    if (authnParams != null) {
-        canal = authnParams.get("canal");
-        userId = authnParams.get("userId");
-    }
-    
-    // Au cas où les paramètres sont directement à la racine du contexte chaîné
-    if (canal == null) canal = (String) chainedContext.get("canal");
-    if (userId == null) userId = (String) chainedContext.get("userId");
-}
-
-// Étape 2 : Extraction depuis les paramètres d'authentification additionnels (Fallback POST Body)
+// Fallback de sécurité (Au cas où IdentitySelector n'est pas alimenté)
 if (canal == null || userId == null) {
-    Map<String, Object> additionalParams = (Map<String, Object>) inParameters.get("additionalAuthnParameters");
-    if (additionalParams != null) {
-        if (canal == null) canal = (String) additionalParams.get("canal");
-        if (userId == null) userId = (String) additionalParams.get("userId");
+    Map<String, Object> chainedContext = (Map<String, Object>) inParameters.get("chainedContext");
+    if (chainedContext != null) {
+        Map<String, String> authnParams = (Map<String, String>) chainedContext.get("authnParameters");
+        if (authnParams != null) {
+            if (canal == null) canal = authnParams.get("canal");
+            if (userId == null) userId = authnParams.get("userId");
+        }
     }
 }
 
-// Étape 3 : Fallback classique (Si jamais la requête bascule exceptionnellement en GET/Query String)
-if (canal == null) {
-    canal = request.getParameter("canal");
-    if (canal == null) canal = (String) request.getAttribute("canal");
-}
-if (userId == null) {
-    userId = request.getParameter("userId");
-    if (userId == null) userId = (String) request.getAttribute("userId");
-}
+// Log final pour ton terminal
+LOG.info("[ParValidationAdapter] Extraction découplée -> canal=" + canal + " userId=" + userId);
 
-// Log de contrôle dans ta console pour valider l'interception
-LOG.info("[ParValidationAdapter] Extraction finale du BODY -> canal=" + canal + " userId=" + userId);
-// --- FIN DU BLOC ---
+
+
+
+
+
+ 
 
 
 
