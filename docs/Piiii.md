@@ -1,3 +1,14 @@
+Post-authentication events (Kafka/SIEM/other) must not be emitted here: the adapter runs pre-login and never sees the real authn outcome. Implement them in a separate post-token plugin (Event Publisher), triggered at token issuance.
+
+
+
+
+
+
+
+
+
+
 String canal = null;
 String userId = null;
 
