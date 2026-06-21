@@ -1,172 +1,57 @@
-import java.util.Map;
-import java.util.Enumeration;
-import javax.servlet.http.HttpServletRequest;
-
-// ... Au tout début de ton lookupAuthN ...
-
-LOG.info("=== DEBUG COMPLET DES STRUCTURES PAR ===");
-
-// 1. Structure : Requête HTTP brute (GET courant)
-try {
-    LOG.info("[DEBUG 1] --- HTTP Request Parameters ---");
-    if (req != null) {
-        Enumeration<String> paramNames = req.getParameterNames();
-        while (paramNames != null && paramNames.hasMoreElements()) {
-            String name = paramNames.nextElement();
-            LOG.info("[DEBUG 1] Param: " + name + " = " + req.getParameter(name));
-        }
-    }
-} catch (Exception e) { LOG.info("[DEBUG 1] Échec lecture HTTP"); }
-
-
-// 2. Structure : Le Chained Context standard
-try {
-    LOG.info("[DEBUG 2] --- Chained Context Map ---");
-    Map<String, Object> chainedContext = (Map<String, Object>) inParameters.get("chainedContext");
-    if (chainedContext != null) {
-        for (Map.Entry<String, Object> entry : chainedContext.entrySet()) {
-            LOG.info("[DEBUG 2] Key: " + entry.getKey() + " -> " + entry.getValue());
-            if ("authnParameters".equals(entry.getKey()) && entry.getValue() instanceof Map) {
-                Map<String, String> subMap = (Map<String, String>) entry.getValue();
-                for (Map.Entry<String, String> subEntry : subMap.entrySet()) {
-                    LOG.info("[DEBUG 2]   -> authnParameter SubKey: " + subEntry.getKey() + " = " + subEntry.getValue());
-                }
-            }
-        }
-    } else { LOG.info("[DEBUG 2] 'chainedContext' est null"); }
-} catch (Exception e) { LOG.info("[DEBUG 2] Échec lecture ChainedContext"); }
-
-
-// 3. Structure : Tracked HTTP Parameters (via l'interface globale)
-try {
-    LOG.info("[DEBUG 3] --- Tracked HTTP Parameters ---");
-    Map<String, Object> trackedParams = (Map<String, Object>) inParameters.get("com.pingidentity.sdk.IdentitySelector.InParameter.TrackedHttpParameters");
-    if (trackedParams != null) {
-        for (Map.Entry<String, Object> entry : trackedParams.entrySet()) {
-            LOG.info("[DEBUG 3] Tracked Key: " + entry.getKey() + " = " + entry.getValue());
-        }
-    } else { LOG.info("[DEBUG 3] 'TrackedHttpParameters' est null"); }
-} catch (Exception e) { LOG.info("[DEBUG 3] Échec lecture TrackedParams"); }
-
-
-// 4. Structure : LoginContext & Contextual Objects (Cache profond OAuth)
-try {
-    LOG.info("[DEBUG 4] --- Contextual Objects (Reflexion) ---");
-    Map<String, Object> contextualObjects = (Map<String, Object>) inParameters.get("com.pingidentity.sdk.v2.LoginContext.ContextualObjects");
-    if (contextualObjects != null) {
-        for (Map.Entry<String, Object> entry : contextualObjects.entrySet()) {
-            LOG.info("[DEBUG 4] Object Class: " + entry.getKey());
-            if (entry.getKey().contains("AuthorizationRequest")) {
-                Object oauthRequest = entry.getValue();
-                java.lang.reflect.Method method = oauthRequest.getClass().getMethod("getRawParameters");
-                Map<String, String> rawParams = (Map<String, String>) method.invoke(oauthRequest);
-                for (Map.Entry<String, String> param : rawParams.entrySet()) {
-                    LOG.info("[DEBUG 4]   -> PAR Raw Param: " + param.getKey() + " = " + param.getValue());
-                }
-            }
-        }
-    } else { LOG.info("[DEBUG 4] 'ContextualObjects' est null"); }
-} catch (Exception e) { LOG.info("[DEBUG 4] Échec lecture ContextualObjects"); }
-
-LOG.info("========================================");
-
-
-
-
-
-
-
-
-
-
-
-import com.pingidentity.sdk.IdentitySelector;
-import java.util.Map;
-
-// ... Dans ton lookupAuthN ...
+// ... Au début de ton lookupAuthN ...
 
 String canal = null;
 String userId = null;
 
-// Extraction depuis la map globale des paramètres traqués (Tracked HTTP Parameters)
-// PingFederate y stocke automatiquement les valeurs du POST PAR si configurées dans la console Admin !
-Map<String, Object> trackedParams = (Map<String, Object>) inParameters.get(IdentitySelector.IN_PARAMETER_TRACKED_HTTP_PARAMETERS);
-
-if (trackedParams != null) {
-    canal = (String) trackedParams.get("canal");
-    userId = (String) trackedParams.get("userId");
-}
-
-// Fallback de sécurité (Au cas où IdentitySelector n'est pas alimenté)
-if (canal == null || userId == null) {
-    Map<String, Object> chainedContext = (Map<String, Object>) inParameters.get("chainedContext");
-    if (chainedContext != null) {
-        Map<String, String> authnParams = (Map<String, String>) chainedContext.get("authnParameters");
-        if (authnParams != null) {
-            if (canal == null) canal = authnParams.get("canal");
-            if (userId == null) userId = authnParams.get("userId");
+if (inParameters != null) {
+    // 1. Tenter de récupérer les paramètres de la requête d'autorisation globale en cours
+    Map<String, Object> reqObjectMap = (Map<String, Object>) inParameters.get("com.pingidentity.sdk.v2.LoginContext.ContextualObjects");
+    
+    if (reqObjectMap != null) {
+        // On cherche l'objet qui gère la transaction OAuth/OIDC courante
+        for (Map.Entry<String, Object> entry : reqObjectMap.entrySet()) {
+            if (entry.getKey().contains("AuthorizationRequest") || entry.getKey().contains("TrackedHttpParameters")) {
+                try {
+                    // Utilisation de la réflexion pour rester agnostique des imports de bindings
+                    java.lang.reflect.Method getParamsMethod = entry.getValue().getClass().getMethod("getRawParameters");
+                    Map<String, String[]> rawParameters = (Map<String, String[]>) getParamsMethod.invoke(entry.getValue());
+                    
+                    if (rawParameters != null) {
+                        if (rawParameters.containsKey("canal") && rawParameters.get("canal") != null) {
+                            canal = rawParameters.get("canal")[0];
+                        }
+                        if (rawParameters.containsKey("userId") && rawParameters.get("userId") != null) {
+                            userId = rawParameters.get("userId")[0];
+                        }
+                    }
+                } catch (Exception e) {
+                    LOG.warn("[ParValidationAdapter] Impossible de lire via réflexion sur " + entry.getKey());
+                }
+            }
+        }
+    }
+    
+    // 2. Solution de secours PingFederate standard : Le TrackedHttpParameters
+    if (canal == null || userId == null) {
+        Map<String, Object> trackedMap = (Map<String, Object>) inParameters.get("com.pingidentity.sdk.IdentitySelector.InParameter.TrackedHttpParameters");
+        if (trackedMap != null) {
+            // Dans certains flux PAR, PF copie la map sous forme de chaînes ou de tableaux
+            Object canalObj = trackedMap.get("canal");
+            Object userObj = trackedMap.get("userId");
+            
+            if (canalObj instanceof String[]) { canal = ((String[]) canalObj)[0]; }
+            else if (canalObj instanceof String) { canal = (String) canalObj; }
+            
+            if (userObj instanceof String[]) { userId = ((String[]) userObj)[0]; }
+            else if (userObj instanceof String) { userId = (String) userObj; }
         }
     }
 }
 
-// Log final pour ton terminal
-LOG.info("[ParValidationAdapter] Extraction découplée -> canal=" + canal + " userId=" + userId);
+LOG.info("[ParValidationAdapter] --- RÉSULTAT DU POST PAR ---");
+LOG.info("[ParValidationAdapter] canal extrait = " + canal);
+LOG.info("[ParValidationAdapter] userId extrait = " + userId);
 
-
-
-
-
-
- 
-
-
-
-
-
-
-
-
-
-// --- REMPLACE TON BLOC DE RÉCUPÉRATION PAR CELUI-CI ---
-String canal = null;
-String userId = null;
-
-// 1. Extraction depuis le contexte chaîné de PingFederate (Spécifique à PAR)
-Map<String, Object> chainedContext = (Map<String, Object>) inParameters.get("chainedContext");
-if (chainedContext != null) {
-    // Dans un flux PAR, PingFederate stocke les paramètres d'autorisation 
-    // dans une sous-map nommée "authnParameters" à l'intérieur du chainedContext
-    Map<String, String> authnParams = (Map<String, String>) chainedContext.get("authnParameters");
-    
-    if (authnParams != null) {
-        canal = authnParams.get("canal");
-        userId = authnParams.get("userId");
-    }
-    
-    // Fallback 1b : Si ce n'est pas dans authnParameters, on regarde à la racine du chainedContext
-    if (canal == null) {
-        canal = (String) chainedContext.get("canal");
-    }
-    if (userId == null) {
-        userId = (String) chainedContext.get("userId");
-    }
-}
-
-// 2. Fallback 2 : Si ce n'est pas un flux PAR (paramètres classiques passés en Query String ou POST direct)
-if (canal == null) {
-    canal = request.getParameter("canal");
-    if (canal == null) {
-        canal = (String) request.getAttribute("canal");
-    }
-}
-
-if (userId == null) {
-    userId = request.getParameter("userId");
-    if (userId == null) {
-        userId = (String) request.getAttribute("userId");
-    }
-}
-// --- FIN DU BLOC ---
 
 
     
@@ -176,6 +61,12 @@ if (userId == null) {
     
     
     
+
+
+
+
+
+
     
     
     
