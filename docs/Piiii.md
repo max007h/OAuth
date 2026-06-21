@@ -1,3 +1,32 @@
+
+LOG.info("===== DUMP inParameters =====");
+if (inParameters != null) {
+    for (Map.Entry<String, Object> e : inParameters.entrySet()) {
+        Object v = e.getValue();
+        LOG.info("inParam KEY=" + e.getKey()
+            + " | TYPE=" + (v == null ? "null" : v.getClass().getName())
+            + " | VALUE=" + String.valueOf(v));
+    }
+} else {
+    LOG.info("inParameters == null");
+}
+LOG.info("===== DUMP request.getParameterMap =====");
+for (Map.Entry<String, String[]> e : request.getParameterMap().entrySet()) {
+    LOG.info("reqParam KEY=" + e.getKey()
+        + " | VALUE=" + java.util.Arrays.toString(e.getValue()));
+}
+LOG.info("===== FIN DUMP =====");
+
+
+
+
+
+
+
+
+
+
+
 #this.get("com.pingidentity.sdk.IdentitySelector.InParameter.TrackedHttpParameters").get("canal")
 
 
