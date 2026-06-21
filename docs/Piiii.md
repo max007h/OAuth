@@ -1,3 +1,33 @@
+#this.get("com.pingidentity.sdk.IdentitySelector.InParameter.TrackedHttpParameters").get("canal")
+
+
+
+#this.get("com.pingidentity.sdk.IdentitySelector.InParameter.TrackedHttpParameters").get("userId")
+
+// Au début de ton lookupAuthN...
+String canal = null;
+String userId = null;
+
+java.util.Map<String, Object> trackedParams = (java.util.Map<String, Object>) inParameters.get("com.pingidentity.sdk.IdentitySelector.InParameter.TrackedHttpParameters");
+
+if (trackedParams != null) {
+    canal = (String) trackedParams.get("canal");
+    userId = (String) trackedParams.get("userId");
+}
+
+LOG.info("[ParValidationAdapter] canal = " + canal);
+LOG.info("[ParValidationAdapter] userId = " + userId);
+
+
+
+
+
+
+
+
+
+
+
 // ... Au début de ton lookupAuthN ...
 
 String canal = null;
