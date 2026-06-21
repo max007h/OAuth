@@ -5,6 +5,49 @@ if (inParameters != null) {
     Object tracked = inParameters.get("com.pingidentity.adapter.tracked.http.request.params");
     if (tracked instanceof Map) {
         @SuppressWarnings("unchecked")
+        Map<String, ?> trackedMap = (Map<String, ?>) tracked;
+
+        canal  = firstValue(trackedMap.get("canal"));
+        userId = firstValue(trackedMap.get("userId"));
+    }
+}
+
+LOG.info("[ParValidationAdapter] canal extrait = " + canal);
+LOG.info("[ParValidationAdapter] userId extrait = " + userId);
+
+
+
+
+
+private static String firstValue(Object v) {
+    if (v == null) {
+        return null;
+    }
+    if (v instanceof java.util.List) {
+        java.util.List<?> list = (java.util.List<?>) v;
+        return list.isEmpty() ? null : String.valueOf(list.get(0));
+    }
+    if (v instanceof String[]) {
+        String[] arr = (String[]) v;
+        return arr.length == 0 ? null : arr[0];
+    }
+    return String.valueOf(v);
+}
+
+
+
+
+
+
+
+
+String canal = null;
+String userId = null;
+
+if (inParameters != null) {
+    Object tracked = inParameters.get("com.pingidentity.adapter.tracked.http.request.params");
+    if (tracked instanceof Map) {
+        @SuppressWarnings("unchecked")
         Map<String, String[]> trackedMap = (Map<String, String[]>) tracked;
 
         String[] canalArr = trackedMap.get("canal");
