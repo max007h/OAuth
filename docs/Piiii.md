@@ -1,3 +1,85 @@
+import java.util.Map;
+import java.util.Enumeration;
+import javax.servlet.http.HttpServletRequest;
+
+// ... Au tout début de ton lookupAuthN ...
+
+LOG.info("=== DEBUG COMPLET DES STRUCTURES PAR ===");
+
+// 1. Structure : Requête HTTP brute (GET courant)
+try {
+    LOG.info("[DEBUG 1] --- HTTP Request Parameters ---");
+    if (req != null) {
+        Enumeration<String> paramNames = req.getParameterNames();
+        while (paramNames != null && paramNames.hasMoreElements()) {
+            String name = paramNames.nextElement();
+            LOG.info("[DEBUG 1] Param: " + name + " = " + req.getParameter(name));
+        }
+    }
+} catch (Exception e) { LOG.info("[DEBUG 1] Échec lecture HTTP"); }
+
+
+// 2. Structure : Le Chained Context standard
+try {
+    LOG.info("[DEBUG 2] --- Chained Context Map ---");
+    Map<String, Object> chainedContext = (Map<String, Object>) inParameters.get("chainedContext");
+    if (chainedContext != null) {
+        for (Map.Entry<String, Object> entry : chainedContext.entrySet()) {
+            LOG.info("[DEBUG 2] Key: " + entry.getKey() + " -> " + entry.getValue());
+            if ("authnParameters".equals(entry.getKey()) && entry.getValue() instanceof Map) {
+                Map<String, String> subMap = (Map<String, String>) entry.getValue();
+                for (Map.Entry<String, String> subEntry : subMap.entrySet()) {
+                    LOG.info("[DEBUG 2]   -> authnParameter SubKey: " + subEntry.getKey() + " = " + subEntry.getValue());
+                }
+            }
+        }
+    } else { LOG.info("[DEBUG 2] 'chainedContext' est null"); }
+} catch (Exception e) { LOG.info("[DEBUG 2] Échec lecture ChainedContext"); }
+
+
+// 3. Structure : Tracked HTTP Parameters (via l'interface globale)
+try {
+    LOG.info("[DEBUG 3] --- Tracked HTTP Parameters ---");
+    Map<String, Object> trackedParams = (Map<String, Object>) inParameters.get("com.pingidentity.sdk.IdentitySelector.InParameter.TrackedHttpParameters");
+    if (trackedParams != null) {
+        for (Map.Entry<String, Object> entry : trackedParams.entrySet()) {
+            LOG.info("[DEBUG 3] Tracked Key: " + entry.getKey() + " = " + entry.getValue());
+        }
+    } else { LOG.info("[DEBUG 3] 'TrackedHttpParameters' est null"); }
+} catch (Exception e) { LOG.info("[DEBUG 3] Échec lecture TrackedParams"); }
+
+
+// 4. Structure : LoginContext & Contextual Objects (Cache profond OAuth)
+try {
+    LOG.info("[DEBUG 4] --- Contextual Objects (Reflexion) ---");
+    Map<String, Object> contextualObjects = (Map<String, Object>) inParameters.get("com.pingidentity.sdk.v2.LoginContext.ContextualObjects");
+    if (contextualObjects != null) {
+        for (Map.Entry<String, Object> entry : contextualObjects.entrySet()) {
+            LOG.info("[DEBUG 4] Object Class: " + entry.getKey());
+            if (entry.getKey().contains("AuthorizationRequest")) {
+                Object oauthRequest = entry.getValue();
+                java.lang.reflect.Method method = oauthRequest.getClass().getMethod("getRawParameters");
+                Map<String, String> rawParams = (Map<String, String>) method.invoke(oauthRequest);
+                for (Map.Entry<String, String> param : rawParams.entrySet()) {
+                    LOG.info("[DEBUG 4]   -> PAR Raw Param: " + param.getKey() + " = " + param.getValue());
+                }
+            }
+        }
+    } else { LOG.info("[DEBUG 4] 'ContextualObjects' est null"); }
+} catch (Exception e) { LOG.info("[DEBUG 4] Échec lecture ContextualObjects"); }
+
+LOG.info("========================================");
+
+
+
+
+
+
+
+
+
+
+
 import com.pingidentity.sdk.IdentitySelector;
 import java.util.Map;
 
