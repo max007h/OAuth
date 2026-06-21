@@ -1,3 +1,53 @@
+// --- EXTRACTEURS SECURISE DE CORPS DE REQUETE (BODY) ---
+String canal = null;
+String userId = null;
+
+// Étape 1 : Extraction depuis le contexte d'authentification chaîné (Spécifique aux requêtes PAR / POST Body)
+Map<String, Object> chainedContext = (Map<String, Object>) inParameters.get("chainedContext");
+if (chainedContext != null) {
+    // Dans un flux POST PAR, PingFederate parse le body et range les paramètres d'autorisation ici
+    Map<String, String> authnParams = (Map<String, String>) chainedContext.get("authnParameters");
+    if (authnParams != null) {
+        canal = authnParams.get("canal");
+        userId = authnParams.get("userId");
+    }
+    
+    // Au cas où les paramètres sont directement à la racine du contexte chaîné
+    if (canal == null) canal = (String) chainedContext.get("canal");
+    if (userId == null) userId = (String) chainedContext.get("userId");
+}
+
+// Étape 2 : Extraction depuis les paramètres d'authentification additionnels (Fallback POST Body)
+if (canal == null || userId == null) {
+    Map<String, Object> additionalParams = (Map<String, Object>) inParameters.get("additionalAuthnParameters");
+    if (additionalParams != null) {
+        if (canal == null) canal = (String) additionalParams.get("canal");
+        if (userId == null) userId = (String) additionalParams.get("userId");
+    }
+}
+
+// Étape 3 : Fallback classique (Si jamais la requête bascule exceptionnellement en GET/Query String)
+if (canal == null) {
+    canal = request.getParameter("canal");
+    if (canal == null) canal = (String) request.getAttribute("canal");
+}
+if (userId == null) {
+    userId = request.getParameter("userId");
+    if (userId == null) userId = (String) request.getAttribute("userId");
+}
+
+// Log de contrôle dans ta console pour valider l'interception
+LOG.info("[ParValidationAdapter] Extraction finale du BODY -> canal=" + canal + " userId=" + userId);
+// --- FIN DU BLOC ---
+
+
+
+
+
+
+
+
+
 // --- REMPLACE TON BLOC DE RÉCUPÉRATION PAR CELUI-CI ---
 String canal = null;
 String userId = null;
