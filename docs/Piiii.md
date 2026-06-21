@@ -1,3 +1,40 @@
+import org.sourceid.oauth20.bindings.ContextRef;
+import org.sourceid.oauth20.protocol.AuthorizationRequest;
+import java.util.Map;
+
+// ... Au début de ton lookupAuthN ...
+
+String canal = null;
+String userId = null;
+
+try {
+    // Récupération de l'objet de requête OAuth qui contient le cache du POST PAR initial
+    AuthorizationRequest oauthRequest = ContextRef.getAuthorizationRequest();
+    
+    if (oauthRequest != null) {
+        // Méthode A : Récupération via la map brute de tous les paramètres reçus dans le POST PAR
+        Map<String, String> rawParameters = oauthRequest.getRawParameters();
+        if (rawParameters != null) {
+            canal = rawParameters.get("canal");
+            userId = rawParameters.get("userId");
+        }
+        
+        // Méthode B (Fallback) : Si configurés comme paramètres étendus dans PingFederate
+        if (canal == null) canal = oauthRequest.getExtParameter("canal");
+        if (userId == null) userId = oauthRequest.getExtParameter("userId");
+    }
+} catch (Exception e) {
+    LOG.error("[ParValidationAdapter] Erreur lors de la lecture du contexte PAR OAuth", e);
+}
+
+// Log de contrôle pour ton terminal
+LOG.info("[ParValidationAdapter] Extraction PAR -> canal=" + canal + " userId=" + userId);
+
+
+
+
+
+
 // --- EXTRACTEURS SECURISE DE CORPS DE REQUETE (BODY) ---
 String canal = null;
 String userId = null;
