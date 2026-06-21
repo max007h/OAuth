@@ -1,3 +1,16 @@
+Example: rejection logs when PAR parameters are invalid
+Phrase d'intro :
+The following logs show the adapter rejecting a request whose PAR parameters fail validation. The adapter returns AUTHN_STATUS.FAILURE before the login screen is shown, and PingFederate returns a 400 invalid_request to the client.
+
+
+
+
+
+
+
+
+
+
 Post-authentication events (Kafka/SIEM/other) must not be emitted here: the adapter runs pre-login and never sees the real authn outcome. Implement them in a separate post-token plugin (Event Publisher), triggered at token issuance.
 
 
