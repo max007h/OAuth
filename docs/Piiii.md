@@ -1,3 +1,10 @@
+L'avantage majeur : Si les attributs ou les valeurs ne sont pas conformes à notre whitelist, la requête est immédiatement rejetée (REJECT). Cela évite de solliciter inutilement la suite du moteur d'authentification ou l'utilisateur. C'est l'approche la plus propre et la plus sécurisée.
+
+
+
+
+
+
 Ici, j'ai illustré avec l'HTML Form Adapter classique, mais notre validation d'attributs en Option A fonctionnerait exactement de la même manière si on décidait demain de le remplacer par une authentification par certificat X.509 ou du MFA via PingID.
 
 
