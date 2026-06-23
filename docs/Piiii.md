@@ -1,3 +1,24 @@
+Ici, j'ai illustré avec l'HTML Form Adapter classique, mais notre validation d'attributs en Option A fonctionnerait exactement de la même manière si on décidait demain de le remplacer par une authentification par certificat X.509 ou du MFA via PingID.
+
+
+
+
+Un point majeur en faveur de cette Option A, 
+c'est sa flexibilité. Ce Custom IdP Adapter n'est pas figé pour une seule application. Nous pouvons utiliser un OAuth Client ID Selector en amont dans notre politique PingFederate. Ce sélecteur va analyser automatiquement l'identifiant de l'application appelante : si la SPA fait partie du périmètre, elle passe par notre brique de validation Java, sinon elle suit un flux standard. Cela nous permet de mutualiser ce code pour de nombreuses applications très facilement. »
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Example: rejection logs when PAR parameters are invalid
 Phrase d'intro :
 The following logs show the adapter rejecting a request whose PAR parameters fail validation. The adapter returns AUTHN_STATUS.FAILURE before the login screen is shown, and PingFederate returns a 400 invalid_request to the client.
