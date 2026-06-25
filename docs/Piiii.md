@@ -1,3 +1,72 @@
+sequenceDiagram
+    actor User
+    participant SPA as SPA (HTTP :4200)
+    participant PF as PingFederate (HTTPS :9031)
+    participant Adapter as PocParValidationAdapter
+    participant HTML as HTMLFormAdapter
+    participant LDAP as PingDirectory (LDAP)
+
+    User->>SPA: Clic "Se connecter"
+
+    Note over SPA,PF: Étape 1 — PAR (Push Authorization Request)
+    SPA->>PF: POST /as/par.oauth2<br/>client_id, scope, redirect_uri,<br/>canal, userId, state
+    alt Paramètres valides
+        PF-->>SPA: 201 Created {request_uri}
+    else Client inconnu / paramètres manquants
+        PF-->>SPA: 400 Bad Request
+        SPA-->>User: Erreur affichée
+    end
+
+    Note over SPA,PF: Étape 2 — Authorization Request
+    SPA->>PF: GET /as/authorization.oauth2<br/>?client_id&request_uri&canal&userId
+    PF->>PF: PocParClientSelector<br/>client_id == poc-par-validation ?
+
+    Note over PF,Adapter: Étape 3 — Validation PAR (PocParValidationAdapter)
+    PF->>Adapter: lookupAuthN(request, response, inParameters)
+    Adapter->>Adapter: canal = request.getParameter("canal")<br/>userId = request.getParameter("userId")
+
+    alt canal absent ou invalide (≠ web/mobile/api ou >10 car.)
+        Adapter-->>PF: AUTHN_STATUS.FAILURE<br/>invalid_request: parametre canal absent/invalide
+        PF-->>User: Authentication failed (access_denied)
+    else userId absent ou format invalide
+        Adapter-->>PF: AUTHN_STATUS.FAILURE<br/>invalid_request: parametre userId invalide
+        PF-->>User: Authentication failed (access_denied)
+    else canal et userId valides
+        Adapter->>Adapter: [KAFKA SIMULATION]<br/>topic=pf.authn.events<br/>{canal, userId, timestamp}
+        Adapter-->>PF: AUTHN_STATUS.SUCCESS {subject: userId}
+    end
+
+    Note over PF,HTML: Étape 4 — Login utilisateur
+    PF->>HTML: HTMLFormAdapter
+    HTML-->>User: Formulaire de login PingFederate
+    User->>HTML: username / password
+    HTML->>LDAP: Vérification credentials (uid=username)
+    alt Credentials invalides
+        LDAP-->>HTML: Échec
+        HTML-->>User: Erreur login
+    else Credentials valides
+        LDAP-->>HTML: OK
+        HTML-->>PF: SUCCESS {username}
+        PF->>PF: Policy Contract Mapping<br/>subject = HTMLFormAdapter.username
+    end
+
+    Note over SPA,PF: Étape 5 — Authorization Code
+    PF-->>SPA: 302 Redirect<br/>callback.html?code=xxx&state=yyy
+    SPA->>SPA: Vérification state
+
+    Note over SPA,PF: Étape 6 — Token Exchange
+    SPA->>PF: POST /as/token.oauth2<br/>grant_type=authorization_code<br/>code, redirect_uri, client_id
+    PF-->>SPA: 200 OK {access_token, id_token}
+    SPA-->>User: Connecté ✓
+
+
+
+
+
+
+
+
+
 L'avantage majeur : Si les attributs ou les valeurs ne sont pas conformes à notre whitelist, la requête est immédiatement rejetée (REJECT). Cela évite de solliciter inutilement la suite du moteur d'authentification ou l'utilisateur. C'est l'approche la plus propre et la plus sécurisée.
 
 
