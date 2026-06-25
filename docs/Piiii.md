@@ -1,3 +1,25 @@
+# Génère un certificat autosigné
+openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=localhost"
+
+# Lance un serveur HTTPS Python
+python3 -c "
+import http.server, ssl
+server = http.server.HTTPServer(('localhost', 4200), http.server.SimpleHTTPRequestHandler)
+ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+ctx.load_cert_chain('cert.pem', 'key.pem')
+server.socket = ctx.wrap_socket(server.socket, server_side=True)
+server.serve_forever()
+"
+
+
+
+
+
+
+
+
+
+
 sequenceDiagram
     actor User
     participant SPA as SPA (HTTP :4200)
