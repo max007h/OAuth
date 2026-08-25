@@ -1,3 +1,9 @@
+- The Excel file shared before the workshop contains sample PoC data
+  for one partner: 1 Union, 2 Chains, 7 Regroupments, 21 Agreements
+- Not representative of production volumes — to be confirmed
+
+
+
 # Partner Authorization — Context, Problem, Solution
 
 *Ping AuthZ workshop, Aug 13 2026 · Vendor_Hierarchy_UCR.xlsx · Ping IDM Basics deck*
