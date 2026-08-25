@@ -1,424 +1,242 @@
-Hi Miyuki,
+# Partner Authorization — Context, Problem, Solution
 
-Thank you for the detailed minutes. Two remarks from my side, for the follow-up.
-
-1. I agree with the conclusion on the product choice. For this specific need, PingIDM covers both the administration and the resolution of rights: the organisation hierarchy is modelled as managed objects, and entitlements are propagated down the graph. This means the business application performs a lookup of already-resolved entitlements rather than a runtime decision, which makes a central policy engine unnecessary here. I would only note that this holds as long as the propagation is reliable and its delay is explicitly accepted — when a partner manager revokes a right, it takes effect once propagation has run, not immediately. We should agree on an acceptable delay during the PoC rather than discover it later.
-
-2. A few points appear in Tim's slides but not in the minutes, and they affect the data model we are asked to deliver. Could we cover them at the follow-up?
-   - Roles carrying negative exclusions per node ("vendors below Roller2 and vendor 2541202 don't grant download stock list within that role") — how does IDM materialise this without multiplying role variants?
-   - A user's scope spanning separate hierarchies (vendor 3000030 in the POCO tree)
-   - Variable depth — "not all partners have all levels configured"
-   - Rights granted per vendor and per application ("2480004 as BusinessApp:Salesman", "2700010 as BusinessApp:Viewer")
-   - Custom Lists, whose members sit under different regroupments — how are they created and maintained?
-   - Cross-shop user visibility, where an employee created by one shop manager later works for a shop managed by another
-
-One last question that blocks the model: does one Agreement Number correspond to exactly one vendor, or can a vendor hold several agreements? This determines the primary key of every managed object, and it is the kind of thing that surfaces long after go-live rather than during testing.
-
-Happy to bring the data model draft to the follow-up.
-
-Best regards,
-Max
-
-
-
-
-
-# Partner Authorization — Approach and Sequencing
-
-*Reference note ahead of the PING AuthZ workshop*
-*Source material: Vendor_Hierarchy_UCR.xlsx, rows 2–22*
+*Ping AuthZ workshop, Aug 13 2026 · Vendor_Hierarchy_UCR.xlsx · Ping IDM Basics deck*
 
 ---
 
 ## 1. Context
 
-### 1.1 What we are building
+### 1.1 Scope
 
-Partner-facing business applications need to enforce authorization based on a
-partner organisation hierarchy. The users are not our customers — they are
-employees on the partner side: salespeople, store managers, regional managers
-working for a retail group.
+- Partner business apps must enforce rights against a partner organisation hierarchy
+- Users are partner employees (salespeople, shop managers, regional managers) — not our customers
+- Each user acts only on the part of the organisation they are assigned to
 
-Each of them must be able to act only on the part of the partner organisation
-they have been assigned to, with the permissions their role grants them.
+### 1.2 Hierarchy
 
-### 1.2 The hierarchy
-
-The hierarchy is four levels deep and fixed:
-
-```
-Union          9300001  ROLLER
-  └── Chain    9100001  ROLLER GMBH & CO. KG
-        └── Regroupment  9200001  ROLLER 1
-              └── Agreement  2541202  (account H)
+```mermaid
+graph TD
+    U["Union<br/>9300001 · ROLLER"]
+    C["Chain<br/>9100001 · ROLLER GMBH & CO. KG"]
+    R["Regroupment<br/>9200001 · ROLLER 1"]
+    A["Vendor / Agreement<br/>2541202 · account H"]
+    U --> C --> R --> A
 ```
 
-The dataset currently holds 1 Union, 2 Chains, 7 Regroupments and 21 Agreements.
+- Current dataset: 1 Union, 2 Chains, 7 Regroupments, 21 Agreements
+- Each spreadsheet row is a leaf carrying its full ancestor path
+- Ping's own slide adds: not all partners have all levels configured
+- Ping's own slide adds: a user's scope can span separate hierarchies (vendor 3000030 sits in the POCO tree)
 
-Critically, **the spreadsheet is already denormalised**: every row is a leaf that
-carries its complete ancestor path in dedicated columns. There is no tree to walk
-at runtime — the lineage of any agreement is readable in a single record.
+### 1.3 Requirements
 
-### 1.3 Functional requirements
+| # | Requirement | Type |
+|---|---|---|
+| R1 | Assign business apps to hierarchy levels | Administration |
+| R2 | Create roles, group permissions into them | Administration |
+| R3 | Assign roles at hierarchy levels, edit permissions | Administration |
+| R4 | Assign roles to partner users | Administration |
+| R5 | App retrieves role definition at runtime by selected context | **Runtime** |
 
-From the workshop brief:
+### 1.4 Workshop outcome (Aug 13)
 
-| # | Requirement |
-|---|---|
-| R1 | A business user assigns business applications to levels of the partner hierarchy |
-| R2 | A business user creates application roles and groups permissions into them |
-| R3 | A business user or partner manager assigns roles at hierarchy levels, and edits permissions in those roles |
-| R4 | A business user or partner manager assigns roles to partner users |
-| R5 | The business application retrieves the role definition at runtime, based on the user's selected context |
-
-### 1.4 The reference scenario
-
-The brief provides one worked example, which we use throughout this note:
-
-- The profile **Salesman** groups roles **R1** (Manage Contract) and **R2** (Reporting)
-- Salesman is assigned at the **Union** level — node `9300001`
-- **User1** inherits R1 from that assignment
-- User1's operational scope is limited to agreements `2700010` and `2700011`
-- User1's reporting scope is the **Regroupment** `9200005` (ROLLER 5), which
-  contains six agreements
+- PingAuthorize ruled out — assessed as a centralised policy engine, not an administration tool
+- PingIDM advised instead; demo showed vendor structure down to user, with profiles, roles, entitlements
+- PoC to be run, split into CF and Central streams; follow-up in 2 weeks
+- Open risks flagged: remote IdP support, IDM pricing, Phase 1 due end of 2026
 
 ---
 
 ## 2. Problem
 
-### 2.1 There are two independent axes, not one
+### 2.1 Three functions are being treated as two
 
-The scenario looks like role-based access control, but it is not. User1 holds a
-role granted at the top of the hierarchy, and separately holds an assignment to a
-small set of leaves near the bottom. These are two different things:
+- **Administer** — create, assign, delegate → IDM, no debate
+- **Resolve** — compute effective rights, propagate inheritance → IDM, confirmed by their slides
+- **Decide** — permit or deny at the moment of the click → **not covered by anyone**
 
-- **The role** determines *what* the user knows how to do
-- **The scope** determines *where* the user is allowed to do it
+R1 to R4 were assessed. R5 was not. IDM produces the data; it does not consume it at runtime.
 
-An effective permission requires both. Any model that collapses them into a single
-notion of "access" will fail on the very first user whose reporting perimeter is
-wider than their operational one — which is already the case in the reference
-scenario.
+### 2.2 Consequences if enforcement stays undefined
 
-### 2.2 The scope differs per action type
+- No central audit trail of authorization decisions
+- One enforcement implementation per business application, with guaranteed drift
+- Delay between a right being revoked and the revocation taking effect
+- No contextual decision possible (amount, time of day, risk level)
 
-User1 operates on two agreements but reports on an entire regroupment. So the
-scope is not one list — it is one list *per dimension of action*.
+### 2.3 Two axes, not one
 
-This produces the test case that matters most:
+- **Role** = what the user can do — inherited downward from the assignment node
+- **Scope** = where the user may do it — assigned upward from the leaves
+- Both must hold. Reference case:
 
-| Action | Target | Expected |
+| Action | Target 2700014 | Why |
 |---|---|---|
-| `contract.update` | 2700014 | **DENY** |
-| `report.read` | 2700014 | **PERMIT** |
+| `contract.update` | **DENY** | role reaches target, but target not in operational scope |
+| `report.read` | **PERMIT** | reporting scope is the regroupment 9200005 |
 
-Same user, same target, opposite answers. If a proposed model cannot produce both,
-it does not cover the requirement.
+Same user, same target, opposite answers. Any model that cannot produce both is wrong.
 
-### 2.3 One relation does not fit the tree
+### 2.4 Model gaps revealed by Ping's slide 2
 
-The Hierarchy Level list in the source file contains an entry that is not a level:
+| Gap | Evidence | Impact |
+|---|---|---|
+| Multiple hierarchies | User 3 reaches vendor 3000030 in POCO tree | Flat row alone is insufficient |
+| Variable depth | "not all partners have all levels configured" | Fixed 4-level model not guaranteed |
+| Role per (vendor, app) | "vendor 2480004 as BusinessApp:Salesman", "2700010 as BusinessApp:Viewer" | Scope is a triple, not a vendor list |
+| Negative exclusions per node | "vendors below Roller2 and vendor 2541202 don't grant download stock list within that role" | Materialised roles multiply combinatorially |
+| Custom List | (2700015, 2700017, 2700010) across three regroupments | Not a hierarchy level — needs explicit reverse index |
+| Cross-shop user visibility | employee of 2541202 must later work for 2283003, different shop manager | Delegated admin scope is its own model |
 
-```
-Custom List (2700015, 2700017, 2700010)
-```
+### 2.5 Blocking question
 
-Its three members sit under three different Regroupments — `9200006`, `9200007`
-and `9200005`. No ancestor test can produce that set. Membership must be stored
-explicitly and indexed in reverse (agreement → lists), and kept in step whenever
-a list is edited.
+- **Does one Agreement Number correspond to exactly one vendor?**
+- If 1:1 → each row flat and complete, membership test against four values
+- If 1:N → path belongs to the agreement, runtime context must be the Agreement Number, vendor→agreements index required, reporting per vendor double-counts
+- This determines the primary key of every managed object in IDM
+- Not detectable in testing — surfaces months after go-live, in reconciliation
 
-This is the only relation in the model that genuinely requires materialisation.
+### 2.6 Data point to confirm
 
-### 2.4 One open question blocks the primary key
-
-Each row carries both an `Agreement Number` and an `Account Name`. Two separate
-columns suggest two entities upstream. The question is unresolved:
-
-> **Does one Agreement Number correspond to exactly one vendor, or can a single
-> vendor hold several agreements?**
-
-The consequences diverge sharply:
-
-**If one-to-one.** Each row is flat and complete. Deciding a right is a membership
-test against four values already present on the record. No traversal, no
-additional index beyond the Custom List.
-
-**If a vendor holds several agreements.** The ancestor path becomes a property of
-the agreement, not of the vendor — the same point of sale can sit under two
-different Regroupments depending on the contract. The runtime context must then
-be the Agreement Number rather than the vendor, a vendor → agreements index is
-required, and reporting aggregated per vendor will silently double-count.
-
-This is not a detail. It determines the primary key of the entire authorization
-model, and it is not the kind of error that surfaces during testing — it surfaces
-months after go-live, in reconciliation.
-
-### 2.5 A data point to verify
-
-Regroupment `9200004` (ROLLER 4) appears to span both chains: agreements `2700006`
-and `2700007` under chain `9100001`, and `2700008` under chain `9100002`. If
-confirmed, the hierarchy is a directed graph rather than a tree, and "the chain of
-ROLLER 4" has no single answer. Worth confirming against the source system.
+- Regroupment 9200004 (ROLLER 4) appears under both chains (2700006/2700007 under 9100001, 2700008 under 9100002)
+- If confirmed, the hierarchy is a graph, not a tree
 
 ---
 
 ## 3. Solution
 
-### 3.1 Component responsibilities
+### 3.1 Component split
 
-| Component | Role | On the decision path? |
+| Component | Job | On decision path |
 |---|---|---|
-| **PingFederate** | Authenticates the user, carries the selected context in the token | Yes |
-| **PingDirectory** | Holds the hierarchy, the scopes, the role catalogue | Yes |
-| **PingAuthorize** | Evaluates the decision | Yes |
-| **PingIDM** | Administers roles, assignments and relationships | **No** |
-| **Backend API** | Policy enforcement point | Yes |
-| **SPA** | Context selection, presentation | — |
+| PingFederate | Authenticates, carries selected context in token | Yes |
+| PingIDM | Managed objects, roles, assignments, propagation, delegated admin | No |
+| PingDirectory | Stores resolved entitlements | Yes |
+| Business app / backend | Enforcement point | Yes |
+| PingAuthorize | Central decision point | **To be decided** |
 
 ```mermaid
 graph TB
-    subgraph runtime["RUNTIME — decision path"]
-        SPA["SPA<br/>partner user"]
-        BE["Backend API<br/>PEP"]
-        AZ["PingAuthorize<br/>PDP"]
-    end
-
-    subgraph admin["ADMINISTRATION — step 2"]
+    subgraph admin["ADMINISTRATION"]
         UI["Admin UI<br/>partner manager"]
-        IDM["PingIDM<br/>roles, assignments, workflow"]
+        IDM["PingIDM<br/>objects · roles · propagation"]
     end
-
-    PF["PingFederate<br/>context in token"]
-    PD[("PingDirectory<br/>hierarchy · scopes · roles")]
-
-    SPA -->|"1 · login, pick context"| PF
-    PF -->|"2 · token: sub + context 9300001"| SPA
-    SPA -->|"3 · call + token"| BE
-    BE -->|"4 · sub, context, action, target"| AZ
-    AZ -->|"5 · read ancestors, scopes, roles"| PD
-    AZ -->|"6 · PERMIT / DENY"| BE
-    BE -->|"7 · response"| SPA
+    subgraph runtime["RUNTIME"]
+        SPA["SPA<br/>partner user"]
+        BE["Backend<br/>enforcement"]
+    end
+    PF["PingFederate"]
+    PD[("PingDirectory<br/>resolved entitlements")]
 
     UI --> IDM
-    IDM -->|"provision"| PD
-    PF -.->|"read identity"| PD
+    IDM -->|"materialise"| PD
+    SPA -->|"1 · login, pick context"| PF
+    PF -->|"2 · token: sub + context"| SPA
+    SPA -->|"3 · call + token"| BE
+    BE -->|"4 · read entitlements"| PD
+    BE -->|"5 · response"| SPA
 
-    style AZ fill:#3F9A8C,color:#fff
+    style IDM fill:#3F9A8C,color:#fff
     style PD fill:#1B3A6B,color:#fff
-    style IDM fill:#8C9AA8,color:#fff
-    style admin opacity:0.55
 ```
 
-PingIDM writes into PingDirectory and does nothing else. Steps 1 to 7 work without
-it — which is exactly why the proof of concept can be built before IDM is
-introduced.
+### 3.2 What IDM covers natively
 
-### 3.2 What goes in the token
+- `managed/organization` typed union / chain / regroupment / vendor — the hierarchy as a relationship graph
+- `managed/role` typed profile / role, linked to `managed/entitlement`
+- Virtual property mode **Relationship** — traverses the relationship graph on update, i.e. materialisation at write time
+- Assignment propagation down the organisation graph
+- Delegated administration and privileges for partner managers
+- REST-first endpoints for a custom business UI
+- Object update hooks for custom logic
 
-Only what is a user *choice*, never what is a *right*:
+### 3.3 What we still build
+
+- Business UI on the REST API — the IDM console targets IAM admins, not shop managers
+- Custom List membership and its reverse index (agreement → lists)
+- Scope-per-dimension rule (operational vs reporting)
+- Enforcement logic in each business application, unless a central PDP is chosen
+
+### 3.4 Token
 
 ```json
 {
   "sub": "user1",
   "aud": "contract-app",
-  "iss": "https://sso.example.com",
-  "iat": 1756036800,
-  "exp": 1756038600,
   "scope": "contracts reports",
   "partner_context": "9300001",
   "partner_level": "union"
 }
 ```
 
-Two flat claims. A regional manager covering three hundred agreements carries
-exactly the same token as a salesperson covering one — perimeter size never
-enters it.
+- Two flat claims — no RAR required
+- Context is a user choice, signed by the AS, and re-validated at enforcement
+- Scope lists stay out of the token: they would freeze until expiry, so a revoked right would survive until next login
+- Token size independent of perimeter size (1 agreement or 300)
 
-**Why not put the scope in the token.** It would freeze until expiry. When a
-partner manager removes a vendor from someone's scope, the removal would not take
-effect until the next login. That is not acceptable in a banking context.
-
-**Why the context can stay.** It is a selection made by the user, signed by the
-authorization server, and it gives us an auditable record of the context the user
-believed they were working in. The PDP re-validates it on every decision, so it
-grants nothing by itself.
-
-### 3.3 What the PDP resolves
-
-Enforcement point sends:
-
-```json
-{
-  "sub": "user1",
-  "context": "9300001",
-  "action": "contract.update",
-  "resource": "2700014"
-}
-```
-
-PingAuthorize then reads three things.
-
-**The target's lineage** — one record, fixed size:
+### 3.5 Decision rule
 
 ```
-dn: agreementNumber=2700014,ou=agreements,dc=partners
-  accountName:       AC
-  groupedRetailerNo: 9200005
-  chainRetailerNo:   9100002
-  unionRetailerNo:   9300001
-```
+parents(t) = { t, regroupment(t), chain(t), union(t) } + customLists(t)
 
-**The subject's grants and scopes:**
-
-```
-dn: uid=user1,ou=partnerUsers,dc=partners
-  partnerGrant: 9300001|Salesman
-  opScope:      2700010
-  opScope:      2700011
-  reportScope:  9200005
-```
-
-**The role catalogue:**
-
-```
-Salesman → R1, R2
-R1       → contract.read, contract.update
-R2       → report.read
-```
-
-### 3.4 The rule
-
-```
-ancestors(t) = { t, t.groupedRetailerNo, t.chainRetailerNo, t.unionRetailerNo }
-               ∪ t.customLists
-
-hasRole = ∃ g ∈ subject.partnerGrant :
-             g.node ∈ ancestors(target)
+hasRole = a grant g exists where
+             g.node ∈ parents(target)
              AND action ∈ permissions(g.role)
 
-inScope = action.dimension = operational
-             ? subject.opScope     ∩ ancestors(target) ≠ ∅
-             : subject.reportScope ∩ ancestors(target) ≠ ∅
+inScope = action is operational
+             ? opScope     ∩ parents(target) ≠ ∅
+             : reportScope ∩ parents(target) ≠ ∅
 
-PERMIT if hasRole AND inScope
-DENY   otherwise
+PERMIT if hasRole AND inScope   ·   DENY otherwise
 ```
 
-Combining algorithm: **deny-unless-permit**. No rule may widen a perimeter.
+- Combining algorithm: deny unless permit
+- No rule may widen a scope
 
-### 3.5 Worked decisions
+### 3.6 Volume handling
 
-**`contract.update` on 2700014 → DENY**
-Ancestors are `{2700014, 9200005, 9100002, 9300001}`. The grant node `9300001`
-is in that set, so the role reaches the target, and R1 contains the action. But
-opScope is `{2700010, 2700011}` and does not intersect. The user has the
-capability without the assignment.
+- Test membership, never transport the list
+- Store scope by node, not by leaf — `opScope: 9200005` covers six agreements in one value
+- Index `groupedRetailerNo`, `chainRetailerNo`, `unionRetailerNo` for the reverse query (context selector)
+- Partial perimeters (5 of 6 agreements) still require enumeration → needs an `opScopeExclude` attribute
 
-**`report.read` on 2700014 → PERMIT**
-reportScope `{9200005}` intersects the ancestors, and R2 contains the action.
+### 3.7 Operational rules
 
-**`contract.update` on 2700010 → PERMIT**
-Role inherited from the union, and the target is in opScope.
-
-**`report.read` on 2700015 → DENY**
-Ancestors are `{2700015, 9200006, 9100002, 9300001}`. reportScope `{9200005}`
-does not intersect.
-
-### 3.6 Handling volume
-
-Three mechanisms, in order:
-
-**Test membership, never enumerate.** The question is never "which three hundred
-agreements does this user cover" but "is this one of them". One test, no list
-transported.
-
-**Store scope by node, not by leaf.** `opScope: 9200005` covers the six agreements
-of ROLLER 5 in a single value. Three hundred agreements spread over twelve
-regroupments is twelve values, not three hundred.
-
-**Index the ancestor attributes.** With equality indexes on `groupedRetailerNo`,
-`chainRetailerNo` and `unionRetailerNo`, the reverse query — listing the
-agreements under a node, needed to populate the context selector — stays
-proportional to the result set.
-
-The case that resists is a partial perimeter: five agreements out of six in a
-regroupment. That requires enumeration. If the business needs exclusions, add an
-`opScopeExclude` attribute and extend the rule to `included AND NOT excluded`.
-
-### 3.7 Operational safeguards
-
-- **Cache**, short (5–15 s), on ancestors only. They change rarely. Never cache
-  scopes — that reintroduces the propagation delay we removed.
-- **Degraded mode**: if PingDirectory does not answer, the PDP denies. No
-  permissive fallback, ever.
-- **Latency budget**: two to three directory reads per decision. This must be
-  measured during the POC, not estimated.
-
-### 3.8 What PingIDM covers
-
-PingIDM is the right component for the administration layer, and it covers most
-of R1 to R4 natively:
-
-- Managed objects and relationships model the hierarchy as a graph
-- Managed roles map directly onto "a role is a set of permissions"
-- Assignment propagation is a materialisation mechanism
-- A full REST API for the business UI, and BPMN workflow for approvals
-
-What remains to be built:
-
-- **The business UI.** The IDM admin console targets IAM administrators, not a
-  partner manager at a retail group. A light front end over the REST API.
-- **The Custom List index.** IDM stores the relationship; the reverse index and
-  its refresh are ours to define.
-- **The scope-per-dimension rule**, which is business logic.
-
-One dependency to note: IDM's managed roles propagate an assignment to targets,
-not to all transitive descendants without scripting. With a fixed four-level
-hierarchy this is not needed. If a fifth level appears, or if the ROLLER 4 anomaly
-is confirmed, that assumption breaks.
+- Cache on ancestors only, 5–15 s. Never cache scopes.
+- Degraded mode: no answer from the directory → deny. No permissive fallback.
+- Propagation delay must be measured and formally accepted, not discovered.
 
 ---
 
-## 4. Proposed sequencing
+## 4. Sequencing
 
-**Step 0 — Answer the Agreement Number question.**
-It determines the primary key. Nothing below is worth starting without it.
+| Step | Action | Exit criteria |
+|---|---|---|
+| 0 | Answer the Agreement Number question | Primary key fixed |
+| 1 | Model the hierarchy as IDM managed objects | Slide-2 cases represented (multi-hierarchy, variable depth, custom list, exclusions) |
+| 2 | Configure propagation, measure it | Propagation delay figure, under realistic volume |
+| 3 | Run requirement scenarios end to end, no UI | R5 demonstrated, including the DENY/PERMIT pair on 2700014 |
+| 4 | Decide the enforcement point | Central PDP vs per-application, decided explicitly |
+| 5 | Business UI and delegated admin | — |
 
-**Step 1 — Model in PingDirectory.**
-Not "static versus dynamic" but by lifecycle, since each has its own write path,
-refresh strategy and cache policy:
+Step 1 data must be organised by lifecycle, not by "static vs dynamic":
 
 | Data | Written by | Frequency |
 |---|---|---|
-| Hierarchy (U / C / RG / A) | upstream system | rare, batch |
+| Hierarchy | source system | rare, batch |
 | Custom Lists | business | medium |
 | Roles → permissions | business | medium |
 | User assignments | partner manager | frequent |
 
-**Step 2 — Wire PingAuthorize and measure.**
-Not a binary choice between token and runtime attributes: the token carries the
-context, the PDP resolves the target. What the POC must produce is a latency
-number under realistic directory load.
-
-**Step 3 — Run the requirement scenarios end to end, with no UI.**
-Including at least one write-path scenario: what happens when an agreement moves
-to another Regroupment, or a Custom List is edited, and how long before the PDP
-decides on the new data. A POC that only validates steady state validates a system
-that does not exist in production.
-
-**Step 4 — Then PingIDM**, knowing exactly what it has to manage.
-
 ---
 
-## 5. Questions for the workshop
+## 5. Open questions for the follow-up
 
 1. Does one Agreement Number correspond to exactly one vendor?
-2. When a partner manager assigns a role, what is it attached to — a contract, a
-   point of sale, or an organisational node?
-3. How is scope-per-dimension (operational versus reporting) modelled in the
-   Trust Framework?
-4. How are Custom Lists expected to be created and maintained?
-5. Is the four-level depth stable, or should the model accommodate a fifth?
-6. What is the p99 latency of a decision with three resolved attribute providers,
-   and what is the behaviour in degraded mode?
+2. Where is the decision enforced at runtime — centrally, or per application?
+3. How does IDM materialise a role carrying negative exclusions per node, without combinatorial explosion?
+4. How are multiple hierarchies and variable depth handled in a single user's scope?
+5. How are Custom Lists created and maintained?
+6. What propagation delay is acceptable between a revoked right and its effect?
+7. Does IDM support the remote IdP use case (raised by David N., still open)?
+ 
