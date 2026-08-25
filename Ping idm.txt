@@ -1,1 +1,32 @@
 
+graph TB
+    subgraph runtime["RUNTIME — decision path"]
+        SPA["SPA<br/>partner user"]
+        BE["Backend API<br/>PEP"]
+        AZ["PingAuthorize<br/>PDP"]
+    end
+
+    subgraph admin["ADMINISTRATION — step 2"]
+        UI["Admin UI<br/>partner manager"]
+        IDM["PingIDM<br/>roles, assignments, workflow"]
+    end
+
+    PF["PingFederate<br/>context in token"]
+    PD[("PingDirectory<br/>hierarchy · scopes · roles")]
+
+    SPA -->|"1 · login, pick context"| PF
+    PF -->|"2 · token: sub + context 9300001"| SPA
+    SPA -->|"3 · call + token"| BE
+    BE -->|"4 · sub, context, action, target"| AZ
+    AZ -->|"5 · read ancestors, scopes, roles"| PD
+    AZ -->|"6 · PERMIT / DENY"| BE
+    BE -->|"7 · response"| SPA
+
+    UI --> IDM
+    IDM -->|"provision"| PD
+    PF -.->|"read identity"| PD
+
+    style AZ fill:#3F9A8C,color:#fff
+    style PD fill:#1B3A6B,color:#fff
+    style IDM fill:#8C9AA8,color:#fff
+    style admin opacity:0.55
