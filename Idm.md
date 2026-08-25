@@ -1,3 +1,28 @@
+Hi Miyuki,
+
+Thank you for the detailed minutes. Two remarks from my side, for the follow-up.
+
+1. I agree with the conclusion on the product choice. For this specific need, PingIDM covers both the administration and the resolution of rights: the organisation hierarchy is modelled as managed objects, and entitlements are propagated down the graph. This means the business application performs a lookup of already-resolved entitlements rather than a runtime decision, which makes a central policy engine unnecessary here. I would only note that this holds as long as the propagation is reliable and its delay is explicitly accepted — when a partner manager revokes a right, it takes effect once propagation has run, not immediately. We should agree on an acceptable delay during the PoC rather than discover it later.
+
+2. A few points appear in Tim's slides but not in the minutes, and they affect the data model we are asked to deliver. Could we cover them at the follow-up?
+   - Roles carrying negative exclusions per node ("vendors below Roller2 and vendor 2541202 don't grant download stock list within that role") — how does IDM materialise this without multiplying role variants?
+   - A user's scope spanning separate hierarchies (vendor 3000030 in the POCO tree)
+   - Variable depth — "not all partners have all levels configured"
+   - Rights granted per vendor and per application ("2480004 as BusinessApp:Salesman", "2700010 as BusinessApp:Viewer")
+   - Custom Lists, whose members sit under different regroupments — how are they created and maintained?
+   - Cross-shop user visibility, where an employee created by one shop manager later works for a shop managed by another
+
+One last question that blocks the model: does one Agreement Number correspond to exactly one vendor, or can a vendor hold several agreements? This determines the primary key of every managed object, and it is the kind of thing that surfaces long after go-live rather than during testing.
+
+Happy to bring the data model draft to the follow-up.
+
+Best regards,
+Max
+
+
+
+
+
 # Partner Authorization — Approach and Sequencing
 
 *Reference note ahead of the PING AuthZ workshop*
