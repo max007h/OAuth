@@ -1,3 +1,25 @@
+
+What IDM covers natively
+  1. Convert union/chain/regroupment/vendor to a relationship graph
+  2. Role + assignment: a role attached to a node (managed
+     organization) is inherited by its members and by child nodes
+  3. Propagation on update — materialisation at write time,
+     entitlements written to PingDirectory
+  4. Delegated administration and privileges for partner managers
+  5. REST endpoints for a custom business UI
+
+Not covered — to be confirmed with Ping
+  6. Role scoped to a node — the propagated entitlement is a flat
+     set of actions; the originating node does not travel with it.
+     Salesman on 2480004 + Viewer on 2700010 yields the union.
+  7. Negative exclusion per node, without multiplying role variants
+  8. Runtime decision (REQ-5) — which component answers
+     "can this user do this action on this target"
+     
+
+
+
+
 - The Excel file shared before the workshop contains sample PoC data
   for one partner: 1 Union, 2 Chains, 7 Regroupments, 21 Agreements
 - Not representative of production volumes — to be confirmed
