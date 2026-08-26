@@ -1,3 +1,32 @@
+User 3  ==> Salesman  sur  2480004
+User 3  ===>  Viewer    sur  2700010
+The pairing is explicit here: Salesman on 2480004, Viewer on 2700010.
+After propagation — two possible outcomes
+Case 1 — the node did not travel
+
+dn: uid=user3,...
+cfEntitlement: contract.read
+cfEntitlement: contract.update
+cfEntitlement: stock.read
+cfEntitlement: report.read
+
+
+The "on 2480004" information is gone. The application reads contract.update and cannot tell that it only holds on 2480004. It will allow contract.update on 2700010, where User 3 is only a Viewer.
+
+Case 2 — the node travelled
+dn: uid=user3,...
+cfGrant: 2480004:contract.read
+cfGrant: 2480004:contract.update
+cfGrant: 2480004:stock.read
+cfGrant: 2700010:report.read
+
+
+The pairing survives. contract.update on 2700010 matches no entry → DENY. Correct.
+
+
+
+
+
 
 What IDM covers natively
   1. Convert union/chain/regroupment/vendor to a relationship graph
