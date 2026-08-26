@@ -1,3 +1,54 @@
+graph TD
+    N0["N0 · Union<br/>9300001 ROLLER"]
+    N1["N1 · Chain<br/>9100001 ROLLER GMBH &amp; CO. KG"]
+    N2["N2 · Chain<br/>9100002 ROLLER GMBH"]
+
+    N3["N3 · RG 9200001<br/>ROLLER 1"]
+    N4["N4 · RG 9200002<br/>ROLLER 2"]
+    N5["N5 · RG 9200003<br/>ROLLER 3"]
+    N6["N6 · RG 9200004<br/>ROLLER 4"]
+    N7["N7 · RG 9200005<br/>ROLLER 5"]
+    N8["N8 · RG 9200006<br/>ROLLER 6"]
+    N9["N9 · RG 9200007<br/>ROLLER 7"]
+
+    A1["2541202 H<br/>2283003 I"]
+    A2["2480004 J<br/>2602700 K<br/>2700001 L"]
+    A3["2700002 M · 2700003 N<br/>2700004 O · 2700005 P"]
+    A4["2700006 Q · 2700007 R<br/>2700008 S ⚠"]
+    A5["2700009 T · 2700010 U<br/>2700011 V · 2700012 AA<br/>2700013 AB · 2700014 AC"]
+    A6["2700015 AD<br/>2700016 AE"]
+    A7["2700017 AF"]
+
+    CL["CL_A · CustomList<br/>2700010 · 2700015 · 2700017"]
+
+    N0 --> N1 & N2
+    N1 --> N3 & N4 & N5 & N6
+    N2 --> N7 & N8 & N9
+    N3 --> A1
+    N4 --> A2
+    N5 --> A3
+    N6 --> A4
+    N7 --> A5
+    N8 --> A6
+    N9 --> A7
+
+    CL -.->|2700010| A5
+    CL -.->|2700015| A6
+    CL -.->|2700017| A7
+
+    style N0 fill:#1B3A6B,color:#fff
+    style N7 fill:#3F9A8C,color:#fff
+    style N8 fill:#3F9A8C,color:#fff
+    style CL fill:#7A3E9D,color:#fff
+
+
+
+
+
+
+
+
+
 User 3  ==> Salesman  sur  2480004
 User 3  ===>  Viewer    sur  2700010
 The pairing is explicit here: Salesman on 2480004, Viewer on 2700010.
