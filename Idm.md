@@ -1,3 +1,22 @@
+Hi Philip,
+Thanks — role specialization and how roles are provisioned is exactly what I need on Monday.
+Can we look at one simple case together? Take User 3, with two grants on the same tree:
+Code
+After provisioning runs, I would like to see the PingDirectory entry for User 3 — the real one, on screen.
+What I want to understand is simple: does the node travel with the permissions, or do only the permissions land in the entry?
+It matters because of what comes next. If the node is not there, how can the application know that contract.update holds on ROLLER 5 but not on ROLLER 6? And if we later remove one permission on ROLLER 6 only, how does the entry show where the removal applied?
+Same question for a CustomList, since its members sit under different regroupments.
+Happy to walk through it live if that is easier.
+
+
+
+
+
+
+
+
+
+
 graph TD
     N0["N0 · Union<br/>9300001 ROLLER"]
     N1["N1 · Chain<br/>9100001 ROLLER GMBH &amp; CO. KG"]
