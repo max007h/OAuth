@@ -1,3 +1,93 @@
+Le POC PUMA est bien celui-là — le Portail PUMA, celui où un MANAGER crée des utilisateurs COMMERCIAL dans PingDirectory.
+
+**Ce qu'il a déjà :**
+- Angular (4200/4300) + Spring Boot (8081)
+- Client OAuth2 `puma-portal` sur PingFederate, PKCE, sans PAR ni RAR
+- Création d'utilisateurs par **SCIM v2 REST**, affectation aux groupes par LDAP
+- Groupes MANAGER / COMMERCIAL, utilisateurs `thomas.martin` et `sophie.bernard`
+- Le guard qui n'autorise que les MANAGER
+
+C'est exactement ton mock d'administration, déjà écrit. Il crée des comptes et affecte des rôles par API — il ne lui manque que la dimension nœud.
+
+**Ce qu'il n'a pas : PingAuthorize.** Il est dans la stack Docker de `banking-spa` (7443, PAP 9443), pas dans PUMA.
+
+**Donc le montage :** pars de PUMA, ajoute le conteneur PingAuthorize et le PAP depuis le compose de `banking-spa`. Les deux partagent déjà PingFederate et PingDirectory.
+
+Ensuite :
+1. LDIF de la hiérarchie ROLLER + les attributs `partnerGrant`, `opScope`, `reportScope`
+2. Étendre le formulaire PUMA : au lieu de choisir COMMERCIAL/MANAGER, choisir un rôle **et** un nœud
+3. Trust Framework dans le PAP : Services LDAP + policies
+4. Un endpoint de test dans le Spring Boot qui appelle le PDP et renvoie PERMIT/DENY
+
+Deux pièges connus de tes notes : le client PingFederate disparaît au restart Docker (pas de volume), et la licence PingDirectory expirait vers le 1er juillet 2026 — à vérifier avant de démarrer.
+
+
+
+
+
+
+
+
+
+`g` = un **grant**, c'est-à-dire une affectation donnée à l'utilisateur. Un grant est un couple :
+
+```
+g = (node, role)
+```
+
+`g.node` est donc **le nœud sur lequel ce rôle a été accordé** — le périmètre de l'affectation.
+
+```
+User 3 :
+  g1 = (9200005, Salesman)   → g1.node = 9200005
+  g2 = (9200006, Viewer)     → g2.node = 9200006
+```
+
+La règle teste `g.node ∈ Parents(t)`. Autrement dit : le nœud où j'ai reçu ce rôle est-il un ancêtre de la cible, ou la cible elle-même ?
+
+```
+Action : contract.update sur 2700014
+Parents(2700014) = { 2700014, 9200005, 9100002, 9300001 }
+
+g1.node = 9200005  → présent    → le rôle Salesman s'applique ici
+g2.node = 9200006  → absent     → le rôle Viewer ne s'applique pas
+```
+
+C'est ce couple `g.node` / `Parents(t)` qui fait toute la mécanique : `g.node` vient de l'utilisateur, `Parents(t)` vient de la cible, et la décision est leur intersection.
+
+Et c'est exactement le `g.node` dont tu demandes s'il survit à la propagation vers PingDirectory. Si seules les permissions sont écrites sans lui, la règle ne peut plus être évaluée.
+
+
+
+Technically yes — PUMA already does most of it: create a user, assign a role, write to PingDirectory via SCIM and LDAP. Adding the node dimension is one more field in the form and one more attribute on the write.
+
+And there is an argument few people see: **if the PDP is centralised, delegation comes for free.** PUMA calls the same PDP before writing — "can this manager assign this role on this node?". Same rule, same engine. With IDM, delegation is a separate mechanism you configure on its own.
+
+What you take on in production:
+
+- **synchronisation with the PRM** — the hierarchy comes from an upstream system: import it, detect drift, handle deletions. That is the real work, and it is what IDM does best
+- **lifecycle** — leavers, moves, deactivation, orphaned accounts
+- **referential integrity** — a grant on a deleted node, a role that no longer exists
+- **audit trail of administrative changes**
+- **code ownership** — who maintains it in three years, who applies the fixes
+
+None of these is infeasible. Together they are a product to carry over time, not a portal.
+
+My view: it is a legitimate build-vs-buy call, but it is not the fight to pick now. Consors is already building Mobility on IDM, and the August 13 decision is settled. You gain more by leaving administration to IDM and using PUMA as the mock in your POC — it isolates the one question still open, which is where the decision lives.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Hi Philip,
 Thanks — role specialization and how roles are provisioned is exactly what I need on Monday.
 Can we look at one simple case together? Take User 3, with two grants on the same tree:
