@@ -50,20 +50,30 @@ public class UserProvisioningService {
     // =========================================================================
 
     /**
+     * Resultat du provisioning.
+     *
+     * created distingue la creation de la completion : le message rendu a l'ecran n'est
+     * pas le meme, et c'est le cas cross-shop qui rend la distinction utile.
+     * resetUrl vaut null si PingFederate n'a pas repondu : l'utilisateur est cree
+     * quand meme, avec ses grants.
+     */
+    public record ProvisioningResult(boolean created, String resetUrl) { }
+
+    /**
      * UPSERT et non creation stricte : le cas cross-shop veut qu'un employe cree par un
      * manager travaille ensuite pour un shop gere par un autre. Si l'entree existe, on
      * ajoute les nouvelles affectations au lieu de renvoyer une erreur.
-     *
-     * @return le lien d'initialisation de mot de passe, ou null si sa generation a echoue
      */
-    public String createUser(CreateUserRequest req, String managerUid, String bearerToken)
-            throws Exception {
+    public ProvisioningResult createOrUpdate(CreateUserRequest req, String managerUid,
+                                             String bearerToken) throws Exception {
 
         validate(req);
         checkDelegation(req, managerUid, bearerToken);
 
+        boolean created = false;
         if (!exists(req.uid())) {
             createViaLdap(req);
+            created = true;
         }
 
         // COARSE : le groupe alimente isMemberOf, donc l'acces au portail.
@@ -82,15 +92,15 @@ public class UserProvisioningService {
 
         // L'echec du lien ne doit pas faire echouer la creation : l'entree et les grants
         // sont deja ecrits.
+        String resetUrl = null;
         try {
-            String resetUrl = pingFederateService.generatePasswordResetLink(req.uid());
+            resetUrl = pingFederateService.generatePasswordResetLink(req.uid());
             System.out.println("Password reset URL for " + req.uid() + " : " + resetUrl);
-            return resetUrl;
         } catch (Exception e) {
             System.out.println("Could not generate reset link for " + req.uid()
                     + " ::: " + e.getMessage());
-            return null;
         }
+        return new ProvisioningResult(created, resetUrl);
     }
 
     // =========================================================================
@@ -311,196 +321,3 @@ public class UserProvisioningService {
         }
     }
 }
-
-
-package com.poc.banking.dto;
-
-import java.util.List;
-
-/**
- * Remplace la version a champ "role" unique.
- *
- * portalRole reprend l'ancien "role" COMMERCIAL / MANAGER : il ne disparait pas, il
- * alimente l'appartenance au groupe LDAP, donc isMemberOf, donc le controle COARSE
- * d'acces au portail.
- *
- * assignments et scopes portent le FINE-GRAINED : ce que l'utilisateur peut faire, et
- * sur quels noeuds. Les deux dimensions coexistent : supprimer portalRole creerait des
- * utilisateurs sans aucun acces.
- */
-public record CreateUserRequest(
-        String uid,
-        String firstName,
-        String lastName,
-        String email,
-        String portalRole,
-        List<AssignmentDto> assignments,
-        ScopesDto scopes
-) {
-    /** Un utilisateur partenaire n'administre pas le portail par defaut. */
-    public String portalRoleOrDefault() {
-        return (portalRole == null || portalRole.isBlank()) ? "COMMERCIAL" : portalRole;
-    }
-}
-
-
-package com.poc.banking.service;
-
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
-
-import javax.naming.Context;
-import javax.naming.NamingEnumeration;
-import javax.naming.NamingException;
-import javax.naming.directory.Attribute;
-import javax.naming.directory.Attributes;
-import javax.naming.directory.DirContext;
-import javax.naming.directory.InitialDirContext;
-import java.util.ArrayList;
-import java.util.Hashtable;
-import java.util.List;
-
-/**
- * LECTURE SEULE des attributs d'autorisation dans PingDirectory.
- *
- * Decoupe volontaire :
- *   - GrantDirectoryClient   : lecture, chemin d'AUTORISATION (DelegationService)
- *   - UserProvisioningService: ecriture, chemin de PROVISIONING
- *
- * C'est la meme decoupe que les deux comptes de service de 04-comptes-service.ldif :
- * cn=paz-service en lecture seule, cn=puma-service en ecriture. Le jour ou tu passes
- * a ces comptes, cette classe est la seule a changer de credentials.
- *
- * Aucune methode d'ecriture ici. En ajouter une recreerait le doublon de connexion LDAP
- * qui a masque le probleme de bind DN.
- */
-@Component
-public class GrantDirectoryClient {
-
-    public static final String ATTR_GRANT       = "partnerGrant";
-    public static final String ATTR_OP_SCOPE    = "opScope";
-    public static final String ATTR_OP_EXCLUDE  = "opScopeExclude";
-    public static final String ATTR_REPORT      = "reportScope";
-    public static final String ATTR_IS_MEMBER_OF = "isMemberOf";
-
-    @Value("${pingdirectory.host}")
-    private String host;
-
-    @Value("${pingdirectory.ldap-port}")
-    private int ldapPort;
-
-    @Value("${pingdirectory.base-dn}")
-    private String baseDn;
-
-    /**
-     * ATTENTION : "cn=administrator" NU, sans dc=example,dc=com.
-     * Le root DN de PingDirectory vit dans cn=Root DNs,cn=config, pas sous le suffixe.
-     * Avec le DN complet, le bind rend LDAP error 49, invalid credentials, et le
-     * symptome visible est un sous-arbre vide dans l'ecran de creation, sans message.
-     */
-    @Value("${pingdirectory.admin-dn}")
-    private String adminDn;
-
-    @Value("${pingdirectory.admin-password}")
-    private String adminPwd;
-
-    // =========================================================================
-    //  Lectures
-    // =========================================================================
-
-    /** Valeurs d'un attribut multivalue. Entree ou attribut absent : liste vide. */
-    public List<String> readValues(String uid, String attribute) {
-        List<String> values = new ArrayList<>();
-        DirContext ctx = null;
-        try {
-            ctx = connect();
-            Attributes attrs = ctx.getAttributes(userDn(uid), new String[]{attribute});
-            Attribute attr = attrs.get(attribute);
-            if (attr != null) {
-                NamingEnumeration<?> all = attr.getAll();
-                while (all.hasMore()) {
-                    values.add(String.valueOf(all.next()));
-                }
-            }
-        } catch (NamingException e) {
-            // Volontairement silencieux : un utilisateur sans grant n'est pas une erreur.
-        } finally {
-            closeQuietly(ctx);
-        }
-        return values;
-    }
-
-    /**
-     * Les noeuds sur lesquels ce sujet detient un grant, extraits de "application|noeud|role".
-     * C'est le point d'entree de tout le controle de delegation : ces noeuds bornent le
-     * sous-arbre que le manager peut voir et sur lequel il peut affecter.
-     */
-    public List<String> readGrantedNodes(String uid) {
-        List<String> nodes = new ArrayList<>();
-        for (String grant : readValues(uid, ATTR_GRANT)) {
-            String[] parts = grant.split("\\|");
-            if (parts.length == 3) {
-                nodes.add(parts[1]);
-            }
-        }
-        return nodes;
-    }
-
-    /** Grants bruts, format IDM. Utile pour le diagnostic et pour l'API runtime. */
-    public List<String> readGrants(String uid) {
-        return readValues(uid, ATTR_GRANT);
-    }
-
-    public boolean exists(String uid) {
-        DirContext ctx = null;
-        try {
-            ctx = connect();
-            ctx.getAttributes(userDn(uid), new String[]{"uid"});
-            return true;
-        } catch (NamingException e) {
-            return false;
-        } finally {
-            closeQuietly(ctx);
-        }
-    }
-
-    /** isMemberOf est l'equivalent PingDirectory de memberOf, calcule par le serveur. */
-    public boolean isMemberOfGroup(String uid, String group) {
-        return readValues(uid, ATTR_IS_MEMBER_OF).stream()
-                .anyMatch(dn -> dn.startsWith("cn=" + group + ","));
-    }
-
-    // =========================================================================
-    //  Helpers
-    // =========================================================================
-
-    private String userDn(String uid) {
-        return "uid=" + uid + "," + baseDn;
-    }
-
-    private DirContext connect() throws NamingException {
-        Hashtable<String, String> env = new Hashtable<>();
-        env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
-        env.put(Context.PROVIDER_URL, "ldap://" + host + ":" + ldapPort);
-        env.put(Context.SECURITY_AUTHENTICATION, "simple");
-        env.put(Context.SECURITY_PRINCIPAL, adminDn);
-        env.put(Context.SECURITY_CREDENTIALS, adminPwd);
-        return new InitialDirContext(env);
-    }
-
-    private void closeQuietly(DirContext ctx) {
-        if (ctx != null) {
-            try {
-                ctx.close();
-            } catch (NamingException ignored) {
-                // rien a faire
-            }
-        }
-    }
-}
-
-
-
-
-
-
