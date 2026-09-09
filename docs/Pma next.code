@@ -1,3 +1,18 @@
+curl -X POST http://localhost:8081/api/users \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"uid":"test.user","firstName":"Test","lastName":"User",
+       "email":"test.user@example.com","portalRole":"COMMERCIAL",
+       "assignments":[{"application":"BusinessApp1","node":"2700010","role":"R1"}],
+       "scopes":{"opScope":["2700010"],"opScopeExclude":[],"reportScope":[]}}'
+
+
+
+
+
+
+
+
 package com.poc.banking.config;
 
 import jakarta.annotation.PostConstruct;
