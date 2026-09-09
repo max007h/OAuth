@@ -1,81 +1,110 @@
 # PUMA — modele, code et installation
 
-Un seul fichier : les diagrammes Mermaid, puis le code source complet de chaque couche.
-Mermaid ne sait representer que des diagrammes, donc le code est en blocs de code dans le
-meme document. Si ton visualiseur refuse l'extension `.mmd`, renomme en `.md`.
+Un seul document : les diagrammes Mermaid, puis le code source complet de chaque couche.
+Mermaid ne porte que des diagrammes, le code est donc en blocs de code dans le meme
+fichier. Extension `.md` : en `.mmd`, le visualiseur tente de parser les 90 Ko comme une
+seule source Mermaid et rend "Maximum text size in diagram exceeded".
 
-Base : POC existant `com.poc.banking` (Spring Boot 8081) et `banking-app` (Angular 4200).
+Base : POC `com.poc.banking` (Spring Boot 8081) et `banking-app` (Angular 4200).
 Sources metier : `Vendor_Hierarchy_UCR.xlsx`, `Retail Media Markt-Structure`,
 `Mobility Eder-User-Permissions-Structure-V2`, `Partner Hierarchy - Mobility - Auto Eder.pdf`,
-deck "IDM Basics - BNP/Consors" (Tim Vogt), messages de Philip Haussmann du 07/09.
+deck "IDM Basics - BNP/Consors" (Tim Vogt), requirements d'Ujjwal Kumar du 30/07,
+messages de Philip Haussmann du 07/09.
 
 ---
 
 ## 0. PostgreSQL local, sans conteneur
 
-L'instance est celle deja installee sur le Mac. Rien a lancer en Docker.
+L'instance est celle deja installee sur le Mac.
 
 ```bash
-# verifier que le serveur tourne
 pg_isready -h localhost -p 5432
 
 # Homebrew : le superuser par defaut est ton compte macOS, pas "postgres".
-# Creer le role attendu par application.yml s'il n'existe pas :
 psql -d postgres -c "CREATE ROLE postgres LOGIN SUPERUSER PASSWORD 'postgres';"
-
-# base de travail : la base "postgres" par defaut
-psql -U postgres -d postgres -c "select current_database(), current_user;"
 ```
 
-`pom.xml` : retirer H2, ajouter le driver.
+Sans `psql`, faire la meme chose dans le Query Tool de pgAdmin :
 
-```xml
-<dependency>
-    <groupId>org.postgresql</groupId>
-    <artifactId>postgresql</artifactId>
-    <scope>runtime</scope>
-</dependency>
+```sql
+SELECT rolname FROM pg_roles WHERE rolname = 'postgres';
+CREATE ROLE postgres LOGIN SUPERUSER PASSWORD 'postgres';
 ```
 
-Frontend : `npm install @angular/material @angular/cdk` pour `mat-tree`.
+Hibernate cree les tables (`ddl-auto: update`), `data.sql` charge la hierarchie.
+`defer-datasource-initialization: true` est obligatoire, sinon `data.sql` s'execute avant
+la creation des tables.
 
-Verification apres le premier demarrage :
+`pom.xml` : retirer H2, ajouter `org.postgresql:postgresql` en scope runtime.
+Frontend : `npm install @angular/material @angular/cdk`.
 
-```bash
-psql -U postgres -d postgres -c \
-  "select level, count(*) from node group by level order by level;"
+Verification apres demarrage :
 
-psql -U postgres -d postgres -c \
-  "select node_id, count(*) from node_parent group by node_id having count(*) > 1;"
+```sql
+SELECT level, count(*) FROM node GROUP BY level ORDER BY level;
+SELECT node_id, count(*) FROM node_parent GROUP BY node_id HAVING count(*) > 1;
 ```
 
-La seconde requete doit rendre exactement une ligne, `9200004` (ROLLER 4 sous deux chains).
-Toute autre ligne est a remonter avant l'atelier. Cote application, meme information via
-`GET /api/hierarchy/anomalies`.
+La seconde doit rendre exactement une ligne, `9200004` : ROLLER 4 sous deux chains.
+Meme information par l'API, `GET /api/hierarchy/anomalies`.
 
 ---
 
 ## 1. Contraintes tirees des donnees reelles
 
-- un noeud peut avoir **plusieurs parents** : 9200004 ROLLER 4 est sous 9100001 et 9100002
+- un noeud peut avoir **plusieurs parents** : 9200004 est sous 9100001 et 9100002
 - les niveaux peuvent etre **sautes** : chez Auto Eder `ChaineNr = 0` et `RegroupNr = 0`,
   les vendors pendent directement a l'union
-- **plusieurs unions** (9300773, 9305178, 9305574, 9305616, 9305707) : une foret, pas un arbre
-- la **Custom List** n'est pas un niveau : ensemble arbitraire de vendors qui traverse la
-  hierarchie, seul moyen de regrouper les 6 vendorids d'Auto Eder
+- **plusieurs unions** : une foret, pas un arbre
+- la **Custom List** n'est pas un niveau : ensemble arbitraire de vendors, seul moyen de
+  regrouper les 6 vendorids d'Auto Eder qui n'ont pas d'ancetre commun
 - la specialisation de role est **soustractive** : "when we specialize roles, we only
   remove entitlements"
-- les roles sont **specialises par organisation** et il n'y a pas d'heritage descendant,
-  donc la liste des roles depend du noeud, pas seulement de l'application
-- trois perimetres distincts : `opScope`, `opScopeExclude`, `reportScope`
-
-Ce que le token doit porter : `sub`, absent du token actuel et indispensable pour lire les
-grants du manager. Plus tard `aud`, quand il y aura un client OAuth par application.
-Ce qu'il ne doit pas porter : ni noeuds, ni grants, ni scopes.
+- les roles sont **specialises par organisation**, sans heritage descendant : la liste des
+  roles depend du noeud, pas seulement de l'application
+- trois perimetres : `opScope`, `opScopeExclude`, `reportScope`
 
 ---
 
-## 2. Modele de donnees
+## 2. Les deux niveaux de controle
+
+C'est la distinction qui structure tout le reste.
+
+| | Coarse-grained | Fine-grained |
+|---|---|---|
+| Question | as-tu le droit d'ouvrir PUMA, et quelle application | as-tu le droit d'affecter **sur ce noeud** |
+| Modele | RBAC | ReBAC sur la hierarchie |
+| Porte par | le token : `isMemberOf`, plus tard `aud`, `scope` | rien dans le token |
+| Evalue par | Spring Security, en lecture de claim | PingAuthorize (`puma.authz.mode: pdp`) |
+| Cout | nul | un appel PDP par soumission |
+
+Aucun scope OAuth ni aucune audience ne sait exprimer "sur ce noeud precis" : c'est
+pourquoi le nœud ne va jamais dans le token et pourquoi la decision se prend a la lecture.
+
+Ce qui doit etre ajoute au token : `sub`, absent du token actuel et indispensable, puisque
+c'est la cle de lecture des grants du manager. Plus tard `aud`, quand il y aura un client
+OAuth par application. Ce qu'il ne doit jamais porter : ni noeuds, ni grants, ni scopes
+metier.
+
+Aucun plugin PingFederate n'intervient ici. Le `ParValidationAdapter` est un IdP Adapter
+qui valide les parametres PAR avant l'ecran de login : autre sujet, autre moment.
+
+---
+
+## 3. Ordre du formulaire : application, puis noeud, puis role
+
+- **application d'abord** parce que c'est ainsi que le manager raisonne, et parce qu'elle
+  permet d'elaguer l'arbre aux seuls noeuds qui l'exposent
+- **noeud ensuite**, dans le sous-arbre du manager croise avec les noeuds portant
+  l'application
+- **role en dernier**, parce qu'il depend du couple application + noeud
+
+L'ordre application -> role -> noeud est impossible : sans le noeud, la liste des roles
+n'existe pas.
+
+---
+
+## 4. Modele de donnees
 
 ```mermaid
 classDiagram
@@ -147,114 +176,167 @@ classDiagram
     Role "0..1" --> "1" Node : portee de specialisation
 ```
 
-Aucun grant, aucun scope dans ce modele : ils vivent dans PingDirectory. La base locale ne
-porte que la hierarchie, qui est un fait externe bouchonne, plus le referentiel
+Aucun grant, aucun scope, aucun utilisateur ici : ils vivent dans PingDirectory. La base
+locale ne porte que la hierarchie, fait externe bouchonne, plus le referentiel
 applications / roles / permissions.
 
 ---
 
-## 3. Couches applicatives
+## 5. Couches applicatives
 
 ```mermaid
 classDiagram
     class HierarchyService {
         <<interface>>
-        +getParents(nodeId) Set~String~
-        +getSubtree(rootIds) List~NodeDto~
-        +getDescendants(nodeId) Set~String~
-        +getAnomalies() List~String~
+        +getParents(nodeId)
+        +getSubtree(rootIds)
+        +getSubtreeForApplication(rootIds, appId)
+        +getDescendants(nodeId)
+        +getAnomalies()
     }
     class JpaHierarchyService
     class RemoteHierarchyService {
         <<futur>>
     }
-    class RoleResolutionService {
-        +effectivePermissions(roleId)
-        +specialisationChain(roleId)
-        +removedPermissions(roleId)
+    class AuthorizationDecisionService {
+        <<interface>>
+        +canAssign(managerUid, nodeIds, token)
+    }
+    class PingAuthorizeDecisionService {
+        <<mode pdp>>
+    }
+    class LocalDecisionService {
+        <<mode local>>
     }
     class DelegationService {
         +managerRootNodes(uid)
-        +assignableNodes(uid)
-        +assignableSubtree(uid)
-        +canAssign(uid, nodeId)
+        +assignableSubtree(uid, appId)
+        +visibleNodes(uid)
+        +canAssign(...)
     }
-    class GrantDirectoryClient {
-        +exists(uid)
-        +readValues(uid, attr)
-        +readGrantedNodes(uid)
-        +addValues(uid, attr, values)
-        +createEntry(uid, ...)
-    }
-    class UserProvisioningService {
-        +createOrUpdate(managerUid, request)
-    }
-    class RoleDefinitionService {
-        +definition(uid, contextNode, applicationId)
+    class GrantDirectoryClient
+    class UserProvisioningService
+    class RoleResolutionService
+    class RoleDefinitionService
+    class JwtSubject {
+        +uid(token)
+        +isManager(token)
     }
     class UserController
     class HierarchyController
     class ApplicationController
     class RoleController
     class RoleDefinitionController
-    class JwtSubject {
-        +uid(token)
-        +isManager(token)
-    }
 
     HierarchyService <|.. JpaHierarchyService
     HierarchyService <|.. RemoteHierarchyService
+    AuthorizationDecisionService <|.. PingAuthorizeDecisionService
+    AuthorizationDecisionService <|.. LocalDecisionService
+    PingAuthorizeDecisionService --> HierarchyService : Parents(cible)
+    LocalDecisionService --> HierarchyService
+    LocalDecisionService --> GrantDirectoryClient
+    DelegationService --> AuthorizationDecisionService
     DelegationService --> HierarchyService
     DelegationService --> GrantDirectoryClient
-    UserProvisioningService --> GrantDirectoryClient
     UserProvisioningService --> DelegationService
-    RoleDefinitionService --> GrantDirectoryClient
-    RoleDefinitionService --> HierarchyService
-    RoleDefinitionService --> RoleResolutionService
+    UserProvisioningService --> GrantDirectoryClient
     UserController --> UserProvisioningService
     UserController --> JwtSubject
     HierarchyController --> DelegationService
+    ApplicationController --> DelegationService
     RoleController --> RoleResolutionService
     RoleDefinitionController --> RoleDefinitionService
 ```
 
 ---
 
-## 4. Sequence de creation
+## 6. Sequence de creation, avec les deux niveaux de controle
 
 ```mermaid
 sequenceDiagram
-    participant M as Manager (Angular)
-    participant B as Backend PUMA
-    participant P as PostgreSQL local
-    participant D as PingDirectory
+    autonumber
+    participant M as Manager (Angular 4200)
+    participant B as PUMA backend 8081 (PEP)
+    participant P as PostgreSQL (hierarchie)
+    participant Z as PingAuthorize 7443 (PDP)
+    participant D as PingDirectory 1389
 
-    M->>B: GET /api/hierarchy/subtree
-    B->>D: lire partnerGrant du manager (cle = sub du token)
-    B->>P: getSubtree(noeuds du manager)
-    P-->>B: sous-arbre, ROLLER 4 duplique
-    B-->>M: NodeDto[]
-    M->>B: GET /api/applications?node=9200005
-    M->>B: GET /api/roles?application=BusinessApp1&node=9200005
-    M->>B: POST /api/users
-    B->>B: isMemberOf MANAGER sinon 403
-    B->>B: canAssign(manager, chaque noeud et chaque scope) sinon 403
-    B->>D: creer ou completer l'entree, ecrire partnerGrant + scopes
-    B-->>M: 200 + lien d'initialisation de mot de passe
+    Note over M: TOKEN recu de PingFederate, client puma-portal<br/>alg RS256, kid puma-signin<br/>sub : thomas.martin  = CLE de tout le flux<br/>isMemberOf : [cn=MANAGER,ou=groups,dc=example,dc=com]<br/>scope : openid, client_id : puma-portal<br/>aud : ABSENT, a ajouter avec un client par application<br/>PAS de noeud, PAS de grant, PAS de scope metier
+
+    Note over M,D: ETAPE 1 - catalogue applicatif du manager
+
+    M->>B: GET /api/applications<br/>Authorization: Bearer eyJhbGci...
+    B->>B: COARSE : isMemberOf contient MANAGER ? sinon 403
+    B->>B: uid = token.sub = thomas.martin
+    B->>D: ldapsearch uid=thomas.martin, attribut partnerGrant
+    D-->>B: partnerGrant: BusinessApp1 / 9200005 / Salesman<br/>partnerGrant: BusinessApp1 / 9200002 / ShopAdmin<br/>partnerGrant: BusinessApp2 / 9200005 / Viewer
+    B->>B: noeuds du manager = {9200005, 9200002}
+    B->>P: descendants(9200005), descendants(9200002)<br/>puis node_application sur ces noeuds
+    P-->>B: 9 noeuds visibles, applications BusinessApp1 et BusinessApp2
+    B-->>M: 200 [{id BusinessApp1, name Contract Management},<br/>{id BusinessApp2, name Reporting Portal}]
+
+    Note over M,D: ETAPE 2 - arbre elague a l application choisie
+
+    M->>B: GET /api/hierarchy/subtree?application=BusinessApp1
+    B->>P: sous-arbre des racines {9200005, 9200002}<br/>elague aux noeuds portant BusinessApp1
+    P-->>B: 9200005 ROLLER 5 avec 2700009 a 2700014<br/>9200002 ROLLER 2 avec 2480004, 2602700, 2700001
+    B-->>M: 200 NodeDto[] avec level et duplicated<br/>duplicated=true sur 9200004 s il est dans le perimetre
+
+    Note over M,D: ETAPE 3 - roles du couple application + noeud
+
+    M->>B: GET /api/roles?application=BusinessApp1&node=2700010
+    B->>P: roles globaux de BusinessApp1<br/>+ roles specialises sur 2700010
+    P-->>B: R1 Manage Contract, R3 Stock,<br/>R1-2700010 specialise avec stock.download retire
+    B-->>M: 200 RoleDto[] avec effectivePermissions<br/>et removedPermissions
+
+    Note over M,D: ETAPE 4 - soumission et decision FINE-GRAINED
+
+    M->>B: POST /api/users<br/>uid jean.dupont<br/>assignments [BusinessApp1, 2700010, R1]<br/>scopes opScope [2700010], opScopeExclude [2700012]
+    B->>B: COARSE : isMemberOf MANAGER sinon 403
+    B->>P: Parents(2700010), Parents(2700012)
+    P-->>B: 2700010 donne {2700010, 9200005, 9100002, 9300001, CL_A}<br/>2700012 donne {2700012, 9200005, 9100002, 9300001}
+    B->>Z: POST /governance-engine/batch<br/>Authorization: Bearer = token du manager relaye<br/>requests[0] = domain PUMA, action assign,<br/>targetNode 2700010, targetNodeParents [...]
+
+    Note over B,Z: PUMA n envoie PAS les grants du manager :<br/>un demandeur ne declare pas ses propres droits
+
+    Z->>D: TokenOwner, resolu depuis le sub, puis partnerGrant
+    D-->>Z: BusinessApp1 / 9200005 / Salesman, et les autres
+    Z->>Z: nodes(grants) = {9200005, 9200002}<br/>intersection avec Parents(2700010) = {9200005}, non vide<br/>et 2700010 n est pas lui-meme un noeud du manager
+    Z-->>B: 200 responses[0] decision PERMIT<br/>responses[1] decision PERMIT
+    B->>B: un seul DENY donne 403<br/>PDP injoignable donne 503, jamais d ouverture
+
+    Note over M,D: ETAPE 5 - ecriture, upsert et non creation stricte
+
+    B->>D: uid=jean.dupont existe ?
+    D-->>B: non
+    B->>D: add uid=jean.dupont,ou=people<br/>objectClass inetOrgPerson, cn, sn, mail
+    B->>D: modify add partnerGrant: BusinessApp1 / 2700010 / R1<br/>opScope: 2700010<br/>opScopeExclude: 2700012
+    D-->>B: LDAP result 0, success
+    B-->>M: 200 message Utilisateur jean.dupont cree<br/>passwordResetUrl https://localhost:9031/ext/pwdreset
+
+    Note over M,D: Si jean.dupont existait deja, l etape 5 ajoute seulement les<br/>nouveaux partnerGrant : cas cross-shop, un employe travaillant<br/>pour un second shop gere par un autre manager
 ```
+
+Lecture du diagramme : les fleches pleines sont les appels, les fleches pointillees les
+reponses avec leur contenu reel. Le format `application / noeud / role` est celui de
+l'attribut `partnerGrant`, ou le separateur reel est un pipe, ecrit tel qu'IDM le produirait.
+
+Le point 4 est le seul endroit ou une decision d'autorisation metier est prise. Elle est
+externalisee : PUMA ne calcule rien, il fournit le contexte de la ressource et applique le
+verdict. En `puma.authz.mode: local`, la meme formule est evaluee en process, pour tourner
+sans PingAuthorize et mesurer l'ecart de latence.
 
 ---
 
-## 5. Ecrit dans PingDirectory
+## 7. Ecrit dans PingDirectory
 
-Attributs multivalues a declarer au schema sur les entrees de `ou=people` :
+Attributs multivalues a declarer au schema sur `ou=people` :
 
 ```
 uid: nouveau.vendeur
 partnerGrant: BusinessApp1|9200005|Salesman
 partnerGrant: BusinessApp2|2700010|Viewer
 opScope: 2700010
-opScope: 2700011
 opScopeExclude: 2700012
 reportScope: 9200005
 ```
@@ -264,9 +346,7 @@ privilege.
 
 ---
 
-# 6. Code source
-
-Arborescence a recopier telle quelle dans le projet.
+# 8. Code source
 
 Fichiers qui **remplacent** un existant : `dto/CreateUserRequest.java`,
 `controller/UserController.java`, `resources/application.yml`,
@@ -670,6 +750,12 @@ import java.util.List;
 
 public interface NodeApplicationRepository extends JpaRepository<NodeApplication, Long> {
     List<NodeApplication> findByNodeId(String nodeId);
+
+    /** Tous les noeuds sur lesquels cette application est exposee. */
+    List<NodeApplication> findByApplicationId(String applicationId);
+
+    /** Applications exposees quelque part dans un ensemble de noeuds. */
+    List<NodeApplication> findByNodeIdIn(java.util.Collection<String> nodeIds);
     boolean existsByNodeIdAndApplicationId(String nodeId, String applicationId);
     void deleteByNodeIdAndApplicationId(String nodeId, String applicationId);
 }
@@ -768,6 +854,37 @@ public interface RoleRepository extends JpaRepository<Role, String> {
 
 ## Services
 
+### `backend/src/main/java/com/poc/banking/service/AuthorizationDecisionService.java`
+
+```java
+package com.poc.banking.service;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * POINT DE DECISION FINE-GRAINED, isole derriere une interface.
+ *
+ * Deux implementations :
+ *  - PingAuthorizeDecisionService : decision externalisee vers le PDP (cible)
+ *  - LocalDecisionService         : calcul en process, shared library (repli)
+ *
+ * Le choix se fait par la propriete puma.authz.mode, sans toucher aux appelants.
+ * C'est le materiel de la question ouverte "ou vit l'enforcement".
+ */
+public interface AuthorizationDecisionService {
+
+    /**
+     * Le manager peut-il affecter sur ces noeuds ?
+     * Evaluation en lot : un manager qui saisit cinq affectations ne doit pas declencher
+     * cinq allers-retours au PDP.
+     *
+     * @return une decision par noeud, dans l'ordre des cles fournies
+     */
+    Map<String, Boolean> canAssign(String managerUid, List<String> nodeIds, String bearerToken);
+}
+```
+
 ### `backend/src/main/java/com/poc/banking/service/DelegationService.java`
 
 ```java
@@ -776,54 +893,75 @@ package com.poc.banking.service;
 import com.poc.banking.dto.NodeDto;
 import org.springframework.stereotype.Service;
 
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 /**
  * Delegation d'administration : un manager n'affecte que sous son propre noeud.
+ * C'est du ReBAC sur la hierarchie, pas du RBAC : aucun scope OAuth ni aucune audience
+ * ne sait exprimer "sur ce noeud precis".
  *
- * Les noeuds du manager sont lus dans PingDirectory a partir du "sub" du token, jamais
- * declares par l'appelant. C'est pour cela que le token doit porter "sub" : sans lui,
- * ce service ne peut rien resoudre.
- *
- * ALLOW_OWN_NODE : point encore ouvert cote metier. A false, un manager de ROLLER 5 ne
- * peut pas creer un pair sur ROLLER 5.
+ * Ce service ne DECIDE plus rien : il delegue a AuthorizationDecisionService, donc au PDP
+ * quand puma.authz.mode vaut "pdp". Il ne garde que la construction de l'arbre affichable,
+ * qui est du confort d'IHM et non une decision de securite.
  */
 @Service
 public class DelegationService {
 
-    private static final boolean ALLOW_OWN_NODE = false;
-
     private final HierarchyService hierarchy;
     private final GrantDirectoryClient directory;
+    private final AuthorizationDecisionService decisions;
 
-    public DelegationService(HierarchyService hierarchy, GrantDirectoryClient directory) {
+    public DelegationService(HierarchyService hierarchy,
+                             GrantDirectoryClient directory,
+                             AuthorizationDecisionService decisions) {
         this.hierarchy = hierarchy;
         this.directory = directory;
+        this.decisions = decisions;
     }
 
+    /** Racines du manager, lues dans l'annuaire a partir du "sub" du token. */
     public List<String> managerRootNodes(String managerUid) {
         return directory.readGrantedNodes(managerUid);
     }
 
-    public Set<String> assignableNodes(String managerUid) {
-        Set<String> assignable = new LinkedHashSet<>();
-        for (String root : managerRootNodes(managerUid)) {
-            if (ALLOW_OWN_NODE) {
-                assignable.add(root);
-            }
-            assignable.addAll(hierarchy.getDescendants(root));
-        }
-        return assignable;
-    }
-
+    /**
+     * Arbre affichable. Ce n'est PAS une decision : c'est ce qu'on montre a l'ecran.
+     * La decision est reprise noeud par noeud a la soumission, cote PDP.
+     */
     public List<NodeDto> assignableSubtree(String managerUid) {
         return hierarchy.getSubtree(managerRootNodes(managerUid));
     }
 
-    public boolean canAssign(String managerUid, String nodeId) {
-        return assignableNodes(managerUid).contains(nodeId);
+    /** Arbre elague a une application : double filtre delegation et exposition. */
+    public List<NodeDto> assignableSubtree(String managerUid, String applicationId) {
+        if (applicationId == null || applicationId.isBlank()) {
+            return assignableSubtree(managerUid);
+        }
+        return hierarchy.getSubtreeForApplication(managerRootNodes(managerUid), applicationId);
+    }
+
+    /** Decision en lot : un seul appel PDP pour toutes les affectations d'un formulaire. */
+    public Map<String, Boolean> canAssign(String managerUid, List<String> nodeIds,
+                                          String bearerToken) {
+        return decisions.canAssign(managerUid, nodeIds, bearerToken);
+    }
+
+    public boolean canAssign(String managerUid, String nodeId, String bearerToken) {
+        return Boolean.TRUE.equals(
+                decisions.canAssign(managerUid, List.of(nodeId), bearerToken).get(nodeId));
+    }
+
+    /**
+     * Noeuds ou une application peut etre exposee. Utilise pour construire le catalogue
+     * applicatif de l'ecran de creation, pas pour autoriser une ecriture.
+     */
+    public java.util.Set<String> visibleNodes(String managerUid) {
+        java.util.Set<String> visible = new java.util.LinkedHashSet<>();
+        for (String root : managerRootNodes(managerUid)) {
+            visible.addAll(hierarchy.getDescendants(root));
+        }
+        return visible;
     }
 }
 ```
@@ -1031,6 +1169,14 @@ public interface HierarchyService {
     /** Sous-arbre a partir des racines fournies, pour le mat-tree. */
     List<NodeDto> getSubtree(List<String> rootIds);
 
+    /**
+     * Sous-arbre elague : ne restent que les noeuds portant l'application, et les
+     * ancetres necessaires pour y acceder. Sans cet elagage, le manager voit des
+     * noeuds sur lesquels l'application n'est pas exposee et sur lesquels il ne peut
+     * donc rien affecter.
+     */
+    List<NodeDto> getSubtreeForApplication(List<String> rootIds, String applicationId);
+
     /** Descendants stricts, pour le controle de delegation. */
     Set<String> getDescendants(String nodeId);
 
@@ -1048,7 +1194,9 @@ import com.poc.banking.dto.NodeDto;
 import com.poc.banking.entity.CustomListMember;
 import com.poc.banking.entity.Node;
 import com.poc.banking.entity.NodeParent;
+import com.poc.banking.entity.NodeApplication;
 import com.poc.banking.repository.CustomListMemberRepository;
+import com.poc.banking.repository.NodeApplicationRepository;
 import com.poc.banking.repository.NodeParentRepository;
 import com.poc.banking.repository.NodeRepository;
 import org.springframework.stereotype.Service;
@@ -1061,13 +1209,16 @@ public class JpaHierarchyService implements HierarchyService {
     private final NodeRepository nodes;
     private final NodeParentRepository edges;
     private final CustomListMemberRepository lists;
+    private final NodeApplicationRepository nodeApplications;
 
     public JpaHierarchyService(NodeRepository nodes,
-                              NodeParentRepository edges,
-                              CustomListMemberRepository lists) {
+                               NodeParentRepository edges,
+                               CustomListMemberRepository lists,
+                               NodeApplicationRepository nodeApplications) {
         this.nodes = nodes;
         this.edges = edges;
         this.lists = lists;
+        this.nodeApplications = nodeApplications;
     }
 
     /**
@@ -1157,9 +1308,208 @@ public class JpaHierarchyService implements HierarchyService {
         return dto;
     }
 
+    /**
+     * Elagage par application. On garde un noeud s'il porte l'application ou s'il a un
+     * descendant qui la porte : sinon la branche menant a un noeud valide serait coupee.
+     */
+    @Override
+    public List<NodeDto> getSubtreeForApplication(List<String> rootIds, String applicationId) {
+        Set<String> carrying = new HashSet<>();
+        for (NodeApplication na : nodeApplications.findByApplicationId(applicationId)) {
+            carrying.add(na.getNodeId());
+        }
+
+        Set<String> keep = new HashSet<>();
+        for (String nodeId : carrying) {
+            keep.add(nodeId);
+            keep.addAll(getParents(nodeId));
+        }
+
+        return prune(getSubtree(rootIds), keep);
+    }
+
+    private List<NodeDto> prune(List<NodeDto> nodes, Set<String> keep) {
+        List<NodeDto> kept = new ArrayList<>();
+        for (NodeDto node : nodes) {
+            List<NodeDto> children = prune(node.getChildren(), keep);
+            if (keep.contains(node.getId()) || !children.isEmpty()) {
+                NodeDto copy = new NodeDto(node.getId(), node.getLabel(),
+                        node.getLevel(), node.isDuplicated());
+                copy.getChildren().addAll(children);
+                kept.add(copy);
+            }
+        }
+        return kept;
+    }
+
     @Override
     public List<String> getAnomalies() {
         return edges.findNodeIdsWithSeveralParents();
+    }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/service/LocalDecisionService.java`
+
+```java
+package com.poc.banking.service;
+
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Service;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Repli shared library : la regle est evaluee en process.
+ * Inconvenient assume : la regle existe en N exemplaires des qu'il y a N applications,
+ * il n'y a pas d'audit central et aucune decision contextuelle.
+ * Utile pour tourner sans PingAuthorize, pas comme cible.
+ */
+@Service
+@ConditionalOnProperty(name = "puma.authz.mode", havingValue = "local", matchIfMissing = true)
+public class LocalDecisionService implements AuthorizationDecisionService {
+
+    private final HierarchyService hierarchy;
+    private final GrantDirectoryClient directory;
+
+    public LocalDecisionService(HierarchyService hierarchy, GrantDirectoryClient directory) {
+        this.hierarchy = hierarchy;
+        this.directory = directory;
+    }
+
+    @Override
+    public Map<String, Boolean> canAssign(String managerUid, List<String> nodeIds,
+                                          String bearerToken) {
+        List<String> managerNodes = directory.readGrantedNodes(managerUid);
+
+        Map<String, Boolean> decisions = new LinkedHashMap<>();
+        for (String nodeId : nodeIds) {
+            // Meme formulation que la policy : un noeud du manager est-il ancetre de la
+            // cible ? On evite ainsi de calculer les descendants.
+            Set<String> parents = hierarchy.getParents(nodeId);
+            boolean permit = managerNodes.stream()
+                    .anyMatch(managerNode -> parents.contains(managerNode)
+                            && !managerNode.equals(nodeId));
+            decisions.put(nodeId, permit);
+        }
+        return decisions;
+    }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/service/PingAuthorizeDecisionService.java`
+
+```java
+package com.poc.banking.service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+
+import java.util.*;
+
+/**
+ * Decision fine-grained externalisee vers PingAuthorize.
+ *
+ * PUMA est le PEP. Il appelle POST /governance-engine/batch avec, pour chaque noeud
+ * cible, le contexte de la RESSOURCE : l'identifiant du noeud et ses ancetres calcules
+ * par le service hierarchie.
+ *
+ * Ce que PUMA n'envoie PAS : les grants du manager. Le PDP va les chercher lui-meme dans
+ * PingDirectory, via TokenOwner ou un Service de type PIP. Un demandeur qui declare ses
+ * propres droits s'auto-autorise.
+ *
+ * La regle cote policy tient en une intersection :
+ *     PERMIT si  intersection(TokenOwner.partnerGrant.nodes, Resource.parents)  non vide
+ *                ET Resource.node not in TokenOwner.partnerGrant.nodes   (strictement sous)
+ *
+ * Le PDP n'appelle jamais l'API metier de PUMA : seulement un service de donnees de
+ * reference. Sinon on cree une boucle PEP -> PDP -> PEP.
+ */
+@Service
+@ConditionalOnProperty(name = "puma.authz.mode", havingValue = "pdp")
+public class PingAuthorizeDecisionService implements AuthorizationDecisionService {
+
+    private final HierarchyService hierarchy;
+    private final RestClient client;
+
+    @Value("${puma.authz.pdp.base-url}")
+    private String baseUrl;
+
+    @Value("${puma.authz.pdp.domain}")
+    private String domain;
+
+    @Value("${puma.authz.pdp.service}")
+    private String service;
+
+    @Value("${puma.authz.pdp.action}")
+    private String action;
+
+    public PingAuthorizeDecisionService(HierarchyService hierarchy, RestClient.Builder builder) {
+        this.hierarchy = hierarchy;
+        this.client = builder.build();
+    }
+
+    @Override
+    public Map<String, Boolean> canAssign(String managerUid, List<String> nodeIds,
+                                          String bearerToken) {
+
+        List<Map<String, Object>> requests = new ArrayList<>();
+        for (String nodeId : nodeIds) {
+            Map<String, Object> attributes = new LinkedHashMap<>();
+            attributes.put("managerUid", managerUid);
+            attributes.put("targetNode", nodeId);
+            // Contexte de la ressource fourni par le PEP : acceptable, ce n'est pas un
+            // droit declare mais un fait sur la cible.
+            attributes.put("targetNodeParents", new ArrayList<>(hierarchy.getParents(nodeId)));
+
+            Map<String, Object> request = new LinkedHashMap<>();
+            request.put("domain", domain);
+            request.put("service", service);
+            request.put("action", action);
+            request.put("attributes", attributes);
+            requests.add(request);
+        }
+
+        Map<String, Boolean> decisions = new LinkedHashMap<>();
+        try {
+            JsonNode body = client.post()
+                    .uri(baseUrl + "/governance-engine/batch")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .accept(MediaType.APPLICATION_JSON)
+                    // Le token du manager est relaye : c'est lui qui alimente TokenOwner
+                    // cote PDP, donc la lecture des grants du sujet.
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken)
+                    .body(Map.of("requests", requests))
+                    .retrieve()
+                    .body(JsonNode.class);
+
+            JsonNode responses = body != null ? body.path("responses") : null;
+            if (responses == null || !responses.isArray() || responses.size() != nodeIds.size()) {
+                throw new IllegalStateException("Reponse PDP inattendue");
+            }
+            // L'ordre des reponses suit l'ordre des requetes.
+            for (int i = 0; i < nodeIds.size(); i++) {
+                JsonNode decision = responses.get(i);
+                boolean permit = "PERMIT".equalsIgnoreCase(decision.path("decision").asText())
+                        || decision.path("authorized").asBoolean(false);
+                decisions.put(nodeIds.get(i), permit);
+            }
+        } catch (Exception e) {
+            // Deny-unless-permit : un PDP injoignable ne doit jamais ouvrir l'acces.
+            for (String nodeId : nodeIds) {
+                decisions.put(nodeId, false);
+            }
+            throw new IllegalStateException(
+                    "Decision PDP indisponible, acces refuse par defaut", e);
+        }
+        return decisions;
     }
 }
 ```
@@ -1319,7 +1669,9 @@ import com.poc.banking.dto.CreateUserRequest;
 import com.poc.banking.dto.ScopesDto;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Upsert et non creation stricte : le cas "cross-shop user visibility" veut qu'un employe
@@ -1337,8 +1689,9 @@ public class UserProvisioningService {
         this.delegation = delegation;
     }
 
-    public boolean createOrUpdate(String managerUid, CreateUserRequest request) {
-        checkDelegation(managerUid, request);
+    public boolean createOrUpdate(String managerUid, CreateUserRequest request,
+                                  String bearerToken) {
+        checkDelegation(managerUid, request, bearerToken);
 
         boolean created = false;
         if (!directory.exists(request.uid())) {
@@ -1356,32 +1709,37 @@ public class UserProvisioningService {
      * Controle serveur. Le front filtre l'arbre pour le confort, mais c'est ici que la
      * decision est prise : sinon un manager ROLLER 5 pourrait affecter sur ROLLER 6.
      */
-    private void checkDelegation(String managerUid, CreateUserRequest request) {
+    private void checkDelegation(String managerUid, CreateUserRequest request,
+                                 String bearerToken) {
         if (request.assignments() == null || request.assignments().isEmpty()) {
             throw new IllegalArgumentException("Au moins une affectation est requise");
         }
-        for (AssignmentDto assignment : request.assignments()) {
-            if (!delegation.canAssign(managerUid, assignment.node())) {
-                throw new SecurityException(
-                        "Noeud hors du perimetre du manager : " + assignment.node());
-            }
-        }
+
+        // Tous les noeuds du formulaire, affectations et perimetres confondus, evalues
+        // en UN seul appel au PDP. Un aller-retour par noeud serait intenable.
+        List<String> nodes = new ArrayList<>();
+        request.assignments().forEach(a -> nodes.add(a.node()));
         ScopesDto scopes = request.scopes();
         if (scopes != null) {
-            checkScope(managerUid, scopes.opScope());
-            checkScope(managerUid, scopes.opScopeExclude());
-            checkScope(managerUid, scopes.reportScope());
+            addAll(nodes, scopes.opScope());
+            addAll(nodes, scopes.opScopeExclude());
+            addAll(nodes, scopes.reportScope());
+        }
+        List<String> distinct = nodes.stream().distinct().toList();
+
+        Map<String, Boolean> decisions =
+                delegation.canAssign(managerUid, distinct, bearerToken);
+
+        for (String node : distinct) {
+            if (!Boolean.TRUE.equals(decisions.get(node))) {
+                throw new SecurityException("Noeud hors du perimetre du manager : " + node);
+            }
         }
     }
 
-    private void checkScope(String managerUid, List<String> nodes) {
-        if (nodes == null) {
-            return;
-        }
-        for (String node : nodes) {
-            if (!delegation.canAssign(managerUid, node)) {
-                throw new SecurityException("Perimetre hors delegation : " + node);
-            }
+    private void addAll(List<String> target, List<String> values) {
+        if (values != null) {
+            target.addAll(values);
         }
     }
 
@@ -1425,32 +1783,60 @@ import com.poc.banking.dto.ApplicationDto;
 import com.poc.banking.entity.NodeApplication;
 import com.poc.banking.repository.BusinessApplicationRepository;
 import com.poc.banking.repository.NodeApplicationRepository;
+import com.poc.banking.service.DelegationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 
-/** Ecran 1 : affectation des applications aux niveaux de hierarchie. */
+/**
+ * Ecran 1 (affectation des applications aux niveaux) et premiere etape de l'ecran de
+ * creation : le manager choisit d'abord l'application, puis le noeud.
+ */
 @RestController
 @RequestMapping("/api/applications")
 public class ApplicationController {
 
     private final BusinessApplicationRepository applications;
     private final NodeApplicationRepository nodeApplications;
+    private final DelegationService delegation;
 
     public ApplicationController(BusinessApplicationRepository applications,
-                                 NodeApplicationRepository nodeApplications) {
+                                 NodeApplicationRepository nodeApplications,
+                                 DelegationService delegation) {
         this.applications = applications;
         this.nodeApplications = nodeApplications;
+        this.delegation = delegation;
     }
 
     /**
-     * Applications exposees sur un noeud. Prerequis d'Ujjwal : on ne peut accorder un
-     * role sur un noeud ou l'application n'est pas affectee.
+     * Applications que le manager peut effectivement attribuer : celles exposees quelque
+     * part dans son sous-arbre. Sans ce filtre, il verrait le catalogue complet et
+     * decouvrirait au moment de choisir le noeud que l'arbre est vide.
      */
     @GetMapping
+    public ResponseEntity<List<ApplicationDto>> listForManager(JwtAuthenticationToken token) {
+        if (!JwtSubject.isManager(token)) {
+            return ResponseEntity.status(403).build();
+        }
+        Set<String> nodes = delegation.visibleNodes(JwtSubject.uid(token));
+        if (nodes.isEmpty()) {
+            return ResponseEntity.ok(List.of());
+        }
+        List<String> ids = nodeApplications.findByNodeIdIn(nodes).stream()
+                .map(NodeApplication::getApplicationId)
+                .distinct()
+                .toList();
+        return ResponseEntity.ok(applications.findAllById(ids).stream()
+                .map(a -> new ApplicationDto(a.getId(), a.getName()))
+                .toList());
+    }
+
+    /** Applications exposees sur un noeud donne, pour l'ecran d'administration. */
+    @GetMapping("/by-node")
     public List<ApplicationDto> listByNode(@RequestParam String node) {
         List<String> ids = nodeApplications.findByNodeId(node).stream()
                 .map(NodeApplication::getApplicationId)
@@ -1468,6 +1854,9 @@ public class ApplicationController {
         if (!JwtSubject.isManager(token)) {
             return ResponseEntity.status(403).build();
         }
+        if (!delegation.canAssign(JwtSubject.uid(token), nodeId, token.getToken().getTokenValue())) {
+            return ResponseEntity.status(403).build();
+        }
         if (!nodeApplications.existsByNodeIdAndApplicationId(nodeId, applicationId)) {
             nodeApplications.save(new NodeApplication(nodeId, applicationId));
         }
@@ -1480,6 +1869,9 @@ public class ApplicationController {
                                                @PathVariable String nodeId,
                                                JwtAuthenticationToken token) {
         if (!JwtSubject.isManager(token)) {
+            return ResponseEntity.status(403).build();
+        }
+        if (!delegation.canAssign(JwtSubject.uid(token), nodeId, token.getToken().getTokenValue())) {
             return ResponseEntity.status(403).build();
         }
         nodeApplications.deleteByNodeIdAndApplicationId(nodeId, applicationId);
@@ -1515,13 +1907,22 @@ public class HierarchyController {
         this.delegation = delegation;
     }
 
-    /** Sous-arbre du manager connecte, pas la hierarchie complete. */
+    /**
+     * Sous-arbre du manager connecte, elague a l'application quand elle est fournie.
+     * Jamais la hierarchie complete : un manager de ROLLER 5 ne doit pas voir ROLLER 6.
+     */
     @GetMapping("/subtree")
-    public ResponseEntity<List<NodeDto>> subtree(JwtAuthenticationToken token) {
+    public ResponseEntity<List<NodeDto>> subtree(
+            @RequestParam(required = false) String application,
+            JwtAuthenticationToken token) {
+
+        // COARSE : acces au portail PUMA.
         if (!JwtSubject.isManager(token)) {
             return ResponseEntity.status(403).build();
         }
-        return ResponseEntity.ok(delegation.assignableSubtree(JwtSubject.uid(token)));
+        // FINE : le perimetre renvoye depend des grants du manager.
+        return ResponseEntity.ok(
+                delegation.assignableSubtree(JwtSubject.uid(token), application));
     }
 
     @GetMapping("/{nodeId}/parents")
@@ -1730,7 +2131,8 @@ public class UserController {
         String managerUid = JwtSubject.uid(token);
 
         try {
-            boolean created = userService.createOrUpdate(managerUid, req);
+            String bearerToken = token.getToken().getTokenValue();
+            boolean created = userService.createOrUpdate(managerUid, req, bearerToken);
             return ResponseEntity.ok(Map.of(
                     "message", created
                             ? "Utilisateur " + req.uid() + " cree."
@@ -1738,9 +2140,13 @@ public class UserController {
                     "passwordResetUrl", "https://localhost:9031/ext/pwdreset"
             ));
         } catch (SecurityException e) {
+            // Refus de delegation, rendu par le PDP ou en local selon puma.authz.mode.
             return ResponseEntity.status(403).body(e.getMessage());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (IllegalStateException e) {
+            // PDP injoignable : deny-unless-permit, jamais d'ouverture par defaut.
+            return ResponseEntity.status(503).body(e.getMessage());
         }
     }
 }
@@ -1939,6 +2345,18 @@ spring:
       mode: always
       schema-locations: classpath:schema.sql
       data-locations: classpath:data.sql
+
+# Ou vit la decision fine-grained.
+#   pdp   : externalisee vers PingAuthorize (cible)
+#   local : calculee en process, shared library (repli)
+puma:
+  authz:
+    mode: pdp
+    pdp:
+      base-url: https://localhost:7443
+      domain: PUMA
+      service: PUMA.Administration
+      action: assign
 
 # CORS - autoriser Angular
 cors:
@@ -2219,11 +2637,23 @@ export class ApplicationService {
 
   constructor(private auth: AuthService) {}
 
-  /** Applications exposees sur ce noeud, pas le catalogue complet. */
-  async listByNode(nodeId: string): Promise<ApplicationDto[]> {
-    const resp = await fetch(`${API_BASE}/applications?node=${encodeURIComponent(nodeId)}`, {
+  /**
+   * Applications que le manager connecte peut attribuer, c'est-a-dire exposees quelque
+   * part dans son sous-arbre. Premiere etape du formulaire.
+   */
+  async listForManager(): Promise<ApplicationDto[]> {
+    const resp = await fetch(`${API_BASE}/applications`, {
       headers: { Authorization: 'Bearer ' + this.auth.getToken() }
     });
+    return resp.ok ? resp.json() : [];
+  }
+
+  /** Applications exposees sur un noeud donne. Ecran d'administration uniquement. */
+  async listByNode(nodeId: string): Promise<ApplicationDto[]> {
+    const resp = await fetch(
+      `${API_BASE}/applications/by-node?node=${encodeURIComponent(nodeId)}`, {
+        headers: { Authorization: 'Bearer ' + this.auth.getToken() }
+      });
     return resp.ok ? resp.json() : [];
   }
 
@@ -2249,9 +2679,16 @@ export class HierarchyService {
 
   constructor(private auth: AuthService) {}
 
-  /** Sous-arbre du manager connecte. Le backend le calcule, le front ne le filtre pas. */
-  async getSubtree(): Promise<NodeDto[]> {
-    const resp = await fetch(`${API_BASE}/hierarchy/subtree`, {
+  /**
+   * Sous-arbre du manager connecte, elague a l'application quand elle est fournie.
+   * Le backend calcule le perimetre, le front ne filtre rien : le filtrage cote client
+   * serait contournable par un simple curl.
+   */
+  async getSubtree(applicationId?: string): Promise<NodeDto[]> {
+    const query = applicationId
+      ? `?application=${encodeURIComponent(applicationId)}`
+      : '';
+    const resp = await fetch(`${API_BASE}/hierarchy/subtree${query}`, {
       headers: { Authorization: 'Bearer ' + this.auth.getToken() }
     });
     if (!resp.ok) {
@@ -2346,341 +2783,4 @@ export interface AssignmentDto {
   role: string;
 }
 
-export interface ScopesDto {
-  opScope: string[];
-  opScopeExclude: string[];
-  reportScope: string[];
-}
-
-export interface CreateUserRequest {
-  uid: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  assignments: AssignmentDto[];
-  scopes: ScopesDto;
-}
-
-export interface ApplicationDto {
-  id: string;
-  name: string;
-}
-
-export interface RoleDto {
-  id: string;
-  name: string;
-  parentRoleId: string | null;
-  nodeId: string | null;
-  effectivePermissions: string[];
-  removedPermissions: string[];
-}
-```
-
-### `frontend/src/app/core/models/node.model.ts`
-
-```typescript
-export type NodeLevel = 'UNION' | 'CHAIN' | 'REGROUPMENT' | 'VENDOR';
-
-export interface NodeDto {
-  id: string;
-  label: string;
-  level: NodeLevel;
-  /** true quand le noeud apparait sous plusieurs parents (ROLLER 4). */
-  duplicated: boolean;
-  children: NodeDto[];
-}
-```
-
-## Frontend - node-picker
-
-### `frontend/src/app/features/node-picker/node-picker.component.ts`
-
-```typescript
-import { Component, EventEmitter, OnInit, Output } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { MatTreeModule, MatTreeNestedDataSource } from '@angular/material/tree';
-import { MatIconModule } from '@angular/material/icon';
-import { MatButtonModule } from '@angular/material/button';
-import { NestedTreeControl } from '@angular/cdk/tree';
-import { HierarchyService } from '../../core/hierarchy.service';
-import { NodeDto } from '../../core/models/node.model';
-
-/**
- * Selecteur de noeud partage. L'arbre affiche uniquement le sous-arbre renvoye par le
- * backend. Un noeud a plusieurs parents apparait sous chacun d'eux, avec un marqueur.
- */
-@Component({
-  selector: 'app-node-picker',
-  standalone: true,
-  imports: [CommonModule, MatTreeModule, MatIconModule, MatButtonModule],
-  template: `
-    <div class="picker">
-      <p *ngIf="loading">Loading hierarchy...</p>
-      <p *ngIf="error" class="error">{{ error }}</p>
-
-      <mat-tree [dataSource]="dataSource" [treeControl]="treeControl">
-
-        <mat-tree-node *matTreeNodeDef="let node" matTreeNodeToggle>
-          <button mat-icon-button disabled></button>
-          <span class="label" [class.selected]="node.id === selected?.id"
-                (click)="select(node)">
-            {{ node.label }} <small>({{ node.id }})</small>
-            <span *ngIf="node.duplicated" class="dup" title="Plusieurs parents">&#9888;</span>
-          </span>
-        </mat-tree-node>
-
-        <mat-nested-tree-node *matTreeNodeDef="let node; when: hasChild">
-          <div class="row">
-            <button mat-icon-button matTreeNodeToggle>
-              <mat-icon>
-                {{ treeControl.isExpanded(node) ? 'expand_more' : 'chevron_right' }}
-              </mat-icon>
-            </button>
-            <span class="label" [class.selected]="node.id === selected?.id"
-                  (click)="select(node)">
-              {{ node.label }} <small>({{ node.id }})</small>
-              <span *ngIf="node.duplicated" class="dup" title="Plusieurs parents">&#9888;</span>
-            </span>
-          </div>
-          <div [class.hidden]="!treeControl.isExpanded(node)" class="nested">
-            <ng-container matTreeNodeOutlet></ng-container>
-          </div>
-        </mat-nested-tree-node>
-
-      </mat-tree>
-    </div>
-  `,
-  styles: [`
-    .picker { max-height: 320px; overflow: auto; border: 1px solid #ddd; padding: 8px; }
-    .row { display: flex; align-items: center; }
-    .label { cursor: pointer; padding: 2px 4px; }
-    .label.selected { background: #2b3a67; color: #fff; }
-    .nested { padding-left: 24px; }
-    .hidden { display: none; }
-    .dup { color: #b8860b; margin-left: 4px; }
-    .error { color: #b00020; }
-  `]
-})
-export class NodePickerComponent implements OnInit {
-
-  @Output() nodeSelected = new EventEmitter<NodeDto>();
-
-  treeControl = new NestedTreeControl<NodeDto>(node => node.children);
-  dataSource = new MatTreeNestedDataSource<NodeDto>();
-  selected: NodeDto | null = null;
-  loading = false;
-  error = '';
-
-  constructor(private hierarchy: HierarchyService) {}
-
-  async ngOnInit(): Promise<void> {
-    this.loading = true;
-    try {
-      this.dataSource.data = await this.hierarchy.getSubtree();
-    } catch (e: any) {
-      this.error = e.message;
-    } finally {
-      this.loading = false;
-    }
-  }
-
-  hasChild = (_: number, node: NodeDto) => !!node.children && node.children.length > 0;
-
-  select(node: NodeDto): void {
-    this.selected = node;
-    this.nodeSelected.emit(node);
-  }
-}
-```
-
-## Frontend - create-user
-
-### `frontend/src/app/features/create-user/create-user.component.ts`
-
-```typescript
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { NodePickerComponent } from '../node-picker/node-picker.component';
-import { ApplicationService } from '../../core/application.service';
-import { RoleService } from '../../core/role.service';
-import { ProvisioningService } from '../../core/provisioning.service';
-import { NodeDto } from '../../core/models/node.model';
-import { ApplicationDto, RoleDto } from '../../core/models/assignment.model';
-
-/** Une ligne d'affectation en cours de saisie. */
-interface AssignmentRow {
-  node: NodeDto | null;
-  applications: ApplicationDto[];
-  application: string;
-  roles: RoleDto[];
-  role: string;
-}
-
-/**
- * Remplace l'ancien formulaire a champ "role" unique.
- * Ordre impose par le metier : noeud d'abord, puis application, puis role. Les roles
- * sont specialises par organisation, donc ils ne peuvent pas etre charges avant.
- */
-@Component({
-  selector: 'app-create-user',
-  standalone: true,
-  imports: [CommonModule, FormsModule, NodePickerComponent],
-  template: `
-    <div class="page">
-      <h2>Create User</h2>
-      <p>Provision a partner user and grant assignments in PingDirectory.</p>
-
-      <h3>Identity</h3>
-      <input placeholder="Login (uid)" [(ngModel)]="identity.uid" name="uid">
-      <input placeholder="First Name" [(ngModel)]="identity.firstName" name="firstName">
-      <input placeholder="Last Name" [(ngModel)]="identity.lastName" name="lastName">
-      <input placeholder="Email" [(ngModel)]="identity.email" name="email">
-
-      <h3>Assignments</h3>
-      <div class="assignment" *ngFor="let row of rows; let i = index">
-        <app-node-picker (nodeSelected)="onNodeSelected(row, $event)"></app-node-picker>
-
-        <div class="line">
-          <span class="chosen">{{ row.node ? row.node.label : 'Select a node' }}</span>
-
-          <select [(ngModel)]="row.application" name="app{{i}}"
-                  (change)="onApplicationChange(row)" [disabled]="!row.node">
-            <option value="">Application</option>
-            <option *ngFor="let a of row.applications" [value]="a.id">{{ a.name }}</option>
-          </select>
-
-          <select [(ngModel)]="row.role" name="role{{i}}" [disabled]="!row.application">
-            <option value="">Role</option>
-            <option *ngFor="let r of row.roles" [value]="r.id">{{ r.name }}</option>
-          </select>
-
-          <button (click)="removeRow(i)" [disabled]="rows.length === 1">Remove</button>
-        </div>
-      </div>
-      <button (click)="addRow()">Add assignment</button>
-
-      <h3>Scopes</h3>
-      <label>Operational (opScope)</label>
-      <input placeholder="2700010, 2700011" [(ngModel)]="opScopeRaw" name="opScope">
-      <label>Excluded (opScopeExclude)</label>
-      <input placeholder="2700012" [(ngModel)]="opScopeExcludeRaw" name="opScopeExclude">
-      <label>Reporting (reportScope)</label>
-      <input placeholder="9200005" [(ngModel)]="reportScopeRaw" name="reportScope">
-
-      <button class="primary" (click)="submit()" [disabled]="loading">Create User</button>
-
-      <p class="ok" *ngIf="successMessage">{{ successMessage }}</p>
-      <p class="ko" *ngIf="errorMessage">{{ errorMessage }}</p>
-    </div>
-  `,
-  styles: [`
-    .page { max-width: 760px; margin: 24px auto; }
-    input, select { display: block; margin: 6px 0; padding: 8px; width: 100%; }
-    .assignment { border: 1px solid #eee; padding: 12px; margin-bottom: 12px; }
-    .line { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
-    .line select { width: auto; flex: 1; }
-    .chosen { min-width: 160px; font-weight: 600; }
-    .primary { margin-top: 16px; padding: 12px; width: 100%;
-               background: #2b3a67; color: #fff; border: 0; }
-    .ok { color: #1b5e20; }
-    .ko { color: #b00020; }
-  `]
-})
-export class CreateUserComponent {
-
-  identity = { uid: '', firstName: '', lastName: '', email: '' };
-  rows: AssignmentRow[] = [this.emptyRow()];
-
-  opScopeRaw = '';
-  opScopeExcludeRaw = '';
-  reportScopeRaw = '';
-
-  loading = false;
-  successMessage = '';
-  errorMessage = '';
-
-  constructor(private applications: ApplicationService,
-              private roles: RoleService,
-              private provisioning: ProvisioningService) {}
-
-  emptyRow(): AssignmentRow {
-    return { node: null, applications: [], application: '', roles: [], role: '' };
-  }
-
-  addRow(): void {
-    this.rows.push(this.emptyRow());
-  }
-
-  removeRow(index: number): void {
-    this.rows.splice(index, 1);
-  }
-
-  async onNodeSelected(row: AssignmentRow, node: NodeDto): Promise<void> {
-    row.node = node;
-    row.application = '';
-    row.role = '';
-    row.roles = [];
-    row.applications = await this.applications.listByNode(node.id);
-  }
-
-  async onApplicationChange(row: AssignmentRow): Promise<void> {
-    row.role = '';
-    row.roles = row.node && row.application
-      ? await this.roles.list(row.application, row.node.id)
-      : [];
-  }
-
-  private split(raw: string): string[] {
-    return raw.split(',').map(v => v.trim()).filter(v => v.length > 0);
-  }
-
-  async submit(): Promise<void> {
-    this.loading = true;
-    this.successMessage = '';
-    this.errorMessage = '';
-
-    const assignments = this.rows
-      .filter(r => r.node && r.application && r.role)
-      .map(r => ({ application: r.application, node: r.node!.id, role: r.role }));
-
-    if (assignments.length === 0) {
-      this.errorMessage = 'At least one complete assignment is required.';
-      this.loading = false;
-      return;
-    }
-
-    try {
-      this.successMessage = await this.provisioning.createUser({
-        ...this.identity,
-        assignments,
-        scopes: {
-          opScope: this.split(this.opScopeRaw),
-          opScopeExclude: this.split(this.opScopeExcludeRaw),
-          reportScope: this.split(this.reportScopeRaw)
-        }
-      });
-    } catch (e: any) {
-      this.errorMessage = e.message;
-    } finally {
-      this.loading = false;
-    }
-  }
-}
-```
-
----
-
-## 7. Points ouverts qui touchent ce code
-
-- `DelegationService.ALLOW_OWN_NODE` est a `false` : un manager de ROLLER 5 ne peut pas
-  creer un pair sur ROLLER 5. A trancher cote metier.
-- `RoleResolutionService` ignore un `granted = true` sur une specialisation, conformement a
-  la slide 25. Si Ping confirme que les permissions se propagent, cette classe change.
-- Une permission ajoutee a un role global se propage-t-elle aux specialisations, ou faut-il
-  la rejouer ? La slide 25 dit non, les requirements d'Ujjwal supposent oui.
-- Agreement Number = Vendor ID, 1:1 ou 1:N ?
-- 9200004 sous deux chains : anomalie ou cas metier valide ?
-- Proprietaire et cycle de vie de la Custom List : lue par `getParents`, pas encore
-  affectable dans l'IHM.
-
+exp
