@@ -1,0 +1,2685 @@
+# PUMA — modele, code et installation
+
+Un seul fichier : les diagrammes Mermaid, puis le code source complet de chaque couche.
+Mermaid ne sait representer que des diagrammes, donc le code est en blocs de code dans le
+meme document. Si ton visualiseur refuse l'extension `.mmd`, renomme en `.md`.
+
+Base : POC existant `com.poc.banking` (Spring Boot 8081) et `banking-app` (Angular 4200).
+Sources metier : `Vendor_Hierarchy_UCR.xlsx`, `Retail Media Markt-Structure`,
+`Mobility Eder-User-Permissions-Structure-V2`, `Partner Hierarchy - Mobility - Auto Eder.pdf`,
+deck "IDM Basics - BNP/Consors" (Tim Vogt), messages de Philip Haussmann du 07/09.
+
+---
+
+## 0. PostgreSQL local, sans conteneur
+
+L'instance est celle deja installee sur le Mac. Rien a lancer en Docker.
+
+```bash
+# verifier que le serveur tourne
+pg_isready -h localhost -p 5432
+
+# Homebrew : le superuser par defaut est ton compte macOS, pas "postgres".
+# Creer le role attendu par application.yml s'il n'existe pas :
+psql -d postgres -c "CREATE ROLE postgres LOGIN SUPERUSER PASSWORD 'postgres';"
+
+# base de travail : la base "postgres" par defaut
+psql -U postgres -d postgres -c "select current_database(), current_user;"
+```
+
+`pom.xml` : retirer H2, ajouter le driver.
+
+```xml
+<dependency>
+    <groupId>org.postgresql</groupId>
+    <artifactId>postgresql</artifactId>
+    <scope>runtime</scope>
+</dependency>
+```
+
+Frontend : `npm install @angular/material @angular/cdk` pour `mat-tree`.
+
+Verification apres le premier demarrage :
+
+```bash
+psql -U postgres -d postgres -c \
+  "select level, count(*) from node group by level order by level;"
+
+psql -U postgres -d postgres -c \
+  "select node_id, count(*) from node_parent group by node_id having count(*) > 1;"
+```
+
+La seconde requete doit rendre exactement une ligne, `9200004` (ROLLER 4 sous deux chains).
+Toute autre ligne est a remonter avant l'atelier. Cote application, meme information via
+`GET /api/hierarchy/anomalies`.
+
+---
+
+## 1. Contraintes tirees des donnees reelles
+
+- un noeud peut avoir **plusieurs parents** : 9200004 ROLLER 4 est sous 9100001 et 9100002
+- les niveaux peuvent etre **sautes** : chez Auto Eder `ChaineNr = 0` et `RegroupNr = 0`,
+  les vendors pendent directement a l'union
+- **plusieurs unions** (9300773, 9305178, 9305574, 9305616, 9305707) : une foret, pas un arbre
+- la **Custom List** n'est pas un niveau : ensemble arbitraire de vendors qui traverse la
+  hierarchie, seul moyen de regrouper les 6 vendorids d'Auto Eder
+- la specialisation de role est **soustractive** : "when we specialize roles, we only
+  remove entitlements"
+- les roles sont **specialises par organisation** et il n'y a pas d'heritage descendant,
+  donc la liste des roles depend du noeud, pas seulement de l'application
+- trois perimetres distincts : `opScope`, `opScopeExclude`, `reportScope`
+
+Ce que le token doit porter : `sub`, absent du token actuel et indispensable pour lire les
+grants du manager. Plus tard `aud`, quand il y aura un client OAuth par application.
+Ce qu'il ne doit pas porter : ni noeuds, ni grants, ni scopes.
+
+---
+
+## 2. Modele de donnees
+
+```mermaid
+classDiagram
+    class Node {
+        +String id
+        +String label
+        +NodeLevel level
+        +String sparte
+    }
+    class NodeParent {
+        +Long id
+        +String nodeId
+        +String parentId
+    }
+    class CustomList {
+        +String id
+        +String label
+    }
+    class CustomListMember {
+        +Long id
+        +String listId
+        +String vendorId
+    }
+    class BusinessApplication {
+        +String id
+        +String name
+    }
+    class NodeApplication {
+        +Long id
+        +String nodeId
+        +String applicationId
+    }
+    class Permission {
+        +String id
+        +String code
+        +String label
+        +String applicationId
+    }
+    class Role {
+        +String id
+        +String name
+        +String applicationId
+        +String parentRoleId
+        +String nodeId
+    }
+    class RolePermission {
+        +Long id
+        +String roleId
+        +String permissionId
+        +boolean granted
+    }
+    class NodeLevel {
+        <<enumeration>>
+        UNION
+        CHAIN
+        REGROUPMENT
+        VENDOR
+    }
+
+    Node "1" --> "0..*" NodeParent : parents multiples
+    Node --> NodeLevel
+    CustomList "1" --> "1..*" CustomListMember
+    Node "1" --> "0..*" NodeApplication
+    BusinessApplication "1" --> "0..*" NodeApplication
+    BusinessApplication "1" --> "0..*" Permission
+    BusinessApplication "1" --> "0..*" Role
+    Role "1" --> "0..*" RolePermission : granted=false = retrait
+    Role "0..1" --> "0..*" Role : parentRole
+    Role "0..1" --> "1" Node : portee de specialisation
+```
+
+Aucun grant, aucun scope dans ce modele : ils vivent dans PingDirectory. La base locale ne
+porte que la hierarchie, qui est un fait externe bouchonne, plus le referentiel
+applications / roles / permissions.
+
+---
+
+## 3. Couches applicatives
+
+```mermaid
+classDiagram
+    class HierarchyService {
+        <<interface>>
+        +getParents(nodeId) Set~String~
+        +getSubtree(rootIds) List~NodeDto~
+        +getDescendants(nodeId) Set~String~
+        +getAnomalies() List~String~
+    }
+    class JpaHierarchyService
+    class RemoteHierarchyService {
+        <<futur>>
+    }
+    class RoleResolutionService {
+        +effectivePermissions(roleId)
+        +specialisationChain(roleId)
+        +removedPermissions(roleId)
+    }
+    class DelegationService {
+        +managerRootNodes(uid)
+        +assignableNodes(uid)
+        +assignableSubtree(uid)
+        +canAssign(uid, nodeId)
+    }
+    class GrantDirectoryClient {
+        +exists(uid)
+        +readValues(uid, attr)
+        +readGrantedNodes(uid)
+        +addValues(uid, attr, values)
+        +createEntry(uid, ...)
+    }
+    class UserProvisioningService {
+        +createOrUpdate(managerUid, request)
+    }
+    class RoleDefinitionService {
+        +definition(uid, contextNode, applicationId)
+    }
+    class UserController
+    class HierarchyController
+    class ApplicationController
+    class RoleController
+    class RoleDefinitionController
+    class JwtSubject {
+        +uid(token)
+        +isManager(token)
+    }
+
+    HierarchyService <|.. JpaHierarchyService
+    HierarchyService <|.. RemoteHierarchyService
+    DelegationService --> HierarchyService
+    DelegationService --> GrantDirectoryClient
+    UserProvisioningService --> GrantDirectoryClient
+    UserProvisioningService --> DelegationService
+    RoleDefinitionService --> GrantDirectoryClient
+    RoleDefinitionService --> HierarchyService
+    RoleDefinitionService --> RoleResolutionService
+    UserController --> UserProvisioningService
+    UserController --> JwtSubject
+    HierarchyController --> DelegationService
+    RoleController --> RoleResolutionService
+    RoleDefinitionController --> RoleDefinitionService
+```
+
+---
+
+## 4. Sequence de creation
+
+```mermaid
+sequenceDiagram
+    participant M as Manager (Angular)
+    participant B as Backend PUMA
+    participant P as PostgreSQL local
+    participant D as PingDirectory
+
+    M->>B: GET /api/hierarchy/subtree
+    B->>D: lire partnerGrant du manager (cle = sub du token)
+    B->>P: getSubtree(noeuds du manager)
+    P-->>B: sous-arbre, ROLLER 4 duplique
+    B-->>M: NodeDto[]
+    M->>B: GET /api/applications?node=9200005
+    M->>B: GET /api/roles?application=BusinessApp1&node=9200005
+    M->>B: POST /api/users
+    B->>B: isMemberOf MANAGER sinon 403
+    B->>B: canAssign(manager, chaque noeud et chaque scope) sinon 403
+    B->>D: creer ou completer l'entree, ecrire partnerGrant + scopes
+    B-->>M: 200 + lien d'initialisation de mot de passe
+```
+
+---
+
+## 5. Ecrit dans PingDirectory
+
+Attributs multivalues a declarer au schema sur les entrees de `ou=people` :
+
+```
+uid: nouveau.vendeur
+partnerGrant: BusinessApp1|9200005|Salesman
+partnerGrant: BusinessApp2|2700010|Viewer
+opScope: 2700010
+opScope: 2700011
+opScopeExclude: 2700012
+reportScope: 9200005
+```
+
+Jamais `roles: [...]` et `nodes: [...]` separes : produit cartesien, donc elevation de
+privilege.
+
+---
+
+# 6. Code source
+
+Arborescence a recopier telle quelle dans le projet.
+
+Fichiers qui **remplacent** un existant : `dto/CreateUserRequest.java`,
+`controller/UserController.java`, `resources/application.yml`,
+`features/create-user/create-user.component.ts`.
+
+## Entites JPA
+
+### `backend/src/main/java/com/poc/banking/entity/BusinessApplication.java`
+
+```java
+package com.poc.banking.entity;
+
+import jakarta.persistence.*;
+
+/** Nommee BusinessApplication et non Application pour eviter la confusion avec Spring. */
+@Entity
+@Table(name = "application")
+public class BusinessApplication {
+
+    @Id
+    private String id;
+
+    @Column(nullable = false)
+    private String name;
+
+    protected BusinessApplication() { }
+
+    public BusinessApplication(String id, String name) {
+        this.id = id;
+        this.name = name;
+    }
+
+    public String getId() { return id; }
+    public String getName() { return name; }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/entity/CustomList.java`
+
+```java
+package com.poc.banking.entity;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "custom_list")
+public class CustomList {
+
+    @Id
+    private String id;
+
+    private String label;
+
+    protected CustomList() { }
+
+    public CustomList(String id, String label) {
+        this.id = id;
+        this.label = label;
+    }
+
+    public String getId() { return id; }
+    public String getLabel() { return label; }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/entity/CustomListMember.java`
+
+```java
+package com.poc.banking.entity;
+
+import jakarta.persistence.*;
+
+/**
+ * Index inverse vendor -> listes. Une Custom List n'est pas un niveau de l'arbre :
+ * elle traverse la hierarchie, donc l'appartenance doit etre materialisee.
+ */
+@Entity
+@Table(name = "custom_list_member",
+       uniqueConstraints = @UniqueConstraint(columnNames = {"list_id", "vendor_id"}))
+public class CustomListMember {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "list_id", nullable = false)
+    private String listId;
+
+    @Column(name = "vendor_id", nullable = false)
+    private String vendorId;
+
+    protected CustomListMember() { }
+
+    public CustomListMember(String listId, String vendorId) {
+        this.listId = listId;
+        this.vendorId = vendorId;
+    }
+
+    public Long getId() { return id; }
+    public String getListId() { return listId; }
+    public String getVendorId() { return vendorId; }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/entity/Node.java`
+
+```java
+package com.poc.banking.entity;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "node")
+public class Node {
+
+    @Id
+    private String id;
+
+    @Column(nullable = false)
+    private String label;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private NodeLevel level;
+
+    private String sparte;
+
+    protected Node() { }
+
+    public Node(String id, String label, NodeLevel level, String sparte) {
+        this.id = id;
+        this.label = label;
+        this.level = level;
+        this.sparte = sparte;
+    }
+
+    public String getId() { return id; }
+    public String getLabel() { return label; }
+    public NodeLevel getLevel() { return level; }
+    public String getSparte() { return sparte; }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/entity/NodeApplication.java`
+
+```java
+package com.poc.banking.entity;
+
+import jakarta.persistence.*;
+
+/** Ecran 1 : quelles applications sont exposees sur quel niveau de hierarchie. */
+@Entity
+@Table(name = "node_application",
+       uniqueConstraints = @UniqueConstraint(columnNames = {"node_id", "application_id"}))
+public class NodeApplication {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "node_id", nullable = false)
+    private String nodeId;
+
+    @Column(name = "application_id", nullable = false)
+    private String applicationId;
+
+    protected NodeApplication() { }
+
+    public NodeApplication(String nodeId, String applicationId) {
+        this.nodeId = nodeId;
+        this.applicationId = applicationId;
+    }
+
+    public Long getId() { return id; }
+    public String getNodeId() { return nodeId; }
+    public String getApplicationId() { return applicationId; }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/entity/NodeLevel.java`
+
+```java
+package com.poc.banking.entity;
+
+public enum NodeLevel {
+    UNION, CHAIN, REGROUPMENT, VENDOR
+}
+```
+
+### `backend/src/main/java/com/poc/banking/entity/NodeParent.java`
+
+```java
+package com.poc.banking.entity;
+
+import jakarta.persistence.*;
+
+/**
+ * Lien enfant -> parent. Table separee et non colonne sur Node : un noeud peut avoir
+ * plusieurs parents (9200004 ROLLER 4 est sous 9100001 ET 9100002).
+ * Le parent est le plus proche ancetre non nul : chez Auto Eder, ChaineNr et RegroupNr
+ * valent 0, donc le vendor pend directement a l'union.
+ */
+@Entity
+@Table(name = "node_parent",
+       uniqueConstraints = @UniqueConstraint(columnNames = {"node_id", "parent_id"}))
+public class NodeParent {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "node_id", nullable = false)
+    private String nodeId;
+
+    @Column(name = "parent_id", nullable = false)
+    private String parentId;
+
+    protected NodeParent() { }
+
+    public NodeParent(String nodeId, String parentId) {
+        this.nodeId = nodeId;
+        this.parentId = parentId;
+    }
+
+    public Long getId() { return id; }
+    public String getNodeId() { return nodeId; }
+    public String getParentId() { return parentId; }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/entity/Permission.java`
+
+```java
+package com.poc.banking.entity;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "permission")
+public class Permission {
+
+    @Id
+    private String id;
+
+    @Column(nullable = false)
+    private String code;
+
+    @Column(nullable = false)
+    private String label;
+
+    @Column(name = "application_id", nullable = false)
+    private String applicationId;
+
+    protected Permission() { }
+
+    public Permission(String id, String code, String label, String applicationId) {
+        this.id = id;
+        this.code = code;
+        this.label = label;
+        this.applicationId = applicationId;
+    }
+
+    public String getId() { return id; }
+    public String getCode() { return code; }
+    public String getLabel() { return label; }
+    public String getApplicationId() { return applicationId; }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/entity/Role.java`
+
+```java
+package com.poc.banking.entity;
+
+import jakarta.persistence.*;
+
+/**
+ * Chaine de specialisation : Salesman -> Salesman-JLR -> Salesman-JLR-2672756.
+ * parentRoleId nul et nodeId nul = role global.
+ */
+@Entity
+@Table(name = "app_role")
+public class Role {
+
+    @Id
+    private String id;
+
+    @Column(nullable = false)
+    private String name;
+
+    @Column(name = "application_id", nullable = false)
+    private String applicationId;
+
+    @Column(name = "parent_role_id")
+    private String parentRoleId;
+
+    @Column(name = "node_id")
+    private String nodeId;
+
+    protected Role() { }
+
+    public Role(String id, String name, String applicationId, String parentRoleId, String nodeId) {
+        this.id = id;
+        this.name = name;
+        this.applicationId = applicationId;
+        this.parentRoleId = parentRoleId;
+        this.nodeId = nodeId;
+    }
+
+    public String getId() { return id; }
+    public String getName() { return name; }
+    public String getApplicationId() { return applicationId; }
+    public String getParentRoleId() { return parentRoleId; }
+    public String getNodeId() { return nodeId; }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/entity/RolePermission.java`
+
+```java
+package com.poc.banking.entity;
+
+import jakarta.persistence.*;
+
+/**
+ * granted = false materialise un RETRAIT sur une specialisation.
+ * Regle Ping : "when we specialize roles, we only remove entitlements".
+ */
+@Entity
+@Table(name = "role_permission",
+       uniqueConstraints = @UniqueConstraint(columnNames = {"role_id", "permission_id"}))
+public class RolePermission {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "role_id", nullable = false)
+    private String roleId;
+
+    @Column(name = "permission_id", nullable = false)
+    private String permissionId;
+
+    @Column(nullable = false)
+    private boolean granted;
+
+    protected RolePermission() { }
+
+    public RolePermission(String roleId, String permissionId, boolean granted) {
+        this.roleId = roleId;
+        this.permissionId = permissionId;
+        this.granted = granted;
+    }
+
+    public Long getId() { return id; }
+    public String getRoleId() { return roleId; }
+    public String getPermissionId() { return permissionId; }
+    public boolean isGranted() { return granted; }
+}
+```
+
+## Repositories
+
+### `backend/src/main/java/com/poc/banking/repository/BusinessApplicationRepository.java`
+
+```java
+package com.poc.banking.repository;
+
+import com.poc.banking.entity.BusinessApplication;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface BusinessApplicationRepository extends JpaRepository<BusinessApplication, String> {
+}
+```
+
+### `backend/src/main/java/com/poc/banking/repository/CustomListMemberRepository.java`
+
+```java
+package com.poc.banking.repository;
+
+import com.poc.banking.entity.CustomListMember;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface CustomListMemberRepository extends JpaRepository<CustomListMember, Long> {
+    List<CustomListMember> findByVendorId(String vendorId);
+    List<CustomListMember> findByListId(String listId);
+}
+```
+
+### `backend/src/main/java/com/poc/banking/repository/NodeApplicationRepository.java`
+
+```java
+package com.poc.banking.repository;
+
+import com.poc.banking.entity.NodeApplication;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface NodeApplicationRepository extends JpaRepository<NodeApplication, Long> {
+    List<NodeApplication> findByNodeId(String nodeId);
+    boolean existsByNodeIdAndApplicationId(String nodeId, String applicationId);
+    void deleteByNodeIdAndApplicationId(String nodeId, String applicationId);
+}
+```
+
+### `backend/src/main/java/com/poc/banking/repository/NodeParentRepository.java`
+
+```java
+package com.poc.banking.repository;
+
+import com.poc.banking.entity.NodeParent;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+import java.util.List;
+
+public interface NodeParentRepository extends JpaRepository<NodeParent, Long> {
+
+    List<NodeParent> findByNodeId(String nodeId);
+
+    List<NodeParent> findByParentId(String parentId);
+
+    /** Detection d'anomalie : doit remonter 9200004 (ROLLER 4) et rien d'autre. */
+    @Query("select np.nodeId from NodeParent np group by np.nodeId having count(np) > 1")
+    List<String> findNodeIdsWithSeveralParents();
+}
+```
+
+### `backend/src/main/java/com/poc/banking/repository/NodeRepository.java`
+
+```java
+package com.poc.banking.repository;
+
+import com.poc.banking.entity.Node;
+import com.poc.banking.entity.NodeLevel;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface NodeRepository extends JpaRepository<Node, String> {
+    List<Node> findByLevel(NodeLevel level);
+}
+```
+
+### `backend/src/main/java/com/poc/banking/repository/PermissionRepository.java`
+
+```java
+package com.poc.banking.repository;
+
+import com.poc.banking.entity.Permission;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface PermissionRepository extends JpaRepository<Permission, String> {
+    List<Permission> findByApplicationId(String applicationId);
+}
+```
+
+### `backend/src/main/java/com/poc/banking/repository/RolePermissionRepository.java`
+
+```java
+package com.poc.banking.repository;
+
+import com.poc.banking.entity.RolePermission;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface RolePermissionRepository extends JpaRepository<RolePermission, Long> {
+    List<RolePermission> findByRoleId(String roleId);
+}
+```
+
+### `backend/src/main/java/com/poc/banking/repository/RoleRepository.java`
+
+```java
+package com.poc.banking.repository;
+
+import com.poc.banking.entity.Role;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface RoleRepository extends JpaRepository<Role, String> {
+
+    /** Roles specialises pour ce noeud. */
+    List<Role> findByApplicationIdAndNodeId(String applicationId, String nodeId);
+
+    /** Roles globaux d'une application (non specialises). */
+    List<Role> findByApplicationIdAndNodeIdIsNull(String applicationId);
+
+    List<Role> findByParentRoleId(String parentRoleId);
+}
+```
+
+## Services
+
+### `backend/src/main/java/com/poc/banking/service/DelegationService.java`
+
+```java
+package com.poc.banking.service;
+
+import com.poc.banking.dto.NodeDto;
+import org.springframework.stereotype.Service;
+
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
+/**
+ * Delegation d'administration : un manager n'affecte que sous son propre noeud.
+ *
+ * Les noeuds du manager sont lus dans PingDirectory a partir du "sub" du token, jamais
+ * declares par l'appelant. C'est pour cela que le token doit porter "sub" : sans lui,
+ * ce service ne peut rien resoudre.
+ *
+ * ALLOW_OWN_NODE : point encore ouvert cote metier. A false, un manager de ROLLER 5 ne
+ * peut pas creer un pair sur ROLLER 5.
+ */
+@Service
+public class DelegationService {
+
+    private static final boolean ALLOW_OWN_NODE = false;
+
+    private final HierarchyService hierarchy;
+    private final GrantDirectoryClient directory;
+
+    public DelegationService(HierarchyService hierarchy, GrantDirectoryClient directory) {
+        this.hierarchy = hierarchy;
+        this.directory = directory;
+    }
+
+    public List<String> managerRootNodes(String managerUid) {
+        return directory.readGrantedNodes(managerUid);
+    }
+
+    public Set<String> assignableNodes(String managerUid) {
+        Set<String> assignable = new LinkedHashSet<>();
+        for (String root : managerRootNodes(managerUid)) {
+            if (ALLOW_OWN_NODE) {
+                assignable.add(root);
+            }
+            assignable.addAll(hierarchy.getDescendants(root));
+        }
+        return assignable;
+    }
+
+    public List<NodeDto> assignableSubtree(String managerUid) {
+        return hierarchy.getSubtree(managerRootNodes(managerUid));
+    }
+
+    public boolean canAssign(String managerUid, String nodeId) {
+        return assignableNodes(managerUid).contains(nodeId);
+    }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/service/GrantDirectoryClient.java`
+
+```java
+package com.poc.banking.service;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import javax.naming.Context;
+import javax.naming.NamingEnumeration;
+import javax.naming.directory.*;
+import java.util.ArrayList;
+import java.util.Hashtable;
+import java.util.List;
+
+/**
+ * Acces aux grants dans PingDirectory. Aucun grant n'est stocke en base PUMA : la base
+ * locale ne porte que la hierarchie, qui est un fait externe bouchonne.
+ *
+ * Format ecrit, celui qu'IDM produirait :
+ *   partnerGrant: BusinessApp1|9200005|Salesman
+ *   opScope: 2700010
+ *   opScopeExclude: 2700012
+ *   reportScope: 9200005
+ */
+@Component
+public class GrantDirectoryClient {
+
+    public static final String ATTR_GRANT = "partnerGrant";
+    public static final String ATTR_OP_SCOPE = "opScope";
+    public static final String ATTR_OP_EXCLUDE = "opScopeExclude";
+    public static final String ATTR_REPORT_SCOPE = "reportScope";
+
+    @Value("${pingdirectory.host}")
+    private String host;
+
+    @Value("${pingdirectory.ldap-port}")
+    private int ldapPort;
+
+    @Value("${pingdirectory.base-dn}")
+    private String baseDn;
+
+    @Value("${pingdirectory.admin-dn}")
+    private String adminDn;
+
+    @Value("${pingdirectory.admin-password}")
+    private String adminPassword;
+
+    private DirContext connect() throws NamingException {
+        Hashtable<String, String> env = new Hashtable<>();
+        env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+        env.put(Context.PROVIDER_URL, "ldap://" + host + ":" + ldapPort);
+        env.put(Context.SECURITY_AUTHENTICATION, "simple");
+        env.put(Context.SECURITY_PRINCIPAL, adminDn);
+        env.put(Context.SECURITY_CREDENTIALS, adminPassword);
+        return new InitialDirContext(env);
+    }
+
+    private String dn(String uid) {
+        return "uid=" + uid + "," + baseDn;
+    }
+
+    public boolean exists(String uid) {
+        DirContext ctx = null;
+        try {
+            ctx = connect();
+            ctx.getAttributes(dn(uid), new String[]{"uid"});
+            return true;
+        } catch (NamingException e) {
+            return false;
+        } finally {
+            close(ctx);
+        }
+    }
+
+    public List<String> readValues(String uid, String attribute) {
+        DirContext ctx = null;
+        List<String> values = new ArrayList<>();
+        try {
+            ctx = connect();
+            Attributes attrs = ctx.getAttributes(dn(uid), new String[]{attribute});
+            Attribute attr = attrs.get(attribute);
+            if (attr != null) {
+                NamingEnumeration<?> all = attr.getAll();
+                while (all.hasMore()) {
+                    values.add(String.valueOf(all.next()));
+                }
+            }
+        } catch (NamingException e) {
+            // Attribut absent ou entree inexistante : liste vide.
+        } finally {
+            close(ctx);
+        }
+        return values;
+    }
+
+    /** Les noeuds sur lesquels ce sujet detient un grant, extraits de "app|node|role". */
+    public List<String> readGrantedNodes(String uid) {
+        List<String> nodes = new ArrayList<>();
+        for (String grant : readValues(uid, ATTR_GRANT)) {
+            String[] parts = grant.split("\\|");
+            if (parts.length == 3) {
+                nodes.add(parts[1]);
+            }
+        }
+        return nodes;
+    }
+
+    public void addValues(String uid, String attribute, List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+        DirContext ctx = null;
+        try {
+            ctx = connect();
+            Attribute attr = new BasicAttribute(attribute);
+            values.forEach(attr::add);
+            ModificationItem[] mods = {
+                    new ModificationItem(DirContext.ADD_ATTRIBUTE, attr)
+            };
+            ctx.modifyAttributes(dn(uid), mods);
+        } catch (NamingException e) {
+            throw new IllegalStateException("Ecriture " + attribute + " impossible pour " + uid, e);
+        } finally {
+            close(ctx);
+        }
+    }
+
+    public void removeValue(String uid, String attribute, String value) {
+        DirContext ctx = null;
+        try {
+            ctx = connect();
+            ModificationItem[] mods = {
+                    new ModificationItem(DirContext.REMOVE_ATTRIBUTE,
+                            new BasicAttribute(attribute, value))
+            };
+            ctx.modifyAttributes(dn(uid), mods);
+        } catch (NamingException e) {
+            throw new IllegalStateException("Suppression " + attribute + " impossible", e);
+        } finally {
+            close(ctx);
+        }
+    }
+
+    public void createEntry(String uid, String firstName, String lastName, String email) {
+        DirContext ctx = null;
+        try {
+            ctx = connect();
+            Attributes attrs = new BasicAttributes();
+            Attribute oc = new BasicAttribute("objectClass");
+            oc.add("top");
+            oc.add("person");
+            oc.add("organizationalPerson");
+            oc.add("inetOrgPerson");
+            attrs.put(oc);
+            attrs.put("uid", uid);
+            attrs.put("cn", firstName + " " + lastName);
+            attrs.put("givenName", firstName);
+            attrs.put("sn", lastName);
+            attrs.put("mail", email);
+            ctx.createSubcontext(dn(uid), attrs);
+        } catch (NamingException e) {
+            throw new IllegalStateException("Creation de " + uid + " impossible", e);
+        } finally {
+            close(ctx);
+        }
+    }
+
+    private void close(DirContext ctx) {
+        if (ctx != null) {
+            try {
+                ctx.close();
+            } catch (NamingException ignored) {
+                // rien a faire
+            }
+        }
+    }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/service/HierarchyService.java`
+
+```java
+package com.poc.banking.service;
+
+import com.poc.banking.dto.NodeDto;
+
+import java.util.List;
+import java.util.Set;
+
+/**
+ * Bouchon du service hierarchie de reference pour le POC.
+ * Implementation PostgreSQL aujourd hui, appel du service partage plus tard : seule
+ * l'implementation change, jamais les appelants.
+ */
+public interface HierarchyService {
+
+    /** Parents(t) = { t, regroupment, chain, union } + custom lists contenant t. */
+    Set<String> getParents(String nodeId);
+
+    /** Sous-arbre a partir des racines fournies, pour le mat-tree. */
+    List<NodeDto> getSubtree(List<String> rootIds);
+
+    /** Descendants stricts, pour le controle de delegation. */
+    Set<String> getDescendants(String nodeId);
+
+    /** Noeuds a plusieurs parents. Doit retourner uniquement 9200004 sur le jeu ROLLER. */
+    List<String> getAnomalies();
+}
+```
+
+### `backend/src/main/java/com/poc/banking/service/JpaHierarchyService.java`
+
+```java
+package com.poc.banking.service;
+
+import com.poc.banking.dto.NodeDto;
+import com.poc.banking.entity.CustomListMember;
+import com.poc.banking.entity.Node;
+import com.poc.banking.entity.NodeParent;
+import com.poc.banking.repository.CustomListMemberRepository;
+import com.poc.banking.repository.NodeParentRepository;
+import com.poc.banking.repository.NodeRepository;
+import org.springframework.stereotype.Service;
+
+import java.util.*;
+
+@Service
+public class JpaHierarchyService implements HierarchyService {
+
+    private final NodeRepository nodes;
+    private final NodeParentRepository edges;
+    private final CustomListMemberRepository lists;
+
+    public JpaHierarchyService(NodeRepository nodes,
+                              NodeParentRepository edges,
+                              CustomListMemberRepository lists) {
+        this.nodes = nodes;
+        this.edges = edges;
+        this.lists = lists;
+    }
+
+    /**
+     * Remontee des ancetres. Pas de profondeur fixe a 4 : les niveaux peuvent etre
+     * sautes (Auto Eder) et un noeud peut avoir plusieurs parents (ROLLER 4), donc on
+     * parcourt le graphe au lieu de lire quatre colonnes.
+     */
+    @Override
+    public Set<String> getParents(String nodeId) {
+        Set<String> result = new LinkedHashSet<>();
+        Deque<String> queue = new ArrayDeque<>();
+        queue.add(nodeId);
+        result.add(nodeId);
+
+        while (!queue.isEmpty()) {
+            String current = queue.poll();
+            for (NodeParent edge : edges.findByNodeId(current)) {
+                if (result.add(edge.getParentId())) {
+                    queue.add(edge.getParentId());
+                }
+            }
+        }
+
+        for (CustomListMember member : lists.findByVendorId(nodeId)) {
+            result.add(member.getListId());
+        }
+        return result;
+    }
+
+    @Override
+    public Set<String> getDescendants(String nodeId) {
+        Set<String> result = new LinkedHashSet<>();
+        Deque<String> queue = new ArrayDeque<>();
+        queue.add(nodeId);
+
+        while (!queue.isEmpty()) {
+            String current = queue.poll();
+            for (NodeParent edge : edges.findByParentId(current)) {
+                if (result.add(edge.getNodeId())) {
+                    queue.add(edge.getNodeId());
+                }
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public List<NodeDto> getSubtree(List<String> rootIds) {
+        Map<String, Node> byId = new HashMap<>();
+        nodes.findAll().forEach(n -> byId.put(n.getId(), n));
+
+        Set<String> duplicated = new HashSet<>(edges.findNodeIdsWithSeveralParents());
+
+        List<NodeDto> roots = new ArrayList<>();
+        for (String rootId : new LinkedHashSet<>(rootIds)) {
+            Node node = byId.get(rootId);
+            if (node != null) {
+                roots.add(build(node, byId, duplicated, new HashSet<>()));
+            }
+        }
+        return roots;
+    }
+
+    /**
+     * Construction recursive. Un noeud a plusieurs parents apparait sous chacun d'eux :
+     * le mat-tree attend un arbre, on duplique visuellement et on le signale.
+     * "visiting" coupe les cycles eventuels au lieu de boucler indefiniment.
+     */
+    private NodeDto build(Node node,
+                          Map<String, Node> byId,
+                          Set<String> duplicated,
+                          Set<String> visiting) {
+
+        NodeDto dto = new NodeDto(node.getId(), node.getLabel(),
+                node.getLevel().name(), duplicated.contains(node.getId()));
+
+        if (!visiting.add(node.getId())) {
+            return dto;
+        }
+        for (NodeParent edge : edges.findByParentId(node.getId())) {
+            Node child = byId.get(edge.getNodeId());
+            if (child != null) {
+                dto.getChildren().add(build(child, byId, duplicated, visiting));
+            }
+        }
+        visiting.remove(node.getId());
+        return dto;
+    }
+
+    @Override
+    public List<String> getAnomalies() {
+        return edges.findNodeIdsWithSeveralParents();
+    }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/service/RoleDefinitionService.java`
+
+```java
+package com.poc.banking.service;
+
+import com.poc.banking.dto.RoleDefinitionDto;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
+/**
+ * API runtime : "the business application retrieves the role definition at runtime from
+ * PUMA based on the selected context of the user".
+ *
+ * Le contexte choisi est verifie contre les grants du sujet : on ne fait pas confiance au
+ * contexte annonce par l'appelant. Un grant compte si son noeud est dans Parents(contexte).
+ */
+@Service
+public class RoleDefinitionService {
+
+    private final GrantDirectoryClient directory;
+    private final HierarchyService hierarchy;
+    private final RoleResolutionService roleResolution;
+
+    public RoleDefinitionService(GrantDirectoryClient directory,
+                                 HierarchyService hierarchy,
+                                 RoleResolutionService roleResolution) {
+        this.directory = directory;
+        this.hierarchy = hierarchy;
+        this.roleResolution = roleResolution;
+    }
+
+    public RoleDefinitionDto definition(String uid, String contextNode, String applicationId) {
+        Set<String> parents = hierarchy.getParents(contextNode);
+
+        List<String> roles = new ArrayList<>();
+        Set<String> permissions = new LinkedHashSet<>();
+
+        for (String grant : directory.readValues(uid, GrantDirectoryClient.ATTR_GRANT)) {
+            String[] parts = grant.split("\\|");
+            if (parts.length != 3) {
+                continue;
+            }
+            String application = parts[0];
+            String node = parts[1];
+            String role = parts[2];
+
+            boolean sameApplication = applicationId == null || applicationId.equals(application);
+            if (sameApplication && parents.contains(node)) {
+                roles.add(role);
+                permissions.addAll(roleResolution.effectivePermissions(role));
+            }
+        }
+        return new RoleDefinitionDto(uid, contextNode, roles, List.copyOf(permissions));
+    }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/service/RoleResolutionService.java`
+
+```java
+package com.poc.banking.service;
+
+import com.poc.banking.entity.Role;
+import com.poc.banking.entity.RolePermission;
+import com.poc.banking.repository.RolePermissionRepository;
+import com.poc.banking.repository.RoleRepository;
+import org.springframework.stereotype.Service;
+
+import java.util.*;
+
+/**
+ * Resolution soustractive des permissions le long de la chaine de specialisation.
+ * Salesman (global) -> Salesman-JLR (union) -> Salesman-JLR-2672756 (vendor).
+ * Un maillon ne peut que retirer : granted = false. Toute tentative d'ajout sur un
+ * role specialise est refusee, conformement a la regle Ping.
+ */
+@Service
+public class RoleResolutionService {
+
+    private final RoleRepository roles;
+    private final RolePermissionRepository rolePermissions;
+
+    public RoleResolutionService(RoleRepository roles, RolePermissionRepository rolePermissions) {
+        this.roles = roles;
+        this.rolePermissions = rolePermissions;
+    }
+
+    /** Du role global vers le plus specialise. */
+    public List<Role> specialisationChain(String roleId) {
+        LinkedList<Role> chain = new LinkedList<>();
+        String current = roleId;
+        Set<String> seen = new HashSet<>();
+
+        while (current != null && seen.add(current)) {
+            Role role = roles.findById(current).orElse(null);
+            if (role == null) {
+                break;
+            }
+            chain.addFirst(role);
+            current = role.getParentRoleId();
+        }
+        return chain;
+    }
+
+    public Set<String> effectivePermissions(String roleId) {
+        Set<String> effective = new LinkedHashSet<>();
+        List<Role> chain = specialisationChain(roleId);
+
+        for (int i = 0; i < chain.size(); i++) {
+            Role role = chain.get(i);
+            boolean isRoot = (i == 0);
+
+            for (RolePermission rp : rolePermissions.findByRoleId(role.getId())) {
+                if (rp.isGranted()) {
+                    if (isRoot) {
+                        effective.add(rp.getPermissionId());
+                    }
+                    // Sur une specialisation, un granted = true est ignore : on ne
+                    // peut pas ajouter d'entitlement en specialisant.
+                } else {
+                    effective.remove(rp.getPermissionId());
+                }
+            }
+        }
+        return effective;
+    }
+
+    public Set<String> removedPermissions(String roleId) {
+        Set<String> removed = new LinkedHashSet<>();
+        for (Role role : specialisationChain(roleId)) {
+            for (RolePermission rp : rolePermissions.findByRoleId(role.getId())) {
+                if (!rp.isGranted()) {
+                    removed.add(rp.getPermissionId());
+                }
+            }
+        }
+        return removed;
+    }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/service/UserProvisioningService.java`
+
+```java
+package com.poc.banking.service;
+
+import com.poc.banking.dto.AssignmentDto;
+import com.poc.banking.dto.CreateUserRequest;
+import com.poc.banking.dto.ScopesDto;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+/**
+ * Upsert et non creation stricte : le cas "cross-shop user visibility" veut qu'un employe
+ * cree par un manager travaille ensuite pour un shop gere par un autre. On complete
+ * l'entree existante au lieu de renvoyer une erreur.
+ */
+@Service
+public class UserProvisioningService {
+
+    private final GrantDirectoryClient directory;
+    private final DelegationService delegation;
+
+    public UserProvisioningService(GrantDirectoryClient directory, DelegationService delegation) {
+        this.directory = directory;
+        this.delegation = delegation;
+    }
+
+    public boolean createOrUpdate(String managerUid, CreateUserRequest request) {
+        checkDelegation(managerUid, request);
+
+        boolean created = false;
+        if (!directory.exists(request.uid())) {
+            directory.createEntry(request.uid(), request.firstName(),
+                    request.lastName(), request.email());
+            created = true;
+        }
+
+        writeGrants(request.uid(), request.assignments());
+        writeScopes(request.uid(), request.scopes());
+        return created;
+    }
+
+    /**
+     * Controle serveur. Le front filtre l'arbre pour le confort, mais c'est ici que la
+     * decision est prise : sinon un manager ROLLER 5 pourrait affecter sur ROLLER 6.
+     */
+    private void checkDelegation(String managerUid, CreateUserRequest request) {
+        if (request.assignments() == null || request.assignments().isEmpty()) {
+            throw new IllegalArgumentException("Au moins une affectation est requise");
+        }
+        for (AssignmentDto assignment : request.assignments()) {
+            if (!delegation.canAssign(managerUid, assignment.node())) {
+                throw new SecurityException(
+                        "Noeud hors du perimetre du manager : " + assignment.node());
+            }
+        }
+        ScopesDto scopes = request.scopes();
+        if (scopes != null) {
+            checkScope(managerUid, scopes.opScope());
+            checkScope(managerUid, scopes.opScopeExclude());
+            checkScope(managerUid, scopes.reportScope());
+        }
+    }
+
+    private void checkScope(String managerUid, List<String> nodes) {
+        if (nodes == null) {
+            return;
+        }
+        for (String node : nodes) {
+            if (!delegation.canAssign(managerUid, node)) {
+                throw new SecurityException("Perimetre hors delegation : " + node);
+            }
+        }
+    }
+
+    private void writeGrants(String uid, List<AssignmentDto> assignments) {
+        List<String> existing = directory.readValues(uid, GrantDirectoryClient.ATTR_GRANT);
+        List<String> toAdd = assignments.stream()
+                .map(a -> a.application() + "|" + a.node() + "|" + a.role())
+                .filter(value -> !existing.contains(value))
+                .toList();
+        directory.addValues(uid, GrantDirectoryClient.ATTR_GRANT, toAdd);
+    }
+
+    private void writeScopes(String uid, ScopesDto scopes) {
+        if (scopes == null) {
+            return;
+        }
+        addMissing(uid, GrantDirectoryClient.ATTR_OP_SCOPE, scopes.opScope());
+        addMissing(uid, GrantDirectoryClient.ATTR_OP_EXCLUDE, scopes.opScopeExclude());
+        addMissing(uid, GrantDirectoryClient.ATTR_REPORT_SCOPE, scopes.reportScope());
+    }
+
+    private void addMissing(String uid, String attribute, List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+        List<String> existing = directory.readValues(uid, attribute);
+        directory.addValues(uid, attribute,
+                values.stream().filter(v -> !existing.contains(v)).toList());
+    }
+}
+```
+
+## Controleurs
+
+### `backend/src/main/java/com/poc/banking/controller/ApplicationController.java`
+
+```java
+package com.poc.banking.controller;
+
+import com.poc.banking.dto.ApplicationDto;
+import com.poc.banking.entity.NodeApplication;
+import com.poc.banking.repository.BusinessApplicationRepository;
+import com.poc.banking.repository.NodeApplicationRepository;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+/** Ecran 1 : affectation des applications aux niveaux de hierarchie. */
+@RestController
+@RequestMapping("/api/applications")
+public class ApplicationController {
+
+    private final BusinessApplicationRepository applications;
+    private final NodeApplicationRepository nodeApplications;
+
+    public ApplicationController(BusinessApplicationRepository applications,
+                                 NodeApplicationRepository nodeApplications) {
+        this.applications = applications;
+        this.nodeApplications = nodeApplications;
+    }
+
+    /**
+     * Applications exposees sur un noeud. Prerequis d'Ujjwal : on ne peut accorder un
+     * role sur un noeud ou l'application n'est pas affectee.
+     */
+    @GetMapping
+    public List<ApplicationDto> listByNode(@RequestParam String node) {
+        List<String> ids = nodeApplications.findByNodeId(node).stream()
+                .map(NodeApplication::getApplicationId)
+                .toList();
+        return applications.findAllById(ids).stream()
+                .map(a -> new ApplicationDto(a.getId(), a.getName()))
+                .toList();
+    }
+
+    @PostMapping("/{applicationId}/nodes/{nodeId}")
+    @Transactional
+    public ResponseEntity<Void> assignToNode(@PathVariable String applicationId,
+                                             @PathVariable String nodeId,
+                                             JwtAuthenticationToken token) {
+        if (!JwtSubject.isManager(token)) {
+            return ResponseEntity.status(403).build();
+        }
+        if (!nodeApplications.existsByNodeIdAndApplicationId(nodeId, applicationId)) {
+            nodeApplications.save(new NodeApplication(nodeId, applicationId));
+        }
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{applicationId}/nodes/{nodeId}")
+    @Transactional
+    public ResponseEntity<Void> removeFromNode(@PathVariable String applicationId,
+                                               @PathVariable String nodeId,
+                                               JwtAuthenticationToken token) {
+        if (!JwtSubject.isManager(token)) {
+            return ResponseEntity.status(403).build();
+        }
+        nodeApplications.deleteByNodeIdAndApplicationId(nodeId, applicationId);
+        return ResponseEntity.noContent().build();
+    }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/controller/HierarchyController.java`
+
+```java
+package com.poc.banking.controller;
+
+import com.poc.banking.dto.NodeDto;
+import com.poc.banking.service.DelegationService;
+import com.poc.banking.service.HierarchyService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Set;
+
+@RestController
+@RequestMapping("/api/hierarchy")
+public class HierarchyController {
+
+    private final HierarchyService hierarchy;
+    private final DelegationService delegation;
+
+    public HierarchyController(HierarchyService hierarchy, DelegationService delegation) {
+        this.hierarchy = hierarchy;
+        this.delegation = delegation;
+    }
+
+    /** Sous-arbre du manager connecte, pas la hierarchie complete. */
+    @GetMapping("/subtree")
+    public ResponseEntity<List<NodeDto>> subtree(JwtAuthenticationToken token) {
+        if (!JwtSubject.isManager(token)) {
+            return ResponseEntity.status(403).build();
+        }
+        return ResponseEntity.ok(delegation.assignableSubtree(JwtSubject.uid(token)));
+    }
+
+    @GetMapping("/{nodeId}/parents")
+    public Set<String> parents(@PathVariable String nodeId) {
+        return hierarchy.getParents(nodeId);
+    }
+
+    /** Diagnostic : doit retourner uniquement 9200004 sur le jeu ROLLER. */
+    @GetMapping("/anomalies")
+    public List<String> anomalies() {
+        return hierarchy.getAnomalies();
+    }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/controller/JwtSubject.java`
+
+```java
+package com.poc.banking.controller;
+
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+
+import java.util.List;
+
+/** Lecture du token. Deux claims utilises, et deux seulement. */
+public final class JwtSubject {
+
+    private JwtSubject() { }
+
+    /**
+     * Identifiant du manager. Indispensable : c'est la cle de lecture de ses propres
+     * grants dans PingDirectory. Si le token n'a pas de "sub", corriger l'Access Token
+     * Mapping de PumaJWTToken avant d'aller plus loin.
+     */
+    public static String uid(JwtAuthenticationToken token) {
+        String sub = token.getToken().getSubject();
+        if (sub == null || sub.isBlank()) {
+            throw new IllegalStateException(
+                    "Claim 'sub' absent du token : PumaJWTToken doit le porter");
+        }
+        return sub;
+    }
+
+    /** Acces au portail PUMA lui-meme. Rien a voir avec les affectations metier. */
+    public static boolean isManager(JwtAuthenticationToken token) {
+        List<String> groups = token.getToken().getClaimAsStringList("isMemberOf");
+        return groups != null && groups.stream().anyMatch(g -> g.contains("MANAGER"));
+    }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/controller/RoleController.java`
+
+```java
+package com.poc.banking.controller;
+
+import com.poc.banking.dto.RoleDto;
+import com.poc.banking.dto.SpecialiseRoleRequest;
+import com.poc.banking.entity.Role;
+import com.poc.banking.entity.RolePermission;
+import com.poc.banking.repository.RolePermissionRepository;
+import com.poc.banking.repository.RoleRepository;
+import com.poc.banking.service.RoleResolutionService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/** Ecrans 2 et 3 : definition des roles et specialisation par organisation. */
+@RestController
+@RequestMapping("/api/roles")
+public class RoleController {
+
+    private final RoleRepository roles;
+    private final RolePermissionRepository rolePermissions;
+    private final RoleResolutionService resolution;
+
+    public RoleController(RoleRepository roles,
+                          RolePermissionRepository rolePermissions,
+                          RoleResolutionService resolution) {
+        this.roles = roles;
+        this.rolePermissions = rolePermissions;
+        this.resolution = resolution;
+    }
+
+    /**
+     * Roles proposables pour un couple application + noeud. Le noeud compte : les roles
+     * sont specialises par organisation et il n'y a pas d'heritage descendant, donc la
+     * liste depend du noeud choisi, pas seulement de l'application.
+     */
+    @GetMapping
+    public List<RoleDto> list(@RequestParam String application,
+                              @RequestParam(required = false) String node) {
+
+        List<Role> candidates = new ArrayList<>(
+                roles.findByApplicationIdAndNodeIdIsNull(application));
+        if (node != null) {
+            candidates.addAll(roles.findByApplicationIdAndNodeId(application, node));
+        }
+        return candidates.stream().map(this::toDto).toList();
+    }
+
+    @PostMapping("/specialise")
+    @Transactional
+    public ResponseEntity<?> specialise(@RequestBody SpecialiseRoleRequest req,
+                                        JwtAuthenticationToken token) {
+        if (!JwtSubject.isManager(token)) {
+            return ResponseEntity.status(403).build();
+        }
+        Role parent = roles.findById(req.parentRoleId()).orElse(null);
+        if (parent == null) {
+            return ResponseEntity.badRequest().body("Role parent inconnu");
+        }
+
+        String id = req.parentRoleId() + "-" + req.nodeId();
+        Role specialised = new Role(id, req.name(), parent.getApplicationId(),
+                parent.getId(), req.nodeId());
+        roles.save(specialised);
+
+        // Uniquement des retraits : une specialisation ne peut pas ajouter d'entitlement.
+        for (String permissionId : req.permissionsToRemove()) {
+            rolePermissions.save(new RolePermission(id, permissionId, false));
+        }
+        return ResponseEntity.ok(toDto(specialised));
+    }
+
+    private RoleDto toDto(Role role) {
+        return new RoleDto(
+                role.getId(),
+                role.getName(),
+                role.getParentRoleId(),
+                role.getNodeId(),
+                List.copyOf(resolution.effectivePermissions(role.getId())),
+                List.copyOf(resolution.removedPermissions(role.getId()))
+        );
+    }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/controller/RoleDefinitionController.java`
+
+```java
+package com.poc.banking.controller;
+
+import com.poc.banking.dto.RoleDefinitionDto;
+import com.poc.banking.service.RoleDefinitionService;
+import org.springframework.web.bind.annotation.*;
+
+/**
+ * API runtime consommee par l'application metier apres le choix du contexte par
+ * l'utilisateur. Pas d'IHM derriere cet endpoint.
+ */
+@RestController
+@RequestMapping("/api/runtime")
+public class RoleDefinitionController {
+
+    private final RoleDefinitionService roleDefinition;
+
+    public RoleDefinitionController(RoleDefinitionService roleDefinition) {
+        this.roleDefinition = roleDefinition;
+    }
+
+    @GetMapping("/role-definition")
+    public RoleDefinitionDto definition(@RequestParam String uid,
+                                        @RequestParam String context,
+                                        @RequestParam(required = false) String application) {
+        return roleDefinition.definition(uid, context, application);
+    }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/controller/UserController.java`
+
+```java
+package com.poc.banking.controller;
+
+import com.poc.banking.dto.CreateUserRequest;
+import com.poc.banking.service.UserProvisioningService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/users")
+public class UserController {
+
+    private final UserProvisioningService userService;
+
+    public UserController(UserProvisioningService userService) {
+        this.userService = userService;
+    }
+
+    @PostMapping
+    public ResponseEntity<?> createUser(@RequestBody CreateUserRequest req,
+                                        JwtAuthenticationToken token) {
+
+        if (!JwtSubject.isManager(token)) {
+            return ResponseEntity.status(403).body("Acces refuse : role MANAGER requis");
+        }
+
+        String managerUid = JwtSubject.uid(token);
+
+        try {
+            boolean created = userService.createOrUpdate(managerUid, req);
+            return ResponseEntity.ok(Map.of(
+                    "message", created
+                            ? "Utilisateur " + req.uid() + " cree."
+                            : "Utilisateur " + req.uid() + " complete avec de nouvelles affectations.",
+                    "passwordResetUrl", "https://localhost:9031/ext/pwdreset"
+            ));
+        } catch (SecurityException e) {
+            return ResponseEntity.status(403).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+}
+```
+
+## DTOs
+
+### `backend/src/main/java/com/poc/banking/dto/ApplicationDto.java`
+
+```java
+package com.poc.banking.dto;
+
+public record ApplicationDto(String id, String name) { }
+```
+
+### `backend/src/main/java/com/poc/banking/dto/AssignmentDto.java`
+
+```java
+package com.poc.banking.dto;
+
+/** Affectation atomique. Ecrite dans PingDirectory sous "application|node|role". */
+public record AssignmentDto(
+        String application,
+        String node,
+        String role
+) { }
+```
+
+### `backend/src/main/java/com/poc/banking/dto/CreateUserRequest.java`
+
+```java
+package com.poc.banking.dto;
+
+import java.util.List;
+
+/**
+ * Remplace l'ancien record (uid, firstName, lastName, email, role).
+ * Le champ "role" COMMERCIAL/MANAGER disparait au profit des affectations.
+ */
+public record CreateUserRequest(
+        String uid,
+        String firstName,
+        String lastName,
+        String email,
+        List<AssignmentDto> assignments,
+        ScopesDto scopes
+) { }
+```
+
+### `backend/src/main/java/com/poc/banking/dto/NodeDto.java`
+
+```java
+package com.poc.banking.dto;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Noeud d'arbre pour le mat-tree. duplicated = true quand le noeud apparait sous
+ * plusieurs parents (ROLLER 4) : l'IHM l'affiche deux fois et le signale.
+ */
+public class NodeDto {
+
+    private final String id;
+    private final String label;
+    private final String level;
+    private final boolean duplicated;
+    private final List<NodeDto> children = new ArrayList<>();
+
+    public NodeDto(String id, String label, String level, boolean duplicated) {
+        this.id = id;
+        this.label = label;
+        this.level = level;
+        this.duplicated = duplicated;
+    }
+
+    public String getId() { return id; }
+    public String getLabel() { return label; }
+    public String getLevel() { return level; }
+    public boolean isDuplicated() { return duplicated; }
+    public List<NodeDto> getChildren() { return children; }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/dto/RoleDefinitionDto.java`
+
+```java
+package com.poc.banking.dto;
+
+import java.util.List;
+
+/**
+ * Reponse de l'API runtime : "the business application retrieves the role definition
+ * at runtime from PUMA based on the selected context of the user".
+ */
+public record RoleDefinitionDto(
+        String uid,
+        String contextNode,
+        List<String> roles,
+        List<String> permissions
+) { }
+```
+
+### `backend/src/main/java/com/poc/banking/dto/RoleDto.java`
+
+```java
+package com.poc.banking.dto;
+
+import java.util.List;
+
+public record RoleDto(
+        String id,
+        String name,
+        String parentRoleId,
+        String nodeId,
+        List<String> effectivePermissions,
+        List<String> removedPermissions
+) { }
+```
+
+### `backend/src/main/java/com/poc/banking/dto/ScopesDto.java`
+
+```java
+package com.poc.banking.dto;
+
+import java.util.List;
+
+/**
+ * Trois perimetres distincts, tires de l'exemple d'Ujjwal :
+ * assignedVendorList = V1, V2 (pas V3) et assignedReportingVendorList = RG1.
+ */
+public record ScopesDto(
+        List<String> opScope,
+        List<String> opScopeExclude,
+        List<String> reportScope
+) {
+    public static ScopesDto empty() {
+        return new ScopesDto(List.of(), List.of(), List.of());
+    }
+}
+```
+
+### `backend/src/main/java/com/poc/banking/dto/SpecialiseRoleRequest.java`
+
+```java
+package com.poc.banking.dto;
+
+import java.util.List;
+
+/**
+ * Ecran 3. On ne transmet que les retraits : la specialisation ne peut pas ajouter
+ * d'entitlement, seulement en enlever.
+ */
+public record SpecialiseRoleRequest(
+        String parentRoleId,
+        String nodeId,
+        String name,
+        List<String> permissionsToRemove
+) { }
+```
+
+## Ressources
+
+### `backend/src/main/resources/application.yml`
+
+```yaml
+server:
+  port: 8081
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://localhost:9031
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postgres  # instance locale, pas de conteneur
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: postgres
+
+  jpa:
+    hibernate:
+      # Le schema est cree par schema.sql, Hibernate ne touche pas au DDL.
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true
+
+  sql:
+    init:
+      # schema.sql et data.sql sont idempotents (IF NOT EXISTS / ON CONFLICT),
+      # donc ils peuvent rejouer a chaque demarrage sans casser les donnees.
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+
+# CORS - autoriser Angular
+cors:
+  allowed-origins: http://localhost:4200
+
+pingdirectory:
+  host: localhost
+  port: 443
+  rest-port: 1443
+  ldap-port: 1389
+  base-dn: ou=people,dc=example,dc=com
+  groups-dn: ou=groups,dc=example,dc=com
+  admin-dn: cn=administrator,dc=example,dc=com
+  admin-password: 2FederateM0re
+```
+
+### `backend/src/main/resources/data.sql`
+
+```sql
+-- PUMA - hierarchie ROLLER (Vendor_Hierarchy_UCR.xlsx), 31 noeuds.
+-- Idempotent : ON CONFLICT DO NOTHING, rejouable a chaque demarrage.
+-- 9200004 ROLLER 4 a DEUX parents (9100001 et 9100002) : anomalie a confirmer
+-- contre le systeme source. C'est pourquoi node_parent est une table et non
+-- une colonne sur node.
+
+INSERT INTO node (id, label, level, sparte) VALUES ('9300001', 'ROLLER', 'UNION', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('9100001', 'ROLLER GMBH & CO. KG', 'CHAIN', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('9100002', 'ROLLER GMBH', 'CHAIN', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('9200001', 'ROLLER 1', 'REGROUPMENT', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('9200002', 'ROLLER 2', 'REGROUPMENT', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('9200003', 'ROLLER 3', 'REGROUPMENT', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('9200004', 'ROLLER 4', 'REGROUPMENT', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('9200005', 'ROLLER 5', 'REGROUPMENT', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('9200006', 'ROLLER 6', 'REGROUPMENT', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('9200007', 'ROLLER 7', 'REGROUPMENT', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2283003', 'I', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2480004', 'J', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2541202', 'H', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2602700', 'K', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2700001', 'L', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2700002', 'M', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2700003', 'N', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2700004', 'O', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2700005', 'P', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2700006', 'Q', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2700007', 'R', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2700008', 'S', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2700009', 'T', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2700010', 'U', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2700011', 'V', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2700012', 'AA', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2700013', 'AB', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2700014', 'AC', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2700015', 'AD', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2700016', 'AE', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+INSERT INTO node (id, label, level, sparte) VALUES ('2700017', 'AF', 'VENDOR', NULL) ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO node_parent (node_id, parent_id) VALUES ('9100001', '9300001') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('9200001', '9100001') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2541202', '9200001') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2283003', '9200001') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('9200002', '9100001') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2480004', '9200002') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2602700', '9200002') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2700001', '9200002') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('9200003', '9100001') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2700002', '9200003') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2700003', '9200003') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2700004', '9200003') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2700005', '9200003') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('9200004', '9100001') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2700006', '9200004') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('9100002', '9300001') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('9200004', '9100002') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2700007', '9200004') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2700008', '9200004') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('9200005', '9100002') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2700009', '9200005') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2700010', '9200005') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2700011', '9200005') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2700012', '9200005') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2700013', '9200005') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2700014', '9200005') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('9200006', '9100002') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2700015', '9200006') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2700016', '9200006') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('9200007', '9100002') ON CONFLICT (node_id, parent_id) DO NOTHING;
+INSERT INTO node_parent (node_id, parent_id) VALUES ('2700017', '9200007') ON CONFLICT (node_id, parent_id) DO NOTHING;
+
+-- Custom List : ensemble arbitraire de vendors, traverse la hierarchie.
+INSERT INTO custom_list (id, label) VALUES ('CL_A', 'Custom List A') ON CONFLICT (id) DO NOTHING;
+INSERT INTO custom_list_member (list_id, vendor_id) VALUES ('CL_A', '2700015') ON CONFLICT (list_id, vendor_id) DO NOTHING;
+INSERT INTO custom_list_member (list_id, vendor_id) VALUES ('CL_A', '2700017') ON CONFLICT (list_id, vendor_id) DO NOTHING;
+INSERT INTO custom_list_member (list_id, vendor_id) VALUES ('CL_A', '2700010') ON CONFLICT (list_id, vendor_id) DO NOTHING;
+
+-- Jeu Auto Eder : niveaux sautes (ChaineNr = 0, RegroupNr = 0), plusieurs unions.
+-- Sert de test au parcours de graphe : les vendors pendent directement a l'union.
+INSERT INTO node (id, label, level, sparte) VALUES
+  ('9305707', 'MG MOTOR GER FRANCHISE+BAU', 'UNION', 'Mobility'),
+  ('9305574', 'JLR GER', 'UNION', 'Mobility'),
+  ('9305616', 'MG MOTOR GER', 'UNION', 'Mobility'),
+  ('2685147', 'AUTO EDER GMBH', 'VENDOR', 'Mobility'),
+  ('2689487', 'Bad Toelz', 'VENDOR', 'Mobility'),
+  ('2680353', 'AUTO EDER GMBH', 'VENDOR', 'Mobility'),
+  ('2689578', 'Bad Toelz', 'VENDOR', 'Mobility'),
+  ('2672749', 'AUTO EDER GMBH', 'VENDOR', 'Mobility'),
+  ('2672756', 'AUTO EDER TRAUNSTEIN ZWEIGN. D', 'VENDOR', 'Mobility')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO node_parent (node_id, parent_id) VALUES
+  ('2685147', '9305707'), ('2689487', '9305707'),
+  ('2680353', '9305616'), ('2689578', '9305616'),
+  ('2672749', '9305574'), ('2672756', '9305574')
+ON CONFLICT (node_id, parent_id) DO NOTHING;
+
+-- Auto Eder GmbH n'a pas d'ancetre commun : seule une Custom List regroupe les 6 vendorids.
+INSERT INTO custom_list (id, label)
+VALUES ('CL_AUTO_EDER', 'Auto Eder GmbH (vendor group)') ON CONFLICT (id) DO NOTHING;
+INSERT INTO custom_list_member (list_id, vendor_id) VALUES
+  ('CL_AUTO_EDER', '2685147'), ('CL_AUTO_EDER', '2689487'),
+  ('CL_AUTO_EDER', '2680353'), ('CL_AUTO_EDER', '2689578'),
+  ('CL_AUTO_EDER', '2672749'), ('CL_AUTO_EDER', '2672756')
+ON CONFLICT (list_id, vendor_id) DO NOTHING;
+
+-- Applications, permissions et roles de demonstration.
+INSERT INTO application (id, name) VALUES
+  ('BusinessApp1', 'Contract Management'),
+  ('BusinessApp2', 'Reporting Portal'),
+  ('MOBILITY', 'Mobility Portal')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO permission (id, code, label, application_id) VALUES
+  ('contract.read',   'contract.read',   'Vertrag lesen',                'BusinessApp1'),
+  ('contract.create', 'contract.create', 'Kreditantrag erstellen',       'BusinessApp1'),
+  ('contract.update', 'contract.update', 'Vertrag aendern',              'BusinessApp1'),
+  ('contract.cancel', 'contract.cancel', 'Vertrag stornieren',           'BusinessApp1'),
+  ('stock.read',      'stock.read',      'Bestandsliste ansehen',        'BusinessApp1'),
+  ('stock.download',  'stock.download',  'Bestandsliste herunterladen',  'BusinessApp1'),
+  ('report.read',     'report.read',     'Statistik und Finanzierungsbericht', 'BusinessApp2'),
+  ('report.export',   'report.export',   'Auszahlungsbericht',           'BusinessApp2'),
+  ('user.create',     'user.create',     'Benutzer anlegen',             'BusinessApp1'),
+  ('user.assign_role','user.assign_role','Administratorenrechte',        'BusinessApp1')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO node_application (node_id, application_id) VALUES
+  ('9300001', 'BusinessApp1'), ('9300001', 'BusinessApp2'),
+  ('9200005', 'BusinessApp1'), ('9200006', 'BusinessApp1'),
+  ('9305574', 'MOBILITY')
+ON CONFLICT (node_id, application_id) DO NOTHING;
+
+-- Roles globaux, puis chaine de specialisation.
+INSERT INTO app_role (id, name, application_id, parent_role_id, node_id) VALUES
+  ('R1', 'Manage Contract', 'BusinessApp1', NULL, NULL),
+  ('R2', 'Reporting',       'BusinessApp2', NULL, NULL),
+  ('R3', 'Stock',           'BusinessApp1', NULL, NULL),
+  ('R4', 'Shop Admin',      'BusinessApp1', NULL, NULL),
+  ('salesman', 'Salesman',  'MOBILITY',     NULL, NULL)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO app_role (id, name, application_id, parent_role_id, node_id) VALUES
+  ('salesman-9305574', 'Salesman-JLR', 'MOBILITY', 'salesman', '9305574'),
+  ('salesman-9305574-2672756', 'Salesman-JLR-2672756', 'MOBILITY',
+   'salesman-9305574', '2672756')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO role_permission (role_id, permission_id, granted) VALUES
+  ('R1', 'contract.read', TRUE), ('R1', 'contract.create', TRUE),
+  ('R1', 'contract.update', TRUE), ('R1', 'contract.cancel', TRUE),
+  ('R2', 'report.read', TRUE), ('R2', 'report.export', TRUE),
+  ('R3', 'stock.read', TRUE), ('R3', 'stock.download', TRUE),
+  ('R4', 'user.create', TRUE), ('R4', 'user.assign_role', TRUE),
+  ('salesman', 'contract.read', TRUE), ('salesman', 'contract.create', TRUE),
+  ('salesman', 'stock.read', TRUE), ('salesman', 'stock.download', TRUE)
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- Specialisation soustractive : "specialize role for 2672756 w/o download stocklist".
+INSERT INTO role_permission (role_id, permission_id, granted) VALUES
+  ('salesman-9305574-2672756', 'stock.download', FALSE)
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+```
+
+### `backend/src/main/resources/schema.sql`
+
+```sql
+-- PUMA - schema du bouchon "service hierarchie" + referentiel applications / roles.
+-- Idempotent : rejoue a chaque demarrage sans effet de bord.
+-- Aucun grant ici : les grants vivent dans PingDirectory, pas dans cette base.
+
+CREATE TABLE IF NOT EXISTS node (
+    id     VARCHAR(20) PRIMARY KEY,
+    label  VARCHAR(200) NOT NULL,
+    level  VARCHAR(20)  NOT NULL,
+    sparte VARCHAR(50)
+);
+
+CREATE TABLE IF NOT EXISTS node_parent (
+    id        BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    node_id   VARCHAR(20) NOT NULL REFERENCES node (id),
+    parent_id VARCHAR(20) NOT NULL REFERENCES node (id),
+    CONSTRAINT uk_node_parent UNIQUE (node_id, parent_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_node_parent_node   ON node_parent (node_id);
+CREATE INDEX IF NOT EXISTS idx_node_parent_parent ON node_parent (parent_id);
+
+CREATE TABLE IF NOT EXISTS custom_list (
+    id    VARCHAR(20) PRIMARY KEY,
+    label VARCHAR(200)
+);
+
+CREATE TABLE IF NOT EXISTS custom_list_member (
+    id        BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    list_id   VARCHAR(20) NOT NULL REFERENCES custom_list (id),
+    vendor_id VARCHAR(20) NOT NULL REFERENCES node (id),
+    CONSTRAINT uk_custom_list_member UNIQUE (list_id, vendor_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_clm_vendor ON custom_list_member (vendor_id);
+
+CREATE TABLE IF NOT EXISTS application (
+    id   VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(200) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS node_application (
+    id             BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    node_id        VARCHAR(20) NOT NULL REFERENCES node (id),
+    application_id VARCHAR(50) NOT NULL REFERENCES application (id),
+    CONSTRAINT uk_node_application UNIQUE (node_id, application_id)
+);
+
+CREATE TABLE IF NOT EXISTS permission (
+    id             VARCHAR(60) PRIMARY KEY,
+    code           VARCHAR(60)  NOT NULL,
+    label          VARCHAR(200) NOT NULL,
+    application_id VARCHAR(50)  NOT NULL REFERENCES application (id)
+);
+
+-- app_role et non role : ROLE est un mot-cle SQL, la table nue oblige a quoter.
+CREATE TABLE IF NOT EXISTS app_role (
+    id             VARCHAR(80) PRIMARY KEY,
+    name           VARCHAR(200) NOT NULL,
+    application_id VARCHAR(50)  NOT NULL REFERENCES application (id),
+    parent_role_id VARCHAR(80)  REFERENCES app_role (id),
+    node_id        VARCHAR(20)  REFERENCES node (id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_role_parent ON app_role (parent_role_id);
+CREATE INDEX IF NOT EXISTS idx_role_node   ON app_role (application_id, node_id);
+
+CREATE TABLE IF NOT EXISTS role_permission (
+    id            BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    role_id       VARCHAR(80) NOT NULL REFERENCES app_role (id),
+    permission_id VARCHAR(60) NOT NULL REFERENCES permission (id),
+    granted       BOOLEAN     NOT NULL,
+    CONSTRAINT uk_role_permission UNIQUE (role_id, permission_id)
+);
+```
+
+## Frontend - core
+
+### `frontend/src/app/core/api.ts`
+
+```typescript
+export const API_BASE = 'http://localhost:8081/api';
+```
+
+### `frontend/src/app/core/application.service.ts`
+
+```typescript
+import { Injectable } from '@angular/core';
+import { AuthService } from './auth.service';
+import { API_BASE } from './api';
+import { ApplicationDto } from './models/assignment.model';
+
+@Injectable({ providedIn: 'root' })
+export class ApplicationService {
+
+  constructor(private auth: AuthService) {}
+
+  /** Applications exposees sur ce noeud, pas le catalogue complet. */
+  async listByNode(nodeId: string): Promise<ApplicationDto[]> {
+    const resp = await fetch(`${API_BASE}/applications?node=${encodeURIComponent(nodeId)}`, {
+      headers: { Authorization: 'Bearer ' + this.auth.getToken() }
+    });
+    return resp.ok ? resp.json() : [];
+  }
+
+  async assignToNode(applicationId: string, nodeId: string): Promise<void> {
+    await fetch(`${API_BASE}/applications/${applicationId}/nodes/${nodeId}`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + this.auth.getToken() }
+    });
+  }
+}
+```
+
+### `frontend/src/app/core/hierarchy.service.ts`
+
+```typescript
+import { Injectable } from '@angular/core';
+import { AuthService } from './auth.service';
+import { API_BASE } from './api';
+import { NodeDto } from './models/node.model';
+
+@Injectable({ providedIn: 'root' })
+export class HierarchyService {
+
+  constructor(private auth: AuthService) {}
+
+  /** Sous-arbre du manager connecte. Le backend le calcule, le front ne le filtre pas. */
+  async getSubtree(): Promise<NodeDto[]> {
+    const resp = await fetch(`${API_BASE}/hierarchy/subtree`, {
+      headers: { Authorization: 'Bearer ' + this.auth.getToken() }
+    });
+    if (!resp.ok) {
+      throw new Error(`Subtree error ${resp.status}`);
+    }
+    return resp.json();
+  }
+}
+```
+
+### `frontend/src/app/core/provisioning.service.ts`
+
+```typescript
+import { Injectable } from '@angular/core';
+import { AuthService } from './auth.service';
+import { API_BASE } from './api';
+import { CreateUserRequest } from './models/assignment.model';
+
+@Injectable({ providedIn: 'root' })
+export class ProvisioningService {
+
+  constructor(private auth: AuthService) {}
+
+  async createUser(request: CreateUserRequest): Promise<string> {
+    const resp = await fetch(`${API_BASE}/users`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + this.auth.getToken()
+      },
+      body: JSON.stringify(request)
+    });
+    if (!resp.ok) {
+      throw new Error(await resp.text() || `Error ${resp.status}`);
+    }
+    const body = await resp.json();
+    return body.message;
+  }
+}
+```
+
+### `frontend/src/app/core/role.service.ts`
+
+```typescript
+import { Injectable } from '@angular/core';
+import { AuthService } from './auth.service';
+import { API_BASE } from './api';
+import { RoleDto } from './models/assignment.model';
+
+@Injectable({ providedIn: 'root' })
+export class RoleService {
+
+  constructor(private auth: AuthService) {}
+
+  /**
+   * Les roles dependent de l'application ET du noeud : ils sont specialises par
+   * organisation, donc on ne peut pas les charger avant le choix du noeud.
+   */
+  async list(applicationId: string, nodeId: string): Promise<RoleDto[]> {
+    const url = `${API_BASE}/roles?application=${encodeURIComponent(applicationId)}`
+      + `&node=${encodeURIComponent(nodeId)}`;
+    const resp = await fetch(url, {
+      headers: { Authorization: 'Bearer ' + this.auth.getToken() }
+    });
+    return resp.ok ? resp.json() : [];
+  }
+
+  /** Specialisation soustractive : on n'envoie que les retraits. */
+  async specialise(parentRoleId: string, nodeId: string, name: string,
+                   permissionsToRemove: string[]): Promise<RoleDto> {
+    const resp = await fetch(`${API_BASE}/roles/specialise`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + this.auth.getToken()
+      },
+      body: JSON.stringify({ parentRoleId, nodeId, name, permissionsToRemove })
+    });
+    return resp.json();
+  }
+}
+```
+
+## Frontend - core/models
+
+### `frontend/src/app/core/models/assignment.model.ts`
+
+```typescript
+export interface AssignmentDto {
+  application: string;
+  node: string;
+  role: string;
+}
+
+export interface ScopesDto {
+  opScope: string[];
+  opScopeExclude: string[];
+  reportScope: string[];
+}
+
+export interface CreateUserRequest {
+  uid: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  assignments: AssignmentDto[];
+  scopes: ScopesDto;
+}
+
+export interface ApplicationDto {
+  id: string;
+  name: string;
+}
+
+export interface RoleDto {
+  id: string;
+  name: string;
+  parentRoleId: string | null;
+  nodeId: string | null;
+  effectivePermissions: string[];
+  removedPermissions: string[];
+}
+```
+
+### `frontend/src/app/core/models/node.model.ts`
+
+```typescript
+export type NodeLevel = 'UNION' | 'CHAIN' | 'REGROUPMENT' | 'VENDOR';
+
+export interface NodeDto {
+  id: string;
+  label: string;
+  level: NodeLevel;
+  /** true quand le noeud apparait sous plusieurs parents (ROLLER 4). */
+  duplicated: boolean;
+  children: NodeDto[];
+}
+```
+
+## Frontend - node-picker
+
+### `frontend/src/app/features/node-picker/node-picker.component.ts`
+
+```typescript
+import { Component, EventEmitter, OnInit, Output } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { MatTreeModule, MatTreeNestedDataSource } from '@angular/material/tree';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { NestedTreeControl } from '@angular/cdk/tree';
+import { HierarchyService } from '../../core/hierarchy.service';
+import { NodeDto } from '../../core/models/node.model';
+
+/**
+ * Selecteur de noeud partage. L'arbre affiche uniquement le sous-arbre renvoye par le
+ * backend. Un noeud a plusieurs parents apparait sous chacun d'eux, avec un marqueur.
+ */
+@Component({
+  selector: 'app-node-picker',
+  standalone: true,
+  imports: [CommonModule, MatTreeModule, MatIconModule, MatButtonModule],
+  template: `
+    <div class="picker">
+      <p *ngIf="loading">Loading hierarchy...</p>
+      <p *ngIf="error" class="error">{{ error }}</p>
+
+      <mat-tree [dataSource]="dataSource" [treeControl]="treeControl">
+
+        <mat-tree-node *matTreeNodeDef="let node" matTreeNodeToggle>
+          <button mat-icon-button disabled></button>
+          <span class="label" [class.selected]="node.id === selected?.id"
+                (click)="select(node)">
+            {{ node.label }} <small>({{ node.id }})</small>
+            <span *ngIf="node.duplicated" class="dup" title="Plusieurs parents">&#9888;</span>
+          </span>
+        </mat-tree-node>
+
+        <mat-nested-tree-node *matTreeNodeDef="let node; when: hasChild">
+          <div class="row">
+            <button mat-icon-button matTreeNodeToggle>
+              <mat-icon>
+                {{ treeControl.isExpanded(node) ? 'expand_more' : 'chevron_right' }}
+              </mat-icon>
+            </button>
+            <span class="label" [class.selected]="node.id === selected?.id"
+                  (click)="select(node)">
+              {{ node.label }} <small>({{ node.id }})</small>
+              <span *ngIf="node.duplicated" class="dup" title="Plusieurs parents">&#9888;</span>
+            </span>
+          </div>
+          <div [class.hidden]="!treeControl.isExpanded(node)" class="nested">
+            <ng-container matTreeNodeOutlet></ng-container>
+          </div>
+        </mat-nested-tree-node>
+
+      </mat-tree>
+    </div>
+  `,
+  styles: [`
+    .picker { max-height: 320px; overflow: auto; border: 1px solid #ddd; padding: 8px; }
+    .row { display: flex; align-items: center; }
+    .label { cursor: pointer; padding: 2px 4px; }
+    .label.selected { background: #2b3a67; color: #fff; }
+    .nested { padding-left: 24px; }
+    .hidden { display: none; }
+    .dup { color: #b8860b; margin-left: 4px; }
+    .error { color: #b00020; }
+  `]
+})
+export class NodePickerComponent implements OnInit {
+
+  @Output() nodeSelected = new EventEmitter<NodeDto>();
+
+  treeControl = new NestedTreeControl<NodeDto>(node => node.children);
+  dataSource = new MatTreeNestedDataSource<NodeDto>();
+  selected: NodeDto | null = null;
+  loading = false;
+  error = '';
+
+  constructor(private hierarchy: HierarchyService) {}
+
+  async ngOnInit(): Promise<void> {
+    this.loading = true;
+    try {
+      this.dataSource.data = await this.hierarchy.getSubtree();
+    } catch (e: any) {
+      this.error = e.message;
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  hasChild = (_: number, node: NodeDto) => !!node.children && node.children.length > 0;
+
+  select(node: NodeDto): void {
+    this.selected = node;
+    this.nodeSelected.emit(node);
+  }
+}
+```
+
+## Frontend - create-user
+
+### `frontend/src/app/features/create-user/create-user.component.ts`
+
+```typescript
+import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { NodePickerComponent } from '../node-picker/node-picker.component';
+import { ApplicationService } from '../../core/application.service';
+import { RoleService } from '../../core/role.service';
+import { ProvisioningService } from '../../core/provisioning.service';
+import { NodeDto } from '../../core/models/node.model';
+import { ApplicationDto, RoleDto } from '../../core/models/assignment.model';
+
+/** Une ligne d'affectation en cours de saisie. */
+interface AssignmentRow {
+  node: NodeDto | null;
+  applications: ApplicationDto[];
+  application: string;
+  roles: RoleDto[];
+  role: string;
+}
+
+/**
+ * Remplace l'ancien formulaire a champ "role" unique.
+ * Ordre impose par le metier : noeud d'abord, puis application, puis role. Les roles
+ * sont specialises par organisation, donc ils ne peuvent pas etre charges avant.
+ */
+@Component({
+  selector: 'app-create-user',
+  standalone: true,
+  imports: [CommonModule, FormsModule, NodePickerComponent],
+  template: `
+    <div class="page">
+      <h2>Create User</h2>
+      <p>Provision a partner user and grant assignments in PingDirectory.</p>
+
+      <h3>Identity</h3>
+      <input placeholder="Login (uid)" [(ngModel)]="identity.uid" name="uid">
+      <input placeholder="First Name" [(ngModel)]="identity.firstName" name="firstName">
+      <input placeholder="Last Name" [(ngModel)]="identity.lastName" name="lastName">
+      <input placeholder="Email" [(ngModel)]="identity.email" name="email">
+
+      <h3>Assignments</h3>
+      <div class="assignment" *ngFor="let row of rows; let i = index">
+        <app-node-picker (nodeSelected)="onNodeSelected(row, $event)"></app-node-picker>
+
+        <div class="line">
+          <span class="chosen">{{ row.node ? row.node.label : 'Select a node' }}</span>
+
+          <select [(ngModel)]="row.application" name="app{{i}}"
+                  (change)="onApplicationChange(row)" [disabled]="!row.node">
+            <option value="">Application</option>
+            <option *ngFor="let a of row.applications" [value]="a.id">{{ a.name }}</option>
+          </select>
+
+          <select [(ngModel)]="row.role" name="role{{i}}" [disabled]="!row.application">
+            <option value="">Role</option>
+            <option *ngFor="let r of row.roles" [value]="r.id">{{ r.name }}</option>
+          </select>
+
+          <button (click)="removeRow(i)" [disabled]="rows.length === 1">Remove</button>
+        </div>
+      </div>
+      <button (click)="addRow()">Add assignment</button>
+
+      <h3>Scopes</h3>
+      <label>Operational (opScope)</label>
+      <input placeholder="2700010, 2700011" [(ngModel)]="opScopeRaw" name="opScope">
+      <label>Excluded (opScopeExclude)</label>
+      <input placeholder="2700012" [(ngModel)]="opScopeExcludeRaw" name="opScopeExclude">
+      <label>Reporting (reportScope)</label>
+      <input placeholder="9200005" [(ngModel)]="reportScopeRaw" name="reportScope">
+
+      <button class="primary" (click)="submit()" [disabled]="loading">Create User</button>
+
+      <p class="ok" *ngIf="successMessage">{{ successMessage }}</p>
+      <p class="ko" *ngIf="errorMessage">{{ errorMessage }}</p>
+    </div>
+  `,
+  styles: [`
+    .page { max-width: 760px; margin: 24px auto; }
+    input, select { display: block; margin: 6px 0; padding: 8px; width: 100%; }
+    .assignment { border: 1px solid #eee; padding: 12px; margin-bottom: 12px; }
+    .line { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+    .line select { width: auto; flex: 1; }
+    .chosen { min-width: 160px; font-weight: 600; }
+    .primary { margin-top: 16px; padding: 12px; width: 100%;
+               background: #2b3a67; color: #fff; border: 0; }
+    .ok { color: #1b5e20; }
+    .ko { color: #b00020; }
+  `]
+})
+export class CreateUserComponent {
+
+  identity = { uid: '', firstName: '', lastName: '', email: '' };
+  rows: AssignmentRow[] = [this.emptyRow()];
+
+  opScopeRaw = '';
+  opScopeExcludeRaw = '';
+  reportScopeRaw = '';
+
+  loading = false;
+  successMessage = '';
+  errorMessage = '';
+
+  constructor(private applications: ApplicationService,
+              private roles: RoleService,
+              private provisioning: ProvisioningService) {}
+
+  emptyRow(): AssignmentRow {
+    return { node: null, applications: [], application: '', roles: [], role: '' };
+  }
+
+  addRow(): void {
+    this.rows.push(this.emptyRow());
+  }
+
+  removeRow(index: number): void {
+    this.rows.splice(index, 1);
+  }
+
+  async onNodeSelected(row: AssignmentRow, node: NodeDto): Promise<void> {
+    row.node = node;
+    row.application = '';
+    row.role = '';
+    row.roles = [];
+    row.applications = await this.applications.listByNode(node.id);
+  }
+
+  async onApplicationChange(row: AssignmentRow): Promise<void> {
+    row.role = '';
+    row.roles = row.node && row.application
+      ? await this.roles.list(row.application, row.node.id)
+      : [];
+  }
+
+  private split(raw: string): string[] {
+    return raw.split(',').map(v => v.trim()).filter(v => v.length > 0);
+  }
+
+  async submit(): Promise<void> {
+    this.loading = true;
+    this.successMessage = '';
+    this.errorMessage = '';
+
+    const assignments = this.rows
+      .filter(r => r.node && r.application && r.role)
+      .map(r => ({ application: r.application, node: r.node!.id, role: r.role }));
+
+    if (assignments.length === 0) {
+      this.errorMessage = 'At least one complete assignment is required.';
+      this.loading = false;
+      return;
+    }
+
+    try {
+      this.successMessage = await this.provisioning.createUser({
+        ...this.identity,
+        assignments,
+        scopes: {
+          opScope: this.split(this.opScopeRaw),
+          opScopeExclude: this.split(this.opScopeExcludeRaw),
+          reportScope: this.split(this.reportScopeRaw)
+        }
+      });
+    } catch (e: any) {
+      this.errorMessage = e.message;
+    } finally {
+      this.loading = false;
+    }
+  }
+}
+```
+
+---
+
+## 7. Points ouverts qui touchent ce code
+
+- `DelegationService.ALLOW_OWN_NODE` est a `false` : un manager de ROLLER 5 ne peut pas
+  creer un pair sur ROLLER 5. A trancher cote metier.
+- `RoleResolutionService` ignore un `granted = true` sur une specialisation, conformement a
+  la slide 25. Si Ping confirme que les permissions se propagent, cette classe change.
+- Une permission ajoutee a un role global se propage-t-elle aux specialisations, ou faut-il
+  la rejouer ? La slide 25 dit non, les requirements d'Ujjwal supposent oui.
+- Agreement Number = Vendor ID, 1:1 ou 1:N ?
+- 9200004 sous deux chains : anomalie ou cas metier valide ?
+- Proprietaire et cycle de vie de la Custom List : lue par `getParents`, pas encore
+  affectable dans l'IHM.
