@@ -1,29 +1,75 @@
-package com.poc.banking.dto;
+package com.poc.banking.controller;
 
-import java.util.List;
+import com.poc.banking.dto.CreateUserRequest;
+import com.poc.banking.service.UserProvisioningService;
+import com.poc.banking.service.UserProvisioningService.ProvisioningResult;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.web.bind.annotation.*;
 
-/**
- * Remplace la version a champ "role" unique.
- *
- * portalRole reprend l'ancien "role" COMMERCIAL / MANAGER : il ne disparait pas, il
- * alimente l'appartenance au groupe LDAP, donc isMemberOf, donc le controle COARSE
- * d'acces au portail.
- *
- * assignments et scopes portent le FINE-GRAINED : ce que l'utilisateur peut faire, et
- * sur quels noeuds. Les deux dimensions coexistent : supprimer portalRole creerait des
- * utilisateurs sans aucun acces.
- */
-public record CreateUserRequest(
-        String uid,
-        String firstName,
-        String lastName,
-        String email,
-        String portalRole,
-        List<AssignmentDto> assignments,
-        ScopesDto scopes
-) {
-    /** Un utilisateur partenaire n'administre pas le portail par defaut. */
-    public String portalRoleOrDefault() {
-        return (portalRole == null || portalRole.isBlank()) ? "COMMERCIAL" : portalRole;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/users")
+public class UserController {
+
+    @Autowired
+    private UserProvisioningService userService;
+
+    @PostMapping
+    public ResponseEntity<?> createUser(@RequestBody CreateUserRequest req,
+                                        JwtAuthenticationToken token) {
+
+        // COARSE : acces au portail PUMA, lu dans isMemberOf.
+        if (!JwtSubject.isManager(token)) {
+            return ResponseEntity.status(403).body("Acces refuse : role MANAGER requis");
+        }
+
+        try {
+            // sub : identifie le manager, cle de lecture de ses propres grants.
+            String managerUid = JwtSubject.uid(token);
+            // Le token brut est relaye au PDP pour qu'il resolve TokenOwner lui-meme.
+            String bearerToken = token.getToken().getTokenValue();
+
+            ProvisioningResult result =
+                    userService.createOrUpdate(req, managerUid, bearerToken);
+
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("message", result.created()
+                    ? "Utilisateur " + req.uid() + " cree avec succes."
+                    : "Utilisateur " + req.uid()
+                      + " existant : nouvelles affectations ajoutees.");
+
+            if (result.resetUrl() != null) {
+                body.put("passwordResetUrl", result.resetUrl());
+                body.put("instruction",
+                        "L'utilisateur doit initialiser son mot de passe en cliquant sur "
+                        + "le lien recu par mail.");
+            } else {
+                // L'entree et les grants sont ecrits : ce n'est pas un echec de creation.
+                body.put("warning",
+                        "Utilisateur provisionne, mais le lien d'initialisation n'a pas "
+                        + "pu etre genere. A renvoyer manuellement.");
+            }
+            return ResponseEntity.ok(body);
+
+        } catch (SecurityException e) {
+            // Refus de delegation, rendu par le PDP ou en local selon puma.authz.mode.
+            return ResponseEntity.status(403).body(e.getMessage());
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+
+        } catch (IllegalStateException e) {
+            // PDP injoignable : deny-unless-permit, jamais d'ouverture par defaut.
+            return ResponseEntity.status(503).body(e.getMessage());
+
+        } catch (Exception e) {
+            // NamingException et consorts : echec d'ecriture LDAP.
+            return ResponseEntity.status(500)
+                    .body("Provisioning en echec : " + e.getMessage());
+        }
     }
 }
