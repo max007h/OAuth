@@ -1,0 +1,506 @@
+package com.poc.banking.service;
+
+import com.poc.banking.dto.AssignmentDto;
+import com.poc.banking.dto.CreateUserRequest;
+import com.poc.banking.dto.ScopesDto;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import javax.naming.Context;
+import javax.naming.NamingEnumeration;
+import javax.naming.NamingException;
+import javax.naming.directory.*;
+import java.util.ArrayList;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.Map;
+
+@Service
+public class UserProvisioningService {
+
+    @Value("${pingdirectory.host}")          private String host;
+    @Value("${pingdirectory.ldap-port}")     private int ldapPort;
+    @Value("${pingdirectory.rest-port}")     private int restPort;
+    @Value("${pingdirectory.admin-dn}")      private String adminDn;
+    @Value("${pingdirectory.admin-password}") private String adminPwd;
+
+    @Autowired
+    private PingFederateService pingFederateService;
+
+    /** Decision fine-grained : PDP ou local selon puma.authz.mode. */
+    @Autowired
+    private DelegationService delegationService;
+
+    /** Ne sert qu'a l'initialisation : l'utilisateur le change via le lien recu. */
+    private static final String INITIAL_PASSWORD = "Changeme123!";
+
+    private static final List<String> PORTAL_ROLES = List.of("COMMERCIAL", "MANAGER");
+
+    private static final String PEOPLE_DN = "ou=people,dc=example,dc=com";
+    private static final String GROUPS_DN = "ou=groups,dc=example,dc=com";
+
+    private static final String ATTR_GRANT       = "partnerGrant";
+    private static final String ATTR_OP_SCOPE    = "opScope";
+    private static final String ATTR_OP_EXCLUDE  = "opScopeExclude";
+    private static final String ATTR_REPORT      = "reportScope";
+
+    // =========================================================================
+    //  Point d'entree
+    // =========================================================================
+
+    /**
+     * UPSERT et non creation stricte : le cas cross-shop veut qu'un employe cree par un
+     * manager travaille ensuite pour un shop gere par un autre. Si l'entree existe, on
+     * ajoute les nouvelles affectations au lieu de renvoyer une erreur.
+     *
+     * @return le lien d'initialisation de mot de passe, ou null si sa generation a echoue
+     */
+    public String createUser(CreateUserRequest req, String managerUid, String bearerToken)
+            throws Exception {
+
+        validate(req);
+        checkDelegation(req, managerUid, bearerToken);
+
+        if (!exists(req.uid())) {
+            createViaLdap(req);
+        }
+
+        // COARSE : le groupe alimente isMemberOf, donc l'acces au portail.
+        String portalRole = req.portalRoleOrDefault();
+        if (!isMemberOf(req.uid(), portalRole)) {
+            addToGroup(req.uid(), portalRole);
+        }
+
+        // FINE : les affectations et les trois perimetres.
+        addValues(req.uid(), ATTR_GRANT, grantValues(req.assignments()));
+        if (req.scopes() != null) {
+            addValues(req.uid(), ATTR_OP_SCOPE,   req.scopes().opScope());
+            addValues(req.uid(), ATTR_OP_EXCLUDE, req.scopes().opScopeExclude());
+            addValues(req.uid(), ATTR_REPORT,     req.scopes().reportScope());
+        }
+
+        // L'echec du lien ne doit pas faire echouer la creation : l'entree et les grants
+        // sont deja ecrits.
+        try {
+            String resetUrl = pingFederateService.generatePasswordResetLink(req.uid());
+            System.out.println("Password reset URL for " + req.uid() + " : " + resetUrl);
+            return resetUrl;
+        } catch (Exception e) {
+            System.out.println("Could not generate reset link for " + req.uid()
+                    + " ::: " + e.getMessage());
+            return null;
+        }
+    }
+
+    // =========================================================================
+    //  Controles
+    // =========================================================================
+
+    private void validate(CreateUserRequest req) {
+        if (req.assignments() == null || req.assignments().isEmpty()) {
+            throw new IllegalArgumentException("Au moins une affectation est requise");
+        }
+        if (!PORTAL_ROLES.contains(req.portalRoleOrDefault())) {
+            throw new IllegalArgumentException("Role portail invalide : " + req.portalRole());
+        }
+        for (AssignmentDto a : req.assignments()) {
+            if (a.application() == null || a.node() == null || a.role() == null) {
+                throw new IllegalArgumentException("Affectation incomplete");
+            }
+        }
+    }
+
+    /**
+     * Le front elague l'arbre pour le confort, mais c'est ici que la decision est prise :
+     * un appel direct contournerait completement l'IHM.
+     * Tous les noeuds du formulaire, affectations et perimetres confondus, sont evalues
+     * en UN seul appel : un aller-retour par noeud serait intenable.
+     */
+    private void checkDelegation(CreateUserRequest req, String managerUid,
+                                 String bearerToken) {
+        List<String> nodes = new ArrayList<>();
+        req.assignments().forEach(a -> nodes.add(a.node()));
+        if (req.scopes() != null) {
+            addAll(nodes, req.scopes().opScope());
+            addAll(nodes, req.scopes().opScopeExclude());
+            addAll(nodes, req.scopes().reportScope());
+        }
+        List<String> distinct = nodes.stream().distinct().toList();
+
+        Map<String, Boolean> decisions =
+                delegationService.canAssign(managerUid, distinct, bearerToken);
+
+        for (String node : distinct) {
+            if (!Boolean.TRUE.equals(decisions.get(node))) {
+                throw new SecurityException("Noeud hors du perimetre du manager : " + node);
+            }
+        }
+    }
+
+    private void addAll(List<String> target, List<String> values) {
+        if (values != null) {
+            target.addAll(values);
+        }
+    }
+
+    private List<String> grantValues(List<AssignmentDto> assignments) {
+        // Format produit par IDM : application|noeud|role
+        return assignments.stream()
+                .map(a -> a.application() + "|" + a.node() + "|" + a.role())
+                .distinct()
+                .toList();
+    }
+
+    // =========================================================================
+    //  LDAP - creation de l'entree
+    // =========================================================================
+
+    private void createViaLdap(CreateUserRequest req) throws NamingException {
+        DirContext ctx = connect();
+        try {
+            Attributes attrs = new BasicAttributes(true);
+            BasicAttribute oc = new BasicAttribute("objectClass");
+            oc.add("top");
+            oc.add("person");
+            oc.add("organizationalPerson");
+            oc.add("inetOrgPerson");
+            // INDISPENSABLE : sans cette classe auxiliaire, partnerGrant n'est autorise
+            // par aucune objectClass et l'ecriture des grants echoue juste apres, avec
+            // "attribute partnerGrant is not allowed by any objectClass".
+            oc.add("pumaPartnerUser");
+            attrs.put(oc);
+
+            attrs.put(new BasicAttribute("uid", req.uid()));
+            attrs.put(new BasicAttribute("cn", req.firstName() + " " + req.lastName()));
+            attrs.put(new BasicAttribute("sn", req.lastName()));
+            attrs.put(new BasicAttribute("givenName", req.firstName()));
+            attrs.put(new BasicAttribute("mail", req.email()));
+            attrs.put(new BasicAttribute("userPassword", INITIAL_PASSWORD));
+
+            ctx.createSubcontext(userDn(req.uid()), attrs);
+        } finally {
+            ctx.close();
+        }
+    }
+
+    private void addToGroup(String uid, String role) throws NamingException {
+        DirContext ctx = connect();
+        try {
+            String groupDn = "cn=" + role + "," + GROUPS_DN;
+            ModificationItem[] mods = {
+                    new ModificationItem(DirContext.ADD_ATTRIBUTE,
+                            new BasicAttribute("member", userDn(uid)))
+            };
+            ctx.modifyAttributes(groupDn, mods);
+        } finally {
+            ctx.close();
+        }
+    }
+
+    // =========================================================================
+    //  LDAP - attributs multivalues
+    // =========================================================================
+
+    /**
+     * Ajout idempotent. ADD_ATTRIBUTE sur une valeur deja presente rend LDAP error 20,
+     * attribute or value exists, ce qui ferait echouer toute la soumission : on lit donc
+     * l'existant avant d'ecrire.
+     */
+    private void addValues(String uid, String attribute, List<String> values)
+            throws NamingException {
+
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+        List<String> existing = readValues(uid, attribute);
+        List<String> toAdd = values.stream()
+                .distinct()
+                .filter(v -> !existing.contains(v))
+                .toList();
+        if (toAdd.isEmpty()) {
+            return;
+        }
+
+        DirContext ctx = connect();
+        try {
+            BasicAttribute attr = new BasicAttribute(attribute);
+            toAdd.forEach(attr::add);
+            ModificationItem[] mods = {
+                    new ModificationItem(DirContext.ADD_ATTRIBUTE, attr)
+            };
+            ctx.modifyAttributes(userDn(uid), mods);
+        } finally {
+            ctx.close();
+        }
+    }
+
+    private List<String> readValues(String uid, String attribute) {
+        List<String> values = new ArrayList<>();
+        DirContext ctx = null;
+        try {
+            ctx = connect();
+            Attributes attrs = ctx.getAttributes(userDn(uid), new String[]{attribute});
+            Attribute attr = attrs.get(attribute);
+            if (attr != null) {
+                NamingEnumeration<?> all = attr.getAll();
+                while (all.hasMore()) {
+                    values.add(String.valueOf(all.next()));
+                }
+            }
+        } catch (NamingException e) {
+            // Entree ou attribut absent : liste vide, pas une erreur.
+        } finally {
+            closeQuietly(ctx);
+        }
+        return values;
+    }
+
+    private boolean exists(String uid) {
+        DirContext ctx = null;
+        try {
+            ctx = connect();
+            ctx.getAttributes(userDn(uid), new String[]{"uid"});
+            return true;
+        } catch (NamingException e) {
+            return false;
+        } finally {
+            closeQuietly(ctx);
+        }
+    }
+
+    private boolean isMemberOf(String uid, String group) {
+        // isMemberOf est l'equivalent PingDirectory de memberOf, calcule par le serveur.
+        return readValues(uid, "isMemberOf").stream()
+                .anyMatch(dn -> dn.startsWith("cn=" + group + ","));
+    }
+
+    // =========================================================================
+    //  Helpers
+    // =========================================================================
+
+    private String userDn(String uid) {
+        return "uid=" + uid + "," + PEOPLE_DN;
+    }
+
+    /**
+     * Un seul point de connexion, au lieu d'un Hashtable recopie dans chaque methode.
+     *
+     * ATTENTION au bind DN : le root DN de PingDirectory vit dans cn=Root DNs,cn=config,
+     * pas sous le suffixe. La valeur attendue est "cn=administrator" NU. Avec
+     * "cn=administrator,dc=example,dc=com", le bind rend LDAP error 49, invalid
+     * credentials. Verifier la ligne admin-dn dans application.yml.
+     */
+    private DirContext connect() throws NamingException {
+        Hashtable<String, String> env = new Hashtable<>();
+        env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+        env.put(Context.PROVIDER_URL, "ldap://" + host + ":" + ldapPort);
+        env.put(Context.SECURITY_AUTHENTICATION, "simple");
+        env.put(Context.SECURITY_PRINCIPAL, adminDn);
+        env.put(Context.SECURITY_CREDENTIALS, adminPwd);
+        return new InitialDirContext(env);
+    }
+
+    private void closeQuietly(DirContext ctx) {
+        if (ctx != null) {
+            try {
+                ctx.close();
+            } catch (NamingException ignored) {
+                // rien a faire
+            }
+        }
+    }
+}
+
+
+package com.poc.banking.dto;
+
+import java.util.List;
+
+/**
+ * Remplace la version a champ "role" unique.
+ *
+ * portalRole reprend l'ancien "role" COMMERCIAL / MANAGER : il ne disparait pas, il
+ * alimente l'appartenance au groupe LDAP, donc isMemberOf, donc le controle COARSE
+ * d'acces au portail.
+ *
+ * assignments et scopes portent le FINE-GRAINED : ce que l'utilisateur peut faire, et
+ * sur quels noeuds. Les deux dimensions coexistent : supprimer portalRole creerait des
+ * utilisateurs sans aucun acces.
+ */
+public record CreateUserRequest(
+        String uid,
+        String firstName,
+        String lastName,
+        String email,
+        String portalRole,
+        List<AssignmentDto> assignments,
+        ScopesDto scopes
+) {
+    /** Un utilisateur partenaire n'administre pas le portail par defaut. */
+    public String portalRoleOrDefault() {
+        return (portalRole == null || portalRole.isBlank()) ? "COMMERCIAL" : portalRole;
+    }
+}
+
+
+package com.poc.banking.service;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import javax.naming.Context;
+import javax.naming.NamingEnumeration;
+import javax.naming.NamingException;
+import javax.naming.directory.Attribute;
+import javax.naming.directory.Attributes;
+import javax.naming.directory.DirContext;
+import javax.naming.directory.InitialDirContext;
+import java.util.ArrayList;
+import java.util.Hashtable;
+import java.util.List;
+
+/**
+ * LECTURE SEULE des attributs d'autorisation dans PingDirectory.
+ *
+ * Decoupe volontaire :
+ *   - GrantDirectoryClient   : lecture, chemin d'AUTORISATION (DelegationService)
+ *   - UserProvisioningService: ecriture, chemin de PROVISIONING
+ *
+ * C'est la meme decoupe que les deux comptes de service de 04-comptes-service.ldif :
+ * cn=paz-service en lecture seule, cn=puma-service en ecriture. Le jour ou tu passes
+ * a ces comptes, cette classe est la seule a changer de credentials.
+ *
+ * Aucune methode d'ecriture ici. En ajouter une recreerait le doublon de connexion LDAP
+ * qui a masque le probleme de bind DN.
+ */
+@Component
+public class GrantDirectoryClient {
+
+    public static final String ATTR_GRANT       = "partnerGrant";
+    public static final String ATTR_OP_SCOPE    = "opScope";
+    public static final String ATTR_OP_EXCLUDE  = "opScopeExclude";
+    public static final String ATTR_REPORT      = "reportScope";
+    public static final String ATTR_IS_MEMBER_OF = "isMemberOf";
+
+    @Value("${pingdirectory.host}")
+    private String host;
+
+    @Value("${pingdirectory.ldap-port}")
+    private int ldapPort;
+
+    @Value("${pingdirectory.base-dn}")
+    private String baseDn;
+
+    /**
+     * ATTENTION : "cn=administrator" NU, sans dc=example,dc=com.
+     * Le root DN de PingDirectory vit dans cn=Root DNs,cn=config, pas sous le suffixe.
+     * Avec le DN complet, le bind rend LDAP error 49, invalid credentials, et le
+     * symptome visible est un sous-arbre vide dans l'ecran de creation, sans message.
+     */
+    @Value("${pingdirectory.admin-dn}")
+    private String adminDn;
+
+    @Value("${pingdirectory.admin-password}")
+    private String adminPwd;
+
+    // =========================================================================
+    //  Lectures
+    // =========================================================================
+
+    /** Valeurs d'un attribut multivalue. Entree ou attribut absent : liste vide. */
+    public List<String> readValues(String uid, String attribute) {
+        List<String> values = new ArrayList<>();
+        DirContext ctx = null;
+        try {
+            ctx = connect();
+            Attributes attrs = ctx.getAttributes(userDn(uid), new String[]{attribute});
+            Attribute attr = attrs.get(attribute);
+            if (attr != null) {
+                NamingEnumeration<?> all = attr.getAll();
+                while (all.hasMore()) {
+                    values.add(String.valueOf(all.next()));
+                }
+            }
+        } catch (NamingException e) {
+            // Volontairement silencieux : un utilisateur sans grant n'est pas une erreur.
+        } finally {
+            closeQuietly(ctx);
+        }
+        return values;
+    }
+
+    /**
+     * Les noeuds sur lesquels ce sujet detient un grant, extraits de "application|noeud|role".
+     * C'est le point d'entree de tout le controle de delegation : ces noeuds bornent le
+     * sous-arbre que le manager peut voir et sur lequel il peut affecter.
+     */
+    public List<String> readGrantedNodes(String uid) {
+        List<String> nodes = new ArrayList<>();
+        for (String grant : readValues(uid, ATTR_GRANT)) {
+            String[] parts = grant.split("\\|");
+            if (parts.length == 3) {
+                nodes.add(parts[1]);
+            }
+        }
+        return nodes;
+    }
+
+    /** Grants bruts, format IDM. Utile pour le diagnostic et pour l'API runtime. */
+    public List<String> readGrants(String uid) {
+        return readValues(uid, ATTR_GRANT);
+    }
+
+    public boolean exists(String uid) {
+        DirContext ctx = null;
+        try {
+            ctx = connect();
+            ctx.getAttributes(userDn(uid), new String[]{"uid"});
+            return true;
+        } catch (NamingException e) {
+            return false;
+        } finally {
+            closeQuietly(ctx);
+        }
+    }
+
+    /** isMemberOf est l'equivalent PingDirectory de memberOf, calcule par le serveur. */
+    public boolean isMemberOfGroup(String uid, String group) {
+        return readValues(uid, ATTR_IS_MEMBER_OF).stream()
+                .anyMatch(dn -> dn.startsWith("cn=" + group + ","));
+    }
+
+    // =========================================================================
+    //  Helpers
+    // =========================================================================
+
+    private String userDn(String uid) {
+        return "uid=" + uid + "," + baseDn;
+    }
+
+    private DirContext connect() throws NamingException {
+        Hashtable<String, String> env = new Hashtable<>();
+        env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+        env.put(Context.PROVIDER_URL, "ldap://" + host + ":" + ldapPort);
+        env.put(Context.SECURITY_AUTHENTICATION, "simple");
+        env.put(Context.SECURITY_PRINCIPAL, adminDn);
+        env.put(Context.SECURITY_CREDENTIALS, adminPwd);
+        return new InitialDirContext(env);
+    }
+
+    private void closeQuietly(DirContext ctx) {
+        if (ctx != null) {
+            try {
+                ctx.close();
+            } catch (NamingException ignored) {
+                // rien a faire
+            }
+        }
+    }
+}
+
+
+
+
+
+
