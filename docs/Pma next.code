@@ -1,3 +1,76 @@
+package com.poc.banking.config;
+
+import jakarta.annotation.PostConstruct;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
+import org.springframework.jdbc.datasource.init.ScriptUtils;
+import org.springframework.stereotype.Component;
+
+import javax.sql.DataSource;
+import java.sql.Connection;
+
+/**
+ * Execution EXPLICITE de schema.sql puis data.sql au demarrage.
+ *
+ * Pourquoi ne pas utiliser spring.sql.init : sur cette configuration, ni
+ * spring.sql.init.mode ni spring.jpa.hibernate.ddl-auto ne produisaient le moindre
+ * log au demarrage. Plutot que de chercher pourquoi, on execute les scripts nous-memes.
+ * Le comportement devient visible et deterministe : chaque etape se journalise.
+ *
+ * A utiliser avec :
+ *     spring.jpa.hibernate.ddl-auto: none
+ *     spring.sql.init.mode: never        (ou la ligne supprimee)
+ *
+ * Les deux scripts sont idempotents (CREATE TABLE IF NOT EXISTS, ON CONFLICT DO
+ * NOTHING), donc ils peuvent rejouer a chaque demarrage sans effet de bord.
+ */
+@Component
+public class DatabaseBootstrap {
+
+    private final DataSource dataSource;
+
+    public DatabaseBootstrap(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
+
+    @PostConstruct
+    public void run() {
+        System.out.println("[DatabaseBootstrap] Initialisation de la base...");
+        execute("schema.sql");
+        execute("data.sql");
+        System.out.println("[DatabaseBootstrap] Termine.");
+    }
+
+    private void execute(String fileName) {
+        Resource script = new ClassPathResource(fileName);
+
+        if (!script.exists()) {
+            // Message explicite : c'est la panne la plus frequente. Le fichier doit
+            // etre dans src/main/resources, donc dans target/classes apres build.
+            System.out.println("[DatabaseBootstrap] " + fileName
+                    + " INTROUVABLE dans le classpath. Verifier src/main/resources.");
+            return;
+        }
+
+        try (Connection connection = dataSource.getConnection()) {
+            ScriptUtils.executeSqlScript(connection, script);
+            System.out.println("[DatabaseBootstrap] " + fileName + " execute.");
+        } catch (Exception e) {
+            // On journalise sans faire echouer le demarrage : sur une base deja
+            // initialisee, certaines instructions peuvent legitimement echouer.
+            System.out.println("[DatabaseBootstrap] " + fileName + " en echec : "
+                    + e.getMessage());
+        }
+    }
+}
+
+
+
+
+
+
+
+
 package com.poc.banking.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
