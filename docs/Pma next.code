@@ -1,247 +1,211 @@
-
 package com.poc.banking.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.*;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
-import javax.naming.Context;
-import javax.naming.NamingEnumeration;
-import javax.naming.NamingException;
-import javax.naming.directory.Attribute;
-import javax.naming.directory.Attributes;
-import javax.naming.directory.DirContext;
-import javax.naming.directory.InitialDirContext;
+import javax.net.ssl.*;
+import java.net.HttpURLConnection;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
-import java.util.Hashtable;
-import java.util.List;
-
-/**
- * LECTURE SEULE des attributs d'autorisation dans PingDirectory.
- *
- * Decoupe volontaire :
- *   - GrantDirectoryClient   : lecture, chemin d'AUTORISATION (DelegationService)
- *   - UserProvisioningService: ecriture, chemin de PROVISIONING
- *
- * C'est la meme decoupe que les deux comptes de service de 04-comptes-service.ldif :
- * cn=paz-service en lecture seule, cn=puma-service en ecriture. Le jour ou tu passes
- * a ces comptes, cette classe est la seule a changer de credentials.
- *
- * Aucune methode d'ecriture ici. En ajouter une recreerait le doublon de connexion LDAP
- * qui a masque le probleme de bind DN.
- */
-@Component
-public class GrantDirectoryClient {
-
-    public static final String ATTR_GRANT       = "partnerGrant";
-    public static final String ATTR_OP_SCOPE    = "opScope";
-    public static final String ATTR_OP_EXCLUDE  = "opScopeExclude";
-    public static final String ATTR_REPORT      = "reportScope";
-    public static final String ATTR_IS_MEMBER_OF = "isMemberOf";
-
-    @Value("${pingdirectory.host}")
-    private String host;
-
-    @Value("${pingdirectory.ldap-port}")
-    private int ldapPort;
-
-    @Value("${pingdirectory.base-dn}")
-    private String baseDn;
-
-    /**
-     * ATTENTION : "cn=administrator" NU, sans dc=example,dc=com.
-     * Le root DN de PingDirectory vit dans cn=Root DNs,cn=config, pas sous le suffixe.
-     * Avec le DN complet, le bind rend LDAP error 49, invalid credentials, et le
-     * symptome visible est un sous-arbre vide dans l'ecran de creation, sans message.
-     */
-    @Value("${pingdirectory.admin-dn}")
-    private String adminDn;
-
-    @Value("${pingdirectory.admin-password}")
-    private String adminPwd;
-
-    // =========================================================================
-    //  Lectures
-    // =========================================================================
-
-    /** Valeurs d'un attribut multivalue. Entree ou attribut absent : liste vide. */
-    public List<String> readValues(String uid, String attribute) {
-        List<String> values = new ArrayList<>();
-        DirContext ctx = null;
-        try {
-            ctx = connect();
-            Attributes attrs = ctx.getAttributes(userDn(uid), new String[]{attribute});
-            Attribute attr = attrs.get(attribute);
-            if (attr != null) {
-                NamingEnumeration<?> all = attr.getAll();
-                while (all.hasMore()) {
-                    values.add(String.valueOf(all.next()));
-                }
-            }
-        } catch (NamingException e) {
-            // Volontairement silencieux : un utilisateur sans grant n'est pas une erreur.
-        } finally {
-            closeQuietly(ctx);
-        }
-        return values;
-    }
-
-    /**
-     * Les noeuds sur lesquels ce sujet detient un grant, extraits de "application|noeud|role".
-     * C'est le point d'entree de tout le controle de delegation : ces noeuds bornent le
-     * sous-arbre que le manager peut voir et sur lequel il peut affecter.
-     */
-    public List<String> readGrantedNodes(String uid) {
-        List<String> nodes = new ArrayList<>();
-        for (String grant : readValues(uid, ATTR_GRANT)) {
-            String[] parts = grant.split("\\|");
-            if (parts.length == 3) {
-                nodes.add(parts[1]);
-            }
-        }
-        return nodes;
-    }
-
-    /** Grants bruts, format IDM. Utile pour le diagnostic et pour l'API runtime. */
-    public List<String> readGrants(String uid) {
-        return readValues(uid, ATTR_GRANT);
-    }
-
-    public boolean exists(String uid) {
-        DirContext ctx = null;
-        try {
-            ctx = connect();
-            ctx.getAttributes(userDn(uid), new String[]{"uid"});
-            return true;
-        } catch (NamingException e) {
-            return false;
-        } finally {
-            closeQuietly(ctx);
-        }
-    }
-
-    /** isMemberOf est l'equivalent PingDirectory de memberOf, calcule par le serveur. */
-    public boolean isMemberOfGroup(String uid, String group) {
-        return readValues(uid, ATTR_IS_MEMBER_OF).stream()
-                .anyMatch(dn -> dn.startsWith("cn=" + group + ","));
-    }
-
-    // =========================================================================
-    //  Helpers
-    // =========================================================================
-
-    private String userDn(String uid) {
-        return "uid=" + uid + "," + baseDn;
-    }
-
-    private DirContext connect() throws NamingException {
-        Hashtable<String, String> env = new Hashtable<>();
-        env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
-        env.put(Context.PROVIDER_URL, "ldap://" + host + ":" + ldapPort);
-        env.put(Context.SECURITY_AUTHENTICATION, "simple");
-        env.put(Context.SECURITY_PRINCIPAL, adminDn);
-        env.put(Context.SECURITY_CREDENTIALS, adminPwd);
-        return new InitialDirContext(env);
-    }
-
-    private void closeQuietly(DirContext ctx) {
-        if (ctx != null) {
-            try {
-                ctx.close();
-            } catch (NamingException ignored) {
-                // rien a faire
-            }
-        }
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-package com.poc.banking.controller;
-
-import com.poc.banking.dto.CreateUserRequest;
-import com.poc.banking.service.UserProvisioningService;
-import com.poc.banking.service.UserProvisioningService.ProvisioningResult;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
-@RestController
-@RequestMapping("/api/users")
-public class UserController {
+/**
+ * Decision fine-grained externalisee vers PingAuthorize.
+ *
+ * PUMA est le PEP. Il appelle POST /governance-engine/batch avec, pour chaque noeud
+ * cible, le contexte de la RESSOURCE : l'identifiant du noeud et ses ancetres calcules
+ * par le service hierarchie.
+ *
+ * Ce que PUMA n'envoie PAS : les grants du manager. Le PDP va les chercher lui-meme dans
+ * PingDirectory via TokenOwner, resolu depuis le token relaye. Un demandeur qui declare
+ * ses propres droits s'auto-autorise.
+ *
+ * La regle cote policy tient en une intersection :
+ *     PERMIT si  intersection(TokenOwner.partnerGrant.nodes, Resource.parents)  non vide
+ *                ET Resource.node not in TokenOwner.partnerGrant.nodes   (strictement sous)
+ *
+ * Le PDP n'appelle jamais l'API metier de PUMA : seulement un service de donnees de
+ * reference. Sinon on cree une boucle PEP -> PDP -> PEP.
+ *
+ * IMPLEMENTATION : RestTemplate et non RestClient.Builder. Ce dernier n'est expose
+ * comme bean qu'a partir de Spring Boot 3.2 et provoque
+ * "required a bean of type RestClient$Builder that could not be found" sur les versions
+ * anterieures. RestTemplate fonctionne quelle que soit la version.
+ */
+@Service
+@ConditionalOnProperty(name = "puma.authz.mode", havingValue = "pdp")
+public class PingAuthorizeDecisionService implements AuthorizationDecisionService {
 
-    @Autowired
-    private UserProvisioningService userService;
+    private final HierarchyService hierarchy;
+    private RestTemplate rest;
 
-    @PostMapping
-    public ResponseEntity<?> createUser(@RequestBody CreateUserRequest req,
-                                        JwtAuthenticationToken token) {
+    @Value("${puma.authz.pdp.base-url}")
+    private String baseUrl;
 
-        // COARSE : acces au portail PUMA, lu dans isMemberOf.
-        if (!JwtSubject.isManager(token)) {
-            return ResponseEntity.status(403).body("Acces refuse : role MANAGER requis");
+    @Value("${puma.authz.pdp.domain}")
+    private String domain;
+
+    @Value("${puma.authz.pdp.service}")
+    private String service;
+
+    @Value("${puma.authz.pdp.action}")
+    private String action;
+
+    /** Timeouts explicites : un PDP lent ne doit pas bloquer un thread indefiniment. */
+    @Value("${puma.authz.pdp.connect-timeout-ms:2000}")
+    private int connectTimeoutMs;
+
+    @Value("${puma.authz.pdp.read-timeout-ms:3000}")
+    private int readTimeoutMs;
+
+    public PingAuthorizeDecisionService(HierarchyService hierarchy) {
+        this.hierarchy = hierarchy;
+    }
+
+    /**
+     * Construction apres injection des @Value : le RestTemplate a besoin des timeouts.
+     *
+     * Le certificat de PingAuthorize sur 7443 est auto-signe : sans trust-all, l'appel
+     * rend SSLHandshakeException, unable to find valid certification path.
+     * A remplacer par un vrai truststore avant toute mise en production.
+     */
+    @PostConstruct
+    void init() {
+        this.rest = new RestTemplate(trustAllRequestFactory());
+    }
+
+    // =========================================================================
+    //  Decision
+    // =========================================================================
+
+    @Override
+    public Map<String, Boolean> canAssign(String managerUid, List<String> nodeIds,
+                                          String bearerToken) {
+
+        Map<String, Boolean> decisions = new LinkedHashMap<>();
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            return decisions;
         }
+
+        List<Map<String, Object>> requests = new ArrayList<>();
+        for (String nodeId : nodeIds) {
+            Map<String, Object> attributes = new LinkedHashMap<>();
+            attributes.put("managerUid", managerUid);
+            attributes.put("targetNode", nodeId);
+            // Contexte de la ressource fourni par le PEP : ce n'est pas un droit declare
+            // mais un fait sur la cible, donc acceptable dans la requete.
+            attributes.put("targetNodeParents", new ArrayList<>(hierarchy.getParents(nodeId)));
+
+            Map<String, Object> request = new LinkedHashMap<>();
+            request.put("domain", domain);
+            request.put("service", service);
+            request.put("action", action);
+            request.put("attributes", attributes);
+            requests.add(request);
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        // Le token du manager alimente TokenOwner cote PDP, donc la lecture de ses grants.
+        headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
+
+        HttpEntity<Map<String, Object>> entity =
+                new HttpEntity<>(Map.of("requests", requests), headers);
 
         try {
-            // sub : identifie le manager, cle de lecture de ses propres grants.
-            String managerUid = JwtSubject.uid(token);
-            // Le token brut est relaye au PDP pour qu'il resolve TokenOwner lui-meme.
-            String bearerToken = token.getToken().getTokenValue();
+            ResponseEntity<JsonNode> response = rest.exchange(
+                    baseUrl + "/governance-engine/batch",
+                    HttpMethod.POST,
+                    entity,
+                    JsonNode.class);
 
-            ProvisioningResult result =
-                    userService.createOrUpdate(req, managerUid, bearerToken);
+            JsonNode body = response.getBody();
+            JsonNode responses = (body != null) ? body.path("responses") : null;
 
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("message", result.created()
-                    ? "Utilisateur " + req.uid() + " cree avec succes."
-                    : "Utilisateur " + req.uid()
-                      + " existant : nouvelles affectations ajoutees.");
-
-            if (result.resetUrl() != null) {
-                body.put("passwordResetUrl", result.resetUrl());
-                body.put("instruction",
-                        "L'utilisateur doit initialiser son mot de passe en cliquant sur "
-                        + "le lien recu par mail.");
-            } else {
-                // L'entree et les grants sont ecrits : ce n'est pas un echec de creation.
-                body.put("warning",
-                        "Utilisateur provisionne, mais le lien d'initialisation n'a pas "
-                        + "pu etre genere. A renvoyer manuellement.");
+            if (responses == null || !responses.isArray()
+                    || responses.size() != nodeIds.size()) {
+                throw new IllegalStateException(
+                        "Reponse PDP inattendue : " + nodeIds.size()
+                        + " requetes envoyees, reponses recues "
+                        + (responses == null ? "aucune" : responses.size()));
             }
-            return ResponseEntity.ok(body);
 
-        } catch (SecurityException e) {
-            // Refus de delegation, rendu par le PDP ou en local selon puma.authz.mode.
-            return ResponseEntity.status(403).body(e.getMessage());
-
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            // L'ordre des reponses suit l'ordre des requetes.
+            for (int i = 0; i < nodeIds.size(); i++) {
+                JsonNode decision = responses.get(i);
+                boolean permit = "PERMIT".equalsIgnoreCase(
+                                        decision.path("decision").asText())
+                        || decision.path("authorized").asBoolean(false);
+                decisions.put(nodeIds.get(i), permit);
+            }
+            return decisions;
 
         } catch (IllegalStateException e) {
-            // PDP injoignable : deny-unless-permit, jamais d'ouverture par defaut.
-            return ResponseEntity.status(503).body(e.getMessage());
-
+            throw e;
         } catch (Exception e) {
-            // NamingException et consorts : echec d'ecriture LDAP.
-            return ResponseEntity.status(500)
-                    .body("Provisioning en echec : " + e.getMessage());
+            // Deny-unless-permit : un PDP injoignable ne doit jamais ouvrir l'acces.
+            // On leve plutot que de rendre des false, pour que le controleur distingue
+            // un refus metier (403) d'une indisponibilite (503).
+            throw new IllegalStateException(
+                    "Decision PDP indisponible, acces refuse par defaut : "
+                    + e.getMessage(), e);
         }
+    }
+
+    // =========================================================================
+    //  TLS
+    // =========================================================================
+
+    /**
+     * SimpleClientHttpRequestFactory et non HttpComponents : aucune dependance a ajouter
+     * au pom. On surcharge prepareConnection pour poser le SSLSocketFactory permissif
+     * sur la connexion HTTPS.
+     */
+    private SimpleClientHttpRequestFactory trustAllRequestFactory() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory() {
+            @Override
+            protected void prepareConnection(HttpURLConnection connection, String httpMethod)
+                    throws java.io.IOException {
+                if (connection instanceof HttpsURLConnection https) {
+                    try {
+                        https.setSSLSocketFactory(trustAllSslContext().getSocketFactory());
+                        https.setHostnameVerifier((hostname, session) -> true);
+                    } catch (Exception e) {
+                        throw new java.io.IOException(
+                                "Initialisation TLS impossible pour le PDP", e);
+                    }
+                }
+                super.prepareConnection(connection, httpMethod);
+            }
+        };
+        factory.setConnectTimeout(connectTimeoutMs);
+        factory.setReadTimeout(readTimeoutMs);
+        return factory;
+    }
+
+    /** Meme helper que celui de l'ancien UserProvisioningService, pour le PDP. */
+    private SSLContext trustAllSslContext() throws Exception {
+        TrustManager[] tm = new TrustManager[]{
+                new X509TrustManager() {
+                    public X509Certificate[] getAcceptedIssuers() {
+                        return new X509Certificate[0];
+                    }
+                    public void checkClientTrusted(X509Certificate[] c, String a) { }
+                    public void checkServerTrusted(X509Certificate[] c, String a) { }
+                }
+        };
+        SSLContext sc = SSLContext.getInstance("TLS");
+        sc.init(null, tm, new SecureRandom());
+        return sc;
     }
 }
