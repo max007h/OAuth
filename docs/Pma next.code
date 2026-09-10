@@ -1,3 +1,28 @@
+public java.util.Set<String> visibleNodes(String managerUid) {
+    java.util.Set<String> visible = new java.util.LinkedHashSet<>();
+    for (String root : managerRootNodes(managerUid)) {
+        visible.add(root);
+        visible.addAll(hierarchy.getDescendants(root));
+    }
+    return visible;
+}
+
+
+INSERT INTO node_application (node_id, application_id) VALUES
+  ('2700010', 'BusinessApp1'),
+  ('2700011', 'BusinessApp1'),
+  ('2700012', 'BusinessApp1')
+ON CONFLICT (node_id, application_id) DO NOTHING;
+
+
+INSERT INTO node_application (node_id, application_id)
+VALUES ('9200005', 'BusinessApp2')
+ON CONFLICT (node_id, application_id) DO NOTHING;
+
+
+
+
+
 verification user
 ..................
 docker exec env-pingdirectory-1 /opt/out/instance/bin/ldapsearch \
