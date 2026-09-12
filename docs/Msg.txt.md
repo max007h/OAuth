@@ -1,3 +1,8 @@
+docker exec env-pingauthorizepap-1 grep -rl "1443" /opt/out/instance/config/ 2>/dev/null
+docker exec env-pingauthorizepap-1 env | grep -i port
+
+
+
 docker exec env-pingauthorizepap-1 sh -c \
   "netstat -tln 2>/dev/null || ss -tln 2>/dev/null || cat /proc/net/tcp"
 
