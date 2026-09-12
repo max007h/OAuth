@@ -1,3 +1,14 @@
+curl -k -X POST https://localhost:7443/governance-engine \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign",
+       "attributes":{"targetNode":"2700010",
+                     "targetNodeParents":"2700010,9200005,9100002,9300001,CL_A"}}'
+
+
+
+
 # Mesures complementaires SAST / SCA
 
 ## Contexte
