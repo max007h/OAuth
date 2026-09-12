@@ -1,3 +1,9 @@
+docker inspect env-pingauthorizepap-1 \
+  --format '{{json .Config.Healthcheck}}'
+
+
+
+
 curl -k -X POST https://localhost:7443/governance-engine \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
