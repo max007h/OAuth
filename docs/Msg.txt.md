@@ -1,3 +1,7 @@
+docker inspect env-pingdirectory-1 --format '{{json .Mounts}}' | python3 -m json.tool
+
+
+
 docker exec env-pingauthorizepap-1 grep -rl "1443" /opt/out/instance/config/ 2>/dev/null
 docker exec env-pingauthorizepap-1 env | grep -i port
 
