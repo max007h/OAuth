@@ -1,3 +1,6 @@
+docker exec env-pingauthorizepap-1 sh -c \
+  "netstat -tln 2>/dev/null || ss -tln 2>/dev/null || cat /proc/net/tcp"
+
 docker inspect env-pingauthorizepap-1 \
   --format '{{json .Config.Healthcheck}}'
 
