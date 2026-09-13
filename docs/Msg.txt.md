@@ -1,3 +1,12 @@
+curl -k -X POST https://localhost:7443/governance-engine/batch \
+  -H "Content-Type: application/json" -H "Accept: application/json" \
+  -d '{"requests":[{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{}},{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{}}]}'
+
+  
+
+
+
+
 curl -k -X POST https://localhost:7443/governance-engine \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
