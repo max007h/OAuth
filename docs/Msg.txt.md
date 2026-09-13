@@ -1,3 +1,8 @@
+docker exec env-pingauthorize-1 grep -o "targetNode" /tmp/policies.SDP | head -3
+
+
+
+
 curl -k -X POST https://localhost:7443/governance-engine/batch \
   -H "Content-Type: application/json" -H "Accept: application/json" \
   -d '{"requests":[{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{}},{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{}}]}'
