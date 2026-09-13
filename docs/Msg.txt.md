@@ -1,3 +1,6 @@
+curl -k -X POST https://localhost:7443/governance-engine -H "Content-Type: application/json" -H "Accept: application/json" -H 'Authorization: Bearer {"active":true,"sub":"thomas.martin"}' -d '{"domain":"PUMA","service":"PUMA.Administration","identityProvider":"Mock Access Token Validator","action":"assign","attributes":{"targetNode":"2700010","targetNodeParents":"2700010,9200005,9100002,9300001,CL_A","managerNodes":"9200005"}}'
+
+
 curl -k -X POST https://localhost:7443/governance-engine -H "Content-Type: application/json" -H "Accept: application/json" -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"targetNode":"2700010","targetNodeParents":"2700010,9200005,9100002,9300001,CL_A","managerNodes":"9200005"}}'
 
 
