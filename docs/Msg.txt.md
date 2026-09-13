@@ -1,3 +1,10 @@
+pazcfg set-external-server-prop --server-name "PingDirectory Server" --set server-port:1389 --set connection-security:none --reset key-manager-provider --reset trust-manager-provider
+docker restart env-pingauthorize-1
+
+
+docker exec env-pingauthorize-1 grep "external-server-initialization-failed" /opt/out/instance/logs/errors | tail -2
+
+
 pazcfg set-external-server-prop --server-name "PingDirectory Server" --set "bind-dn:cn=Directory Manager,cn=Root DNs,cn=config"
 docker restart env-pingauthorize-1
 
