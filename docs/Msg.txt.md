@@ -1,3 +1,14 @@
+docker exec env-pingauthorize-1 /opt/out/instance/bin/status | grep -A6 "Policy Decision Service"
+
+
+curl -k -X POST https://localhost:7443/governance-engine \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{}}'
+
+
+
+
 docker cp ~/Downloads/<nom-du-fichier>.SDP env-pingauthorize-1:/tmp/policies.SDP
 
 docker exec env-pingauthorize-1 /opt/out/instance/bin/dsconfig \
