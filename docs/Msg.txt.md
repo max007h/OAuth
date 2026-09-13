@@ -31,10 +31,17 @@ pazcfg create-store-adapter-mapping --type-name Users --mapping-name partnerGran
 pazcfg create-store-adapter-mapping --type-name Users --mapping-name opScope --set scim-resource-type-attribute:opScope --set store-adapter-attribute:opScope
 pazcfg create-store-adapter-mapping --type-name Users --mapping-name reportScope --set scim-resource-type-attribute:reportScope --set store-adapter-attribute:reportScope
 
+
+mock:
+----
+pazcfg create-access-token-validator --validator-name "Mock Access Token Validator" --type mock --set enabled:true --set evaluation-order-index:9999
+
+pazcfg create-token-resource-lookup-method --validator-name "Mock Access Token Validator" --method-name "User by uid" --type scim --set scim-resource-type:Users --set 'match-filter:uid eq "%sub%"' --set evaluation-order-index:1000
 ----------------
 
 
-pazcfg create-external-server --server-name "PingDirectory Server" --type ping-identity-ds --set server-host-name:pingdirectory --set server-port:1636 --set "bind-dn:cn=administrator" --set "password:2FederateM0re" --set connection-security:ssl --set trust-manager-provider:"Blind Trust" --set key-manager-provider:"JKS"
+pazcfg create-external-server --server-name "PingDirectory Server" --type ping-identity-ds --set server-host-name:pingdirectory --set server-port:1636 --set "bind-dn:cn=administrator" --set "password:2FederateM0re" --set connection-security:ssl --set trust-manager-provider:"Blind Trust" --set k
+ey-manager-provider:"JKS"
 
 pazcfg create-load-balancing-algorithm --algorithm-name "User Store LBA" --type failover --set enabled:true --set "backend-server:PingDirectory Server"
 
