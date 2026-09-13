@@ -1,3 +1,23 @@
+docker cp ~/Downloads/<nom-du-fichier>.SDP env-pingauthorize-1:/tmp/policies.SDP
+
+docker exec env-pingauthorize-1 /opt/out/instance/bin/dsconfig \
+  --no-prompt --noPropertiesFile \
+  --hostname localhost --port 1636 --useSSL --trustAll \
+  --bindDN "cn=administrator" --bindPassword "2FederateM0re" \
+  set-policy-decision-service-prop \
+  --set pdp-mode:embedded \
+  --set "deployment-package:/tmp/policies.SDP" \
+  --set trust-framework-version:v2
+
+
+curl -k -X POST https://localhost:7443/governance-engine \
+  -H "Content-Type: application/json" -H "Accept: application/json" \
+  -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{}}'
+  
+
+
+
+
 
 TOKEN="<ton token frais>"
 
