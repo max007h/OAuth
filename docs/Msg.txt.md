@@ -12,6 +12,12 @@ pazcfg set-external-server-prop --server-name "PingDirectory Server" --set locat
 pazcfg create-load-balancing-algorithm --algorithm-name "User Store LBA" --type failover --set enabled:true --set "backend-server:PingDirectory Server"
 
 
+pazcfg set-store-adapter-prop --adapter-name UserStoreAdapter --set enabled:true --set "load-balancing-algorithm:User Store LBA" --set auxiliary-ldap-objectclass:pumaPartnerUser
+
+pazcfg get-store-adapter-prop --adapter-name UserStoreAdapter
+----------------
+
+
 pazcfg create-external-server --server-name "PingDirectory Server" --type ping-identity-ds --set server-host-name:pingdirectory --set server-port:1636 --set "bind-dn:cn=administrator" --set "password:2FederateM0re" --set connection-security:ssl --set trust-manager-provider:"Blind Trust" --set key-manager-provider:"JKS"
 
 pazcfg create-load-balancing-algorithm --algorithm-name "User Store LBA" --type failover --set enabled:true --set "backend-server:PingDirectory Server"
