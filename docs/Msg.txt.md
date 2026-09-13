@@ -1,3 +1,16 @@
+curl -k -X POST https://localhost:7443/governance-engine \
+  -H "Content-Type: application/json" -H "Accept: application/json" \
+  -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"targetNode":"2700010"}}'
+
+
+curl -k -X POST https://localhost:7443/governance-engine \
+  -H "Content-Type: application/json" -H "Accept: application/json" \
+  -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"targetNode":"2700015"}}'
+  
+
+
+
+
 docker exec env-pingauthorize-1 grep -o "targetNode" /tmp/policies.SDP | head -3
 
 
