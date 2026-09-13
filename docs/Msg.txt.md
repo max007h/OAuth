@@ -1,3 +1,9 @@
+pazcfg --help-policy-decision-service | grep -A 15 "decision-response-view"
+
+pazcfg set-policy-decision-service-prop --set decision-response-view:<valeur>
+
+
+
 pazcfg get-policy-decision-service-prop --property decision-response-view
 
 
