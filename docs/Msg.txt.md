@@ -1,3 +1,7 @@
+docker exec env-pingauthorize-1 cat /opt/out/instance/config/build-info.txt
+
+
+
 docker exec env-pingauthorize-1 /opt/out/instance/bin/dsconfig --no-prompt --noPropertiesFile --hostname localhost --port 1636 --useSSL --trustAll --bindDN "cn=administrator" --bindPassword "2FederateM0re" list-access-token-validators
 
 
