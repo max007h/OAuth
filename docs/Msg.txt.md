@@ -4,6 +4,10 @@ pazcfg set-trust-manager-provider-prop --provider-name "Blind Trust" --set enabl
 
 pazcfg list-key-manager-providers
 
+pazcfg list-locations
+pazcfg get-global-configuration-prop --property location
+
+
 pazcfg create-external-server --server-name "PingDirectory Server" --type ping-identity-ds --set server-host-name:pingdirectory --set server-port:1636 --set "bind-dn:cn=administrator" --set "password:2FederateM0re" --set connection-security:ssl --set trust-manager-provider:"Blind Trust" --set key-manager-provider:"JKS"
 
 pazcfg create-load-balancing-algorithm --algorithm-name "User Store LBA" --type failover --set enabled:true --set "backend-server:PingDirectory Server"
