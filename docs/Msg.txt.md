@@ -1,3 +1,9 @@
+pazcfg get-store-adapter-prop --adapter-name UserStoreAdapter
+
+docker exec env-pingauthorize-1 ls /opt/out/instance/config/archived-configs
+
+
+
 alias pazcfg='docker exec env-pingauthorize-1 /opt/out/instance/bin/dsconfig --no-prompt --noPropertiesFile --hostname localhost --port 1636 --useSSL --trustAll --bindDN "cn=administrator" --bindPassword "2FederateM0re"'
 
 pazcfg list-store-adapters
