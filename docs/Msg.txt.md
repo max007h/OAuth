@@ -1,3 +1,6 @@
+docker exec env-pingauthorize-1 grep -i "external-server-initialization-failed\|User Store Availability" /opt/out/instance/logs/errors | tail -20
+
+
 start config mock 
 
 pazcfg set-trust-manager-provider-prop --provider-name "Blind Trust" --set enabled:true
