@@ -1,3 +1,18 @@
+PDP="https://localhost:7443/governance-engine"
+H='-H Content-Type:application/json -H Accept:application/json'
+
+# 1. PERMIT attendu : 9200005 est bien dans les parents de 2700010
+curl -k -X POST $PDP $H -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"targetNode":"2700010","targetNodeParents":"2700010,9200005,9100002,9300001,CL_A","managerNodes":"9200005"}}'
+
+# 2. DENY attendu : 9200005 absent des parents de 2700015
+curl -k -X POST $PDP $H -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"targetNode":"2700015","targetNodeParents":"2700015,9200006,9100002,9300001,CL_A","managerNodes":"9200005"}}'
+
+
+
+
+
+
+
 curl -k -X POST https://localhost:7443/governance-engine \
   -H "Content-Type: application/json" -H "Accept: application/json" \
   -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"targetNode":"2700010","targetNodeParents":"2700010,9200005,9100002,9300001,CL_A"}}'
