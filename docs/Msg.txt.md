@@ -1,3 +1,18 @@
+
+TOKEN="<ton token frais>"
+
+curl -i -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8081/api/hierarchy/subtree
+
+  curl -i -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8081/api/applications
+
+curl -i -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8081/api/roles?application=BusinessApp1&node=2700010"
+
+
+
+
 docker exec env-pingdirectory-1 /opt/out/instance/bin/ldapsearch \
   --hostname localhost --port 1636 --useSSL --trustAll \
   --bindDN "cn=administrator" --bindPassword "2FederateM0re" \
