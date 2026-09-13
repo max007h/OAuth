@@ -1,3 +1,6 @@
+pazcfg set-external-server-prop --server-name "PingDirectory Server" --set "bind-dn:cn=Directory Manager,cn=Root DNs,cn=config"
+docker restart env-pingauthorize-1
+
 docker exec env-pingauthorize-1 grep -i "external-server-initialization-failed\|User Store Availability" /opt/out/instance/logs/errors | tail -20
 
 
