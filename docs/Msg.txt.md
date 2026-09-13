@@ -42,6 +42,7 @@ test with token
 ------
 curl -k -X POST https://localhost:7443/governance-engine -H "Content-Type: application/json" -H "Accept: application/json" -H 'Authorization: Bearer {"active":true,"sub":"thomas.martin"}' -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"targetNode":"2700010","targetNodeParents":"2700010,9200005,9100002,9300001,CL_A","managerNodes":"9200005"}}'
 ----------------
+docker exec env-pingauthorize-1 /opt/out/instance/bin/ldapsearch --hostname pingdirectory --port 1636 --useSSL --trustAll --bindDN "cn=administrator" --bindPassword "2FederateM0re" --baseDN "dc=example,dc=com" "(uid=thomas.martin)" uid
 
 
 pazcfg create-external-server --server-name "PingDirectory Server" --type ping-identity-ds --set server-host-name:pingdirectory --set server-port:1636 --set "bind-dn:cn=administrator" --set "password:2FederateM0re" --set connection-security:ssl --set trust-manager-provider:"Blind Trust" --set k
