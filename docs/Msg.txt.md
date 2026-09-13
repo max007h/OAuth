@@ -1,3 +1,7 @@
+docker exec env-pingdirectory-1 /opt/out/instance/bin/ldapsearch --port 1636 --useSSL --trustAll --bindDN "cn=administrator" --bindPassword "2FederateM0re" --baseDN "dc=example,dc=com" "(uid=thomas.martin)" dn partnerGrant
+
+
+
 pazcfg get-store-adapter-prop --adapter-name UserStoreAdapter
 
 docker exec env-pingauthorize-1 ls /opt/out/instance/config/archived-configs
