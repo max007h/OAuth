@@ -1,3 +1,8 @@
+docker exec env-pingauthorize-1 /opt/out/instance/bin/dsconfig --no-prompt --noPropertiesFile --hostname localhost --port 1636 --useSSL --trustAll --bindDN "cn=administrator" --bindPassword "2FederateM0re" list-access-token-validators
+
+
+
+
 curl -k -X POST https://localhost:7443/governance-engine -H "Content-Type: application/json" -H "Accept: application/json" -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"targetNode":"2700010","targetNodeParents":"2700010,9200005,9100002,9300001,CL_A","managerNodes":"9200005"}}'
 
 
