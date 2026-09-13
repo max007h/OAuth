@@ -37,6 +37,10 @@ mock:
 pazcfg create-access-token-validator --validator-name "Mock Access Token Validator" --type mock --set enabled:true --set evaluation-order-index:9999
 
 pazcfg create-token-resource-lookup-method --validator-name "Mock Access Token Validator" --method-name "User by uid" --type scim --set scim-resource-type:Users --set 'match-filter:uid eq "%sub%"' --set evaluation-order-index:1000
+
+test with token
+------
+curl -k -X POST https://localhost:7443/governance-engine -H "Content-Type: application/json" -H "Accept: application/json" -H 'Authorization: Bearer {"active":true,"sub":"thomas.martin"}' -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"targetNode":"2700010","targetNodeParents":"2700010,9200005,9100002,9300001,CL_A","managerNodes":"9200005"}}'
 ----------------
 
 
