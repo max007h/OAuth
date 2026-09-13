@@ -1,3 +1,8 @@
+pazcfg list-properties --property decision-response-view
+
+pazcfg set-policy-decision-service-prop --set decision-response-view:full
+
+
 pazcfg --help-policy-decision-service | grep -A 15 "decision-response-view"
 
 pazcfg set-policy-decision-service-prop --set decision-response-view:<valeur>
