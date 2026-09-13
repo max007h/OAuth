@@ -15,6 +15,14 @@ pazcfg create-load-balancing-algorithm --algorithm-name "User Store LBA" --type 
 pazcfg set-store-adapter-prop --adapter-name UserStoreAdapter --set enabled:true --set "load-balancing-algorithm:User Store LBA" --set auxiliary-ldap-objectclass:pumaPartnerUser
 
 pazcfg get-store-adapter-prop --adapter-name UserStoreAdapter
+
+pazcfg create-scim-schema --schema-name urn:pingidentity:schemas:PumaUser:1.0 --set display-name:PumaUser
+
+pazcfg create-scim-attribute --schema-name urn:pingidentity:schemas:PumaUser:1.0 --attribute-name uid
+pazcfg create-scim-attribute --schema-name urn:pingidentity:schemas:PumaUser:1.0 --attribute-name partnerGrant --set multi-valued:true
+pazcfg create-scim-attribute --schema-name urn:pingidentity:schemas:PumaUser:1.0 --attribute-name opScope --set multi-valued:true
+pazcfg create-scim-attribute --schema-name urn:pingidentity:schemas:PumaUser:1.0 --attribute-name reportScope --set multi-valued:true
+
 ----------------
 
 
