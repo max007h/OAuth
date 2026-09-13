@@ -8,6 +8,13 @@ curl -k -X POST $PDP $H -d '{"domain":"PUMA","service":"PUMA.Administration","ac
 curl -k -X POST $PDP $H -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"targetNode":"2700015","targetNodeParents":"2700015,9200006,9100002,9300001,CL_A","managerNodes":"9200005"}}'
 
 
+# 3. Deux grants, un seul matche. PERMIT = "au moins un", DENY = "tous"
+curl -k -X POST $PDP $H -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"targetNode":"2700010","targetNodeParents":"2700010,9200005,9100002,9300001,CL_A","managerNodes":"9200005,9200002"}}'
+
+# 4. Temoin negatif obligatoire : aucun ne matche, doit rendre DENY
+curl -k -X POST $PDP $H -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"targetNode":"2700010","targetNodeParents":"2700010,9200005,9100002,9300001,CL_A","managerNodes":"9200002,9200003"}}'
+
+
 
 
 
