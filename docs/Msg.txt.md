@@ -23,6 +23,14 @@ pazcfg create-scim-attribute --schema-name urn:pingidentity:schemas:PumaUser:1.0
 pazcfg create-scim-attribute --schema-name urn:pingidentity:schemas:PumaUser:1.0 --attribute-name opScope --set multi-valued:true
 pazcfg create-scim-attribute --schema-name urn:pingidentity:schemas:PumaUser:1.0 --attribute-name reportScope --set multi-valued:true
 
+
+pazcfg create-scim-resource-type --type-name Users --type mapping --set enabled:true --set endpoint:Users --set "primary-store-adapter:UserStoreAdapter" --set lookthrough-limit:500 --set core-schema:urn:pingidentity:schemas:PumaUser:1.0
+
+pazcfg create-store-adapter-mapping --type-name Users --mapping-name uid --set scim-resource-type-attribute:uid --set store-adapter-attribute:uid --set searchable:true
+pazcfg create-store-adapter-mapping --type-name Users --mapping-name partnerGrant --set scim-resource-type-attribute:partnerGrant --set store-adapter-attribute:partnerGrant
+pazcfg create-store-adapter-mapping --type-name Users --mapping-name opScope --set scim-resource-type-attribute:opScope --set store-adapter-attribute:opScope
+pazcfg create-store-adapter-mapping --type-name Users --mapping-name reportScope --set scim-resource-type-attribute:reportScope --set store-adapter-attribute:reportScope
+
 ----------------
 
 
