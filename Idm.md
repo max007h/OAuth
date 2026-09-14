@@ -1,3 +1,38 @@
+Il vient de te donner raison, mais en déplaçant le débat. Trois choses à relever.
+
+**Il y a maintenant une contradiction formelle dans son propre document.** La colonne de droite du Flow 4 dit « Compliant with PSD2 / RTS », celle du Flow 5 dit « fully compliant » et « no inherent violations » avec un mapping eIDAS 8 à 12. Son mail dit que rien ne s'aligne pleinement avec eIDAS. Les deux ne peuvent pas tenir ensemble. C'est à faire corriger dans le document, sinon quelqu'un en comité s'appuiera sur les tableaux et pas sur le mail.
+
+**Il confond deux problèmes distincts, et c'est le point important.** La qualité du proofing d'identité relève d'eIDAS et du KYC, c'est une décision métier et LCB-FT, pas une décision d'architecture IAM. Le binding entre ce proofing et le credential émis relève de l'article 24 du RTS, et celui-là est un problème d'ingénierie parfaitement soluble. En déclarant le tout « pas pleinement garantissable », il fait passer un défaut d'architecture corrigeable pour une limite inhérente. Le risque qu'il veut faire porter n'est pas celui qu'il croit.
+
+**Un risque accepté doit avoir un porteur.** Dans une banque, ça implique une fiche formelle, un propriétaire nommé, une échéance de remédiation. Il faut lui demander qui signe. Souvent ça suffit à faire revenir les gens vers la solution technique.
+
+Voici ce que je répondrais :
+
+**On the contradiction**
+
+"Before we register a risk, we need the document to say the same thing as this email. Flow 4 is currently marked as compliant with PSD2 and RTS, and Flow 5 as fully compliant with eIDAS Articles 8 to 12 with no inherent violations. If our shared position is that identity assurance is not fully guaranteed in any flow, those compliance statements need to be revised. Otherwise the tables will be what gets cited downstream."
+
+**On separating the two problems**
+
+"I would separate two questions that are currently merged. The first is the quality of the identity proofing itself, which is an eIDAS and KYC matter and a business decision, not an IAM design decision. The second is the binding between that proofing and the credential the IDP issues. The second is not an inherent limitation. It is an architecture choice, and it is solvable. In the current design the IDP authenticates the user on the strength of a token asserted by the SP, with no proof that the browser arriving at the enrolment page belongs to the subject of the proofing. That gap can be closed regardless of the assurance level of the video identification."
+
+**On the risk**
+
+"If we do register a risk, it should be scoped to proofing assurance only, and it needs a named owner, a severity, and a remediation date. I would not want the binding gap folded into it, because accepting a risk we can engineer away is harder to defend than accepting one we cannot."
+
+**On compensating controls, since he asked**
+
+"Concretely, and in order of value: bind the session to a possession factor the IDP verifies itself, with an OTP sent to the number captured during proofing, before any credential is created. Replace the SP-issued token with a back-channel call authenticated by mTLS, where the IDP returns a one-time opaque reference with a short TTL. Have the SP transmit a signed proofing artefact carrying method, assurance level, transaction reference and timestamp, and have the IDP retain it. Enrol the possession factor before the password. Apply the Article 4(3) limits on attempts and session lifetime. Add step-up SCA for sensitive operations during the first period after onboarding, and monitor for device or IP discontinuity between the proofing session and the enrolment session."
+
+Le dernier point est celui qui l'intéressera, parce qu'il lui permet de sortir par le haut sans avoir à dire que son Flow 4 était faux.
+
+
+
+
+
+
+
+
 Le POC PUMA est bien celui-là — le Portail PUMA, celui où un MANAGER crée des utilisateurs COMMERCIAL dans PingDirectory.
 
 **Ce qu'il a déjà :**
