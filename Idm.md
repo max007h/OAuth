@@ -1,3 +1,18 @@
+Ce qu'il décrit, c'est de la délégation de confiance déguisée en authentification. Sa phrase clé : le SP envoie un token « to validate the authentication of the user ». Or le SP n'a pas authentifié l'utilisateur, il l'a identifié (vidéo-ident). Identification et authentification ne sont pas la même chose, et c'est précisément cette confusion qui fait tomber son argument sur l'article 24 du RTS. L'IDP ne valide rien, il constate une affirmation.
+
+Il faut d'abord lever une ambiguïté, parce que le reste de la discussion en dépend. Demande-lui explicitement laquelle des deux options il décrit :
+
+- **Option A** : le token est émis par le SP (JWT signé par lui, ou opaque) et l'IDP l'accepte comme preuve. Dans ce cas le SP devient émetteur d'identité et l'IDP n'est plus l'autorité. Inacceptable, et non conforme art. 24.
+- **Option B** : le SP s'authentifie auprès de l'IDP (client credentials, mTLS) et l'IDP émet en retour une référence à usage unique. Là c'est l'IDP qui reste autorité, et c'est structurellement ton Magic Link, avec un canal différent. Défendable.
+
+Son raisonnement « ce n'est pas une question de rôle » est juste sur un point, et c'est à reconnaître : ton `onboarding.authorized` porté comme attribut dans l'annuaire est effectivement un état persistant qui traîne. Sa logique de flux ponctuel est meilleure sur ce plan précis. Mais la conclusion qu'il en tire ne suit pas : remplacer un rôle par un token ne résout rien si le token porte la même capacité sans preuve de possession derrière.
+
+Le point qu'il n'adresse toujours pas, et sur lequel je resterais : quel que soit le mécanisme, entre la réception de l'info par API et la création du mot de passe, personne n'a prouvé que la personne devant le navigateur est bien celle qui a fait la vidéo. Le canal API sécurise la relation SP vers IDP. Il ne sécurise pas la relation IDP vers utilisateur. C'est exactement le trou que le Magic Link ou un OTP sur le numéro vérifié vient combler.
+
+La formulation que je poserais en réunion : « Nous sommes d'accord sur le canal API. La question qui reste ouverte est celle du binding utilisateur. Comment l'IDP établit-il, de son côté, que le porteur de la session est le sujet du proofing ? »
+
+
+
 Il vient de te donner raison, mais en déplaçant le débat. Trois choses à relever.
 
 **Il y a maintenant une contradiction formelle dans son propre document.** La colonne de droite du Flow 4 dit « Compliant with PSD2 / RTS », celle du Flow 5 dit « fully compliant » et « no inherent violations » avec un mapping eIDAS 8 à 12. Son mail dit que rien ne s'aligne pleinement avec eIDAS. Les deux ne peuvent pas tenir ensemble. C'est à faire corriger dans le document, sinon quelqu'un en comité s'appuiera sur les tableaux et pas sur le mail.
