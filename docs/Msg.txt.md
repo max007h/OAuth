@@ -1,7 +1,10 @@
 curl -k -X POST https://localhost:7443/governance-engine \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <token>" \
-  -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"targetNodeParents":["2700010","9200005"]}}'
+  -H "Authorization: Bearer {\"active\":true,\"sub\":\"khomas.martin\"}" \
+  -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"targetNodeParents":"2700010"}}'
+
+
+
 
 
 
