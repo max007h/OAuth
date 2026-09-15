@@ -1,3 +1,92 @@
+package com.example.demo;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class PingAuthorizePdpIntegrationTest {
+
+    private static final String PDP_URL = "https://localhost:7443/governance-engine";
+    private HttpClient httpClient;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        // Bypass SSL pour les certificats auto-signés du PDP local (-k)
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(null, new TrustManager[]{new X509TrustManager() {
+            public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+            public void checkClientTrusted(X509Certificate[] certs, String authType) {}
+            public void checkServerTrusted(X509Certificate[] certs, String authType) {}
+        }}, new SecureRandom());
+
+        this.httpClient = HttpClient.newBuilder()
+                .sslContext(sslContext)
+                .build();
+    }
+
+    @Test
+    @DisplayName("Devrait évaluer la politique PDP avec le token mock et la résolution tokenUid")
+    void shouldEvaluatePdpPolicyWithMockToken() throws Exception {
+        // Mock Token payload JSON
+        String mockTokenJson = "{\"active\":true,\"sub\":\"thomas.martin\"}";
+
+        // Body de la requête PDP
+        String requestBody = "{"
+                + "\"domain\":\"PUMA\","
+                + "\"service\":\"PUMA.Administration\","
+                + "\"action\":\"assign\","
+                + "\"attributes\":{\"targetNodeParents\":\"2700010\"}"
+                + "}";
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(PDP_URL))
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + mockTokenJson)
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .build();
+
+        HttpResponse<String> response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+        // Assertions
+        assertEquals(200, response.statusCode(), "Le PDP doit répondre avec un code 200 OK");
+        
+        String responseBody = response.body();
+        assertTrue(responseBody.contains("\"code\":\"OK\""), "La réponse doit contenir un statut OK");
+        
+        // Vérifie qu'il n'y a plus l'erreur MISSING_ATTRIBUTE sur TokenOwner
+        assertTrue(!responseBody.contains("Missing Attribute: TokenOwner"), 
+                "TokenOwner doit être résolu correctement sans erreur MISSING_ATTRIBUTE");
+    }
+}
+
+
+
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-test</artifactId>
+    <scope>test</scope>
+</dependency>
+
+
+
+
+
+
+
+
 curl -k -X POST https://localhost:7443/governance-engine -H "Content-Type: application/json" -H 'Authorization: Bearer {"active":true,"sub":"thomas.martin"}' -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"targetNodeParents":"2700010"}}'
 
 
