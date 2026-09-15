@@ -1,3 +1,11 @@
+curl -k -X POST https://localhost:7443/governance-engine \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"targetNodeParents":["2700010","9200005"]}}'
+
+
+
+
 pazcfg set-policy-decision-service-prop --set decision-response-view:attributes --set decision-response-view:request --set decision-response-view:evaluation-log-with-attribute-values
 
 curl -k -X POST https://localhost:7443/governance-engine -H "Content-Type: application/json" -H "Accept: application/json" -H 'Authorization: Bearer {"active":true,"sub":"thomas.martin"}' -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"targetNode":"2700010","targetNodeParents":"2700010,9200005,9100002,9300001,CL_A","managerNodes":"9200005"}}' > /tmp/decision.json; python3 -m json.tool /tmp/decision.json | head -80
