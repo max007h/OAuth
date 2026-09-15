@@ -4,6 +4,99 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
+import java.util.Base64;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+
+class PingAuthorizePdpIntegrationTest {
+
+    private static final String PDP_URL = "https://localhost:7443/governance-engine";
+    private HttpClient httpClient;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(null, new TrustManager[]{new X509TrustManager() {
+            public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+            public void checkClientTrusted(X509Certificate[] certs, String authType) {}
+            public void checkServerTrusted(X509Certificate[] certs, String authType) {}
+        }}, new SecureRandom());
+
+        this.httpClient = HttpClient.newBuilder()
+                .sslContext(sslContext)
+                .build();
+    }
+
+    @Test
+    @DisplayName("Test d'intégration PDP avec JWT valide")
+    void shouldEvaluatePdpPolicyWithMockToken() throws Exception {
+        // Génération d'un véritable JWT structuré
+        String jwtToken = generateMockJwt("thomas.martin");
+
+        String requestBody = "{"
+                + "\"domain\":\"PUMA\","
+                + "\"service\":\"PUMA.Administration\","
+                + "\"action\":\"assign\","
+                + "\"attributes\":{\"targetNodeParents\":\"2700010\"}"
+                + "}";
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(PDP_URL))
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + jwtToken)
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .build();
+
+        HttpResponse<String> response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+        System.out.println("====== STATUS CODE ===== " + response.statusCode());
+        System.out.println("====== RESPONSE BODY =====\n" + response.body());
+
+        assertEquals(200, response.statusCode());
+        assertFalse(response.body().contains("Missing Attribute: TokenOwner"), 
+                "TokenOwner doit être extrait du JWT sans erreur MISSING_ATTRIBUTE");
+    }
+
+    private String generateMockJwt(String username) throws Exception {
+        String header = Base64.getUrlEncoder().withoutPadding().encodeToString("{\"alg\":\"HS256\",\"typ\":\"JWT\"}".getBytes(StandardCharsets.UTF_8));
+        
+        long now = System.currentTimeMillis() / 1000;
+        String payloadJson = String.format("{\"sub\":\"%s\",\"active\":true,\"exp\":%d}", username, now + 3600);
+        String payload = Base64.getUrlEncoder().withoutPadding().encodeToString(payloadJson.getBytes(StandardCharsets.UTF_8));
+
+        String contentToSign = header + "." + payload;
+        Mac hmac = Mac.getInstance("HmacSHA256");
+        // Clé HMAC de test standard
+        hmac.init(new SecretKeySpec("secretsecretsecretsecretsecretsecret".getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        String signature = Base64.getUrlEncoder().withoutPadding().encodeToString(hmac.doFinal(contentToSign.getBytes(StandardCharsets.UTF_8)));
+
+        return contentToSign + "." + signature;
+    }
+}
+
+
+
+
+
+package com.example.demo;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
