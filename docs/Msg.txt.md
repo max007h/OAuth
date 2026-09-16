@@ -1,3 +1,8 @@
+curl -k https://localhost:7443/scim/v2/Users \
+  -H 'Authorization: Bearer {"active":true,"sub":"thomas.martin"}'
+
+
+
 docker exec env-pingauthorize-1 /opt/out/instance/bin/dsconfig set-policy-decision-service-prop \
   --set "access-token-validator:Mock Access Token Validator" \
   --no-prompt
