@@ -1,3 +1,13 @@
+docker exec env-pingauthorize-1 /opt/out/instance/bin/dsconfig set-policy-decision-service-prop \
+  --set "access-token-validator:Mock Access Token Validator" \
+  --no-prompt
+
+
+
+
+
+
+
 package com.example.demo;
 
 import org.junit.jupiter.api.BeforeEach;
