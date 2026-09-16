@@ -1,3 +1,7 @@
+//searchResultEntry/attr[@name='partnerGrant']/text()
+
+
+
 docker exec env-pingauthorize-1 /opt/out/instance/bin/ldapsearch \
   --hostname pingdirectory --port 1389 \
   --bindDN "cn=administrator" --bindPassword "<ton mdp>" \
