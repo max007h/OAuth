@@ -1,3 +1,13 @@
+curl -k -X POST https://localhost:7443/scim/v2/Users \
+  -H 'Authorization: Bearer {"active":true,"sub":"thomas.martin"}' \
+  -H 'Content-Type: application/scim+json' \
+  -d '{"schemas":["urn:pingidentity:schemas:PumaUser:1.0"],
+       "uid":"test.user",
+       "targetNodeParents":"2700010,9200005,9100002,9300001,CL_A"}'
+
+
+
+
 curl -k https://localhost:7443/scim/v2/Users \
   -H 'Authorization: Bearer {"active":true,"sub":"thomas.martin"}'
 
