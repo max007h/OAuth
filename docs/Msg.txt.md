@@ -1,3 +1,30 @@
+pazcfg create-scim-attribute --schema-name urn:pingidentity:schemas:PumaUser:1.0 \
+  --attribute-name targetNode
+
+pazcfg create-scim-attribute --schema-name urn:pingidentity:schemas:PumaUser:1.0 \
+  --attribute-name targetNodeParents --set multi-valued:true
+
+pazcfg create-scim-attribute --schema-name urn:pingidentity:schemas:PumaUser:1.0 \
+  --attribute-name targetApplication
+
+pazcfg create-scim-attribute --schema-name urn:pingidentity:schemas:PumaUser:1.0 \
+  --attribute-name targetRole
+
+
+  curl -k -X POST https://localhost:7443/scim/v2/Users \
+  -H 'Authorization: Bearer {"active":true,"sub":"thomas.martin"}' \
+  -H 'Content-Type: application/scim+json' \
+  -d '{"schemas":["urn:pingidentity:schemas:PumaUser:1.0"],
+       "targetNode":"2700010",
+       "targetNodeParents":["2700010","9200005","9100002","9300001","CL_A"],
+       "targetApplication":"BusinessApp1",
+       "targetRole":"Salesman"}'
+
+
+
+
+
+
 curl -k -X POST https://localhost:7443/scim/v2/Users \
   -H 'Authorization: Bearer {"active":true,"sub":"thomas.martin"}' \
   -H 'Content-Type: application/scim+json' \
