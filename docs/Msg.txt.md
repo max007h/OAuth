@@ -1,3 +1,15 @@
+docker exec env-pingauthorize-1 /opt/out/instance/bin/ldapsearch \
+  --hostname pingdirectory --port 1389 \
+  --bindDN "cn=administrator" --bindPassword "<ton mdp>" \
+  --baseDN "" --searchScope base "(objectClass=*)" namingContexts
+
+
+docker exec env-pingauthorize-1 /opt/out/instance/bin/ldapsearch \
+  --hostname pingdirectory --port 1389 \
+  --bindDN "cn=administrator" --bindPassword "<ton mdp>" \
+  --baseDN "<le suffixe trouvé>" \
+  "(uid=thomas.martin)" partnerGrant
+
 pazcfg create-scim-attribute --schema-name urn:pingidentity:schemas:PumaUser:1.0 \
   --attribute-name targetNode
 
