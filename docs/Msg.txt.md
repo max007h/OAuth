@@ -1,3 +1,14 @@
+docker exec -it pingdirectory /opt/out/instance/bin/ldapsearch \
+  --hostname localhost --port 1389 \
+  --bindDN "cn=administrator" --bindPassword "2FederateM0re" \
+  --baseDN "ou=People,dc=example,dc=com" \
+  "(objectClass=pumaPartnerUser)" \
+  uid partnerGrant opScope opScopeExclude reportScope
+
+
+
+
+
 sequenceDiagram
     autonumber
     participant PEP as PUMA backend 8081<br/>role PEP
