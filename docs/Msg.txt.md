@@ -1,3 +1,47 @@
+sequenceDiagram
+    autonumber
+    participant PEP as PUMA backend 8081<br/>role PEP
+    participant PDP as PingAuthorize 7443<br/>role PDP
+    participant PAP as PAP PingAuthorize<br/>role PAP
+    participant PIP as PingDirectory 1389<br/>role PIP
+
+    Note over PAP,PDP: Hors ligne, avant toute requete<br/>l administrateur ecrit le Trust Framework<br/>et la policy Delegation DenyUnlessPermit<br/>le PDP charge la version publiee
+
+    Note over PEP: Thomas Martin veut affecter un utilisateur<br/>sur le vendeur 2700010, application BusinessApp1<br/>le PEP a valide le token et calcule les ancetres
+
+    PEP->>PDP: POST /governance-engine<br/>domain PUMA, service PUMA.Administration<br/>action assign<br/>uid thomas.martin<br/>targetApplication BusinessApp1<br/>targetNode 2700010<br/>targetNodeParents 2700010, 9200005,<br/>9100002, 9300001, CL_A
+
+    Note over PEP,PDP: Le PEP ne declare aucun droit<br/>il decrit la cible, rien d autre
+
+    PDP->>PIP: recherche LDAP (uid=thomas.martin)<br/>base ou=People,dc=example,dc=com
+    PIP-->>PDP: XML searchResponse<br/>partnerGrant BusinessApp1 9200005 ShopAdmin<br/>partnerGrant BusinessApp1 9200002 ShopAdmin<br/>partnerGrant BusinessApp2 9200005 ShopAdmin
+
+    PDP->>PDP: managerGrants, processeur XPath<br/>trois grants extraits
+
+    PDP->>PDP: grantsForApp, Collection Filter<br/>prefixe BusinessApp1<br/>BusinessApp2 ecarte, deux grants retenus
+
+    PDP->>PDP: nodesFromGrants, projection SpEL<br/>segment noeud des grants retenus<br/>9200005 et 9200002
+
+    PDP->>PDP: matchedNodes, Collection Filter<br/>intersection avec targetNodeParents<br/>9200005 retenu, matchCount egal 1
+
+    PDP->>PDP: rule node authorised<br/>matchCount superieur a zero
+
+    PDP-->>PEP: PERMIT, authorised true<br/>evaluation log complet
+
+    Note over PEP: Le PEP applique la decision<br/>il n en reevalue aucune partie
+
+    Note over PDP,PIP: Cas cible 2700015<br/>ancetres 9200006, 9100002, 9300001, CL_A<br/>aucun noeud de grant present<br/>matchCount zero, policy DENY
+
+    Note over PDP,PIP: Cas application BusinessApp2<br/>grantsForApp ne retient que le grant 9200005<br/>la comparaison porte sur la bonne application
+
+    Note over PDP: Hors perimetre a ce stade<br/>segment role jamais compare<br/>opScope, opScopeExclude, reportScope non branches<br/>exclusion du noeud propre non traitee
+
+
+
+
+
+
+
 //searchResultEntry/attr[@name='partnerGrant']/text()
 
 
