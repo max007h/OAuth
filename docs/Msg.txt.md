@@ -1,3 +1,16 @@
+WITH RECURSIVE ancestors AS (
+  SELECT node_id, parent_id FROM node_parent WHERE node_id = '2700010'
+  UNION ALL
+  SELECT np.node_id, np.parent_id FROM node_parent np
+  JOIN ancestors a ON np.node_id = a.parent_id
+)
+SELECT parent_id FROM ancestors
+
+
+
+
+
+
 docker exec -it pingdirectory /opt/out/instance/bin/ldapsearch \
   --hostname localhost --port 1389 \
   --bindDN "cn=administrator" --bindPassword "2FederateM0re" \
