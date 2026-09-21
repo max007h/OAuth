@@ -1,3 +1,13 @@
+
+docker cp env-pingauthorizepap-1:/opt/out/instance/lib/postgresql-42.7.3.jar /tmp/postgresql-42.7.3.jar
+
+docker cp /tmp/postgresql-42.7.3.jar env-pingauthorize-1:/opt/out/instance/lib/
+
+docker restart env-pingauthorize-1
+
+
+
+
 curl -k -X POST https://localhost:7443/governance-engine \
   -H "Content-Type: application/json" \
   -d '{
