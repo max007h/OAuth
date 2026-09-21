@@ -1,3 +1,10 @@
+#this.![#this.substring(#this.indexOf('|')+1, #this.lastIndexOf('|'))]
+
+
+
+
+
+
 WITH RECURSIVE ancestors AS (
   SELECT node_id, parent_id FROM node_parent WHERE node_id = '2700010'
   UNION ALL
