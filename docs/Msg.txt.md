@@ -1,3 +1,17 @@
+curl -k -X POST https://localhost:7443/governance-engine \
+  -H "Content-Type: application/json" \
+  -d '{
+    "domain": "PUMA",
+    "service": "PUMA.Administration",
+    "action": "assign",
+    "attributes": {
+      "uid": "thomas.martin",
+      "targetApplication": "BusinessApp1",
+      "targetNode": "2700010"
+    }
+  }'
+
+
 #this.![#this.substring(#this.indexOf('|')+1, #this.lastIndexOf('|'))]
 
 
