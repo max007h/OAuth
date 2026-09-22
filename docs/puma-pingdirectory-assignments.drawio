@@ -1,0 +1,99 @@
+<mxfile host="app.diagrams.net" modified="2026-09-22T12:00:00.000Z" agent="PUMA POC" version="24.0.0">
+  <diagram id="puma-ldap-tree" name="Arborescence PingDirectory">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="PingDirectory - arborescence d'un utilisateur PUMA et de ses assignments" style="text;html=1;fontSize=17;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="15" width="800" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="root" value="&lt;b&gt;dc=example,dc=com&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="70" width="230" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="people" value="&lt;b&gt;ou=People&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="90" y="150" width="230" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="user" value="&lt;b&gt;uid=thomas.martin&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px&quot;&gt;objectClass: inetOrgPerson, pumaPartnerUser&lt;br&gt;cn: Thomas Martin&lt;br&gt;mail: thomas.martin@example.com&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;spacingLeft=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="140" y="230" width="300" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ou" value="&lt;b&gt;ou=assignments&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px&quot;&gt;objectClass: organizationalUnit&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacingLeft=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="190" y="350" width="300" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a1" value="&lt;b&gt;cn=BusinessApp1-9200005-ShopAdmin&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px&quot;&gt;objectClass : pumaAssignment&lt;br&gt;pumaApplication : BusinessApp1&lt;br&gt;pumaNode : 9200005&lt;br&gt;pumaRole : ShopAdmin&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="620" y="150" width="300" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a2" value="&lt;b&gt;cn=BusinessApp1-9200002-ShopAdmin&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px&quot;&gt;objectClass : pumaAssignment&lt;br&gt;pumaApplication : BusinessApp1&lt;br&gt;pumaNode : 9200002&lt;br&gt;pumaRole : ShopAdmin&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="620" y="260" width="300" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a3" value="&lt;b&gt;cn=BusinessApp2-9200005-ShopAdmin&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px&quot;&gt;objectClass : pumaAssignment&lt;br&gt;pumaApplication : BusinessApp2&lt;br&gt;pumaNode : 9200005&lt;br&gt;pumaRole : ShopAdmin&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="620" y="370" width="300" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a4" value="&lt;b&gt;cn=BusinessApp1-9100002-Viewer&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px&quot;&gt;objectClass : pumaAssignment&lt;br&gt;pumaApplication : BusinessApp1&lt;br&gt;pumaNode : 9100002&lt;br&gt;pumaRole : Viewer&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="620" y="480" width="300" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a5" value="&lt;b&gt;cn=BusinessApp3-9300001-Salesman&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px&quot;&gt;objectClass : pumaAssignment&lt;br&gt;pumaApplication : BusinessApp3&lt;br&gt;pumaNode : 9300001&lt;br&gt;pumaRole : Salesman&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="620" y="590" width="300" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=none;strokeWidth=2;exitX=0.15;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="root" target="people">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t2" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=none;strokeWidth=2;exitX=0.15;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="people" target="user">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t3" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=none;strokeWidth=2;exitX=0.15;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="user" target="ou">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="b1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=none;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="ou" target="a1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="555" y="375" /><mxPoint x="555" y="195" /></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b2" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=none;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="ou" target="a2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="555" y="375" /><mxPoint x="555" y="305" /></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b3" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=none;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="ou" target="a3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="555" y="375" /><mxPoint x="555" y="415" /></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b4" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=none;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="ou" target="a4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="555" y="375" /><mxPoint x="555" y="525" /></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b5" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=none;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="ou" target="a5">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="555" y="375" /><mxPoint x="555" y="635" /></Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="filtre" value="&lt;b&gt;Ce que lit le PDP&lt;/b&gt;&lt;br&gt;&lt;br&gt;baseDN : uid=thomas.martin,ou=People,dc=example,dc=com&lt;br&gt;scope : sub&lt;br&gt;filtre : (&amp;amp;(objectClass=pumaAssignment)&lt;br&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;(pumaApplication=BusinessApp1))&lt;br&gt;&lt;br&gt;&lt;i&gt;Le filtre applicatif est fait par l'annuaire.&lt;br&gt;Plus de startsWith sur prefixe composite.&lt;/i&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;align=left;spacingLeft=10;fontSize=12;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="450" width="400" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legende" value="vert : retenu par le filtre BusinessApp1&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;rouge : ecarte" style="text;html=1;fontSize=11;fontStyle=2;align=left;" vertex="1" parent="1">
+          <mxGeometry x="620" y="690" width="400" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="note" value="&lt;b&gt;Sur le cn&lt;/b&gt;&lt;br&gt;Compose des trois valeurs : l'unicite est garantie et l'ecriture&lt;br&gt;est idempotente, rejouer la meme affectation ne cree pas de doublon.&lt;br&gt;Un UUID opaque serait plus propre mais obligerait a chercher avant d'ecrire.&lt;br&gt;&lt;br&gt;Rien n'interdit deux roles sur le meme couple application et noeud.&lt;br&gt;Si le metier l'interdit, c'est a l'ecriture qu'il faut le controler." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;dashed=1;align=left;spacingLeft=10;fontSize=11;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="630" width="400" height="120" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

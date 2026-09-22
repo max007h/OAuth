@@ -1,0 +1,179 @@
+<mxfile host="app.diagrams.net" modified="2026-09-22T12:00:00.000Z" agent="PUMA POC" version="24.0.0">
+  <diagram id="puma-pdp-flow" name="Flux de decision PUMA">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="PUMA - Chaine de decision au clic Create user" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="10" width="800" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c1" value="Front PUMA" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="220" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c2" value="Backend PUMA - role PEP" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="300" y="60" width="220" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" value="PingAuthorize - role PDP" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="560" y="60" width="220" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c4" value="PingDirectory - role PIP" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="820" y="60" width="220" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c5" value="PostgreSQL - role PIP" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="60" width="220" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n1" value="&lt;b&gt;1. Clic Create user&lt;/b&gt;&lt;br&gt;POST /api/users&lt;br&gt;uid cible, assignments&lt;br&gt;(application, nodeId, role)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=8;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="130" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n2" value="&lt;b&gt;2. Validation du token&lt;/b&gt;&lt;br&gt;sub donne managerUid&lt;br&gt;construction de la liste&lt;br&gt;des noeuds cibles" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="300" y="220" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n3" value="&lt;b&gt;3. Appel du PDP&lt;/b&gt;&lt;br&gt;POST /governance-engine/batch&lt;br&gt;une decision par noeud cible&lt;br&gt;&lt;i&gt;uid, targetApplication, targetNode&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="300" y="310" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="note3" value="Le PEP ne declare aucun droit.&lt;br&gt;Il ne decrit que la cible.&lt;br&gt;Plus de managerNodes,&lt;br&gt;plus de targetNodeParents." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;dashed=1;align=left;spacingLeft=8;fontSize=11;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="40" y="310" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n4" value="&lt;b&gt;4. Reception&lt;/b&gt;&lt;br&gt;domain PUMA&lt;br&gt;service PUMA.Administration&lt;br&gt;action assign" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="560" y="400" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n5" value="&lt;b&gt;5. Recherche LDAP&lt;/b&gt;&lt;br&gt;(uid=managerUid)&lt;br&gt;ou=People,dc=example,dc=com&lt;br&gt;rend les attributs partnerGrant" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="820" y="490" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n6" value="&lt;b&gt;6. managerGrants&lt;/b&gt; (XPath)&lt;br&gt;BusinessApp1|9200005|ShopAdmin&lt;br&gt;BusinessApp1|9200002|ShopAdmin&lt;br&gt;BusinessApp2|9200005|ShopAdmin" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=8;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="560" y="580" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n7" value="&lt;b&gt;7. grantsForApp&lt;/b&gt;&lt;br&gt;filtre sur le prefixe applicatif&lt;br&gt;BusinessApp2 ecarte&lt;br&gt;2 grants retenus" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="560" y="670" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n8" value="&lt;b&gt;8. nodesFromGrants&lt;/b&gt;&lt;br&gt;segment noeud des grants retenus&lt;br&gt;9200005, 9200002&lt;br&gt;&lt;i&gt;la branche du manager&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="560" y="760" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n9" value="&lt;b&gt;9. targetNodeParentsDB&lt;/b&gt;&lt;br&gt;WITH RECURSIVE sur node_parent&lt;br&gt;ancetres de targetNode&lt;br&gt;9200005, 9100002, 9300001" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="760" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n10" value="&lt;b&gt;10. matchedNodesDB&lt;/b&gt;&lt;br&gt;intersection des deux listes&lt;br&gt;resultat 9200005&lt;br&gt;matchCountDB = 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=8;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="870" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="note10" value="&lt;b&gt;Le croisement, coeur de la regle&lt;/b&gt;&lt;br&gt;Le noeud cible est-il un descendant&lt;br&gt;d'un noeud sur lequel le manager&lt;br&gt;detient un grant pour cette application ?&lt;br&gt;Les deux axes sont testes sur la meme ligne&lt;br&gt;de grant, pas separement." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacingLeft=8;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="820" y="870" width="240" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n11" value="&lt;b&gt;11. Rule node authorised&lt;/b&gt;&lt;br&gt;matchCountDB superieur a 0&lt;br&gt;effet Permit&lt;br&gt;policy DenyUnlessPermit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="560" y="970" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n12" value="&lt;b&gt;12. Application de la decision&lt;/b&gt;&lt;br&gt;PERMIT, ecriture en base&lt;br&gt;DENY, 403 et rien n'est cree&lt;br&gt;&lt;i&gt;le PEP ne reevalue rien&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="300" y="1060" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n13" value="&lt;b&gt;13. Retour utilisateur&lt;/b&gt;&lt;br&gt;confirmation ou refus" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1060" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeWidth=2;" edge="1" parent="1" source="n1" target="n2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeWidth=2;" edge="1" parent="1" source="n2" target="n3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeWidth=2;" edge="1" parent="1" source="n3" target="n4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="requete LDAP" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="n4" target="n5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="grants" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeWidth=2;dashed=1;fontSize=11;" edge="1" parent="1" source="n5" target="n6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeWidth=2;" edge="1" parent="1" source="n6" target="n7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeWidth=2;" edge="1" parent="1" source="n7" target="n8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="SQL recursif" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="n4" target="n9">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1190" y="435" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e9" value="ancetres" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeWidth=2;dashed=1;fontSize=11;" edge="1" parent="1" source="n9" target="n10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" value="noeuds du manager" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="n8" target="n10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeWidth=2;" edge="1" parent="1" source="n10" target="n11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" value="PERMIT ou DENY" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeWidth=2;dashed=1;fontSize=11;" edge="1" parent="1" source="n11" target="n12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeWidth=2;dashed=1;" edge="1" parent="1" source="n12" target="n13">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cible" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#b85450;dashed=1;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1170" width="1260" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="cibletitle" value="Cible, non implemente a ce stade - l'axe role" style="text;html=1;fontSize=15;fontStyle=1;align=left;fontColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1180" width="600" height="25" as="geometry" />
+        </mxCell>
+
+        <mxCell id="r1" value="&lt;b&gt;A. Ce que porte le token&lt;/b&gt;&lt;br&gt;role generique, par exemple SALESMAN&lt;br&gt;contexte choisi apres authentification&lt;br&gt;l'application est connue par la session&lt;br&gt;&lt;i&gt;declaratif, donc a revalider&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;spacingLeft=8;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1215" width="240" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="r2" value="&lt;b&gt;B. Role effectif du manager&lt;/b&gt;&lt;br&gt;segment role du grant retenu&lt;br&gt;a l'etape 7, par exemple ShopAdmin&lt;br&gt;&lt;i&gt;source de verite, pas le token&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;spacingLeft=8;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="330" y="1215" width="240" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="r3" value="&lt;b&gt;C. Entitlement de l'operation&lt;/b&gt;&lt;br&gt;role_permission du role global&lt;br&gt;l'action assign est-elle accordee ?&lt;br&gt;&lt;i&gt;app_role, node_id NULL&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;spacingLeft=8;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="600" y="1215" width="240" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="r4" value="&lt;b&gt;D. Retrait par specialisation&lt;/b&gt;&lt;br&gt;role specialise sur le contexte&lt;br&gt;node_id renseigne, granted = false&lt;br&gt;&lt;i&gt;on ne retire jamais plus qu'on ajoute&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;spacingLeft=8;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="870" y="1215" width="240" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="r5" value="&lt;b&gt;E. Decision&lt;/b&gt;&lt;br&gt;PERMIT si l'entitlement&lt;br&gt;subsiste apres retrait" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacingLeft=8;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="1215" width="140" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="er1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeWidth=1;" edge="1" parent="1" source="r1" target="r2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeWidth=1;" edge="1" parent="1" source="r2" target="r3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeWidth=1;" edge="1" parent="1" source="r3" target="r4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeWidth=1;" edge="1" parent="1" source="r4" target="r5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ciblenote" value="Rappel : le role attribue a l'utilisateur cible n'est encore compare a rien. Un ShopAdmin peut aujourd'hui attribuer n'importe quel role. Regle metier non tranchee." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;align=left;spacingLeft=8;fontSize=11;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1315" width="1220" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legende" value="&lt;b&gt;Trous connus&lt;/b&gt;&lt;br&gt;opScope, opScopeExclude et reportScope non branches&lt;br&gt;exclusion du noeud propre non traitee&lt;br&gt;/governance-engine ignore l'en-tete Authorization&lt;br&gt;le sujet est celui declare par le PEP" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;dashed=1;align=left;spacingLeft=8;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="130" width="220" height="100" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
