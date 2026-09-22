@@ -1,3 +1,8 @@
+Ensuite parce qu'OpenFGA est un projet open source, donc la question du support et de la conformité se pose dans un contexte bancaire.
+
+
+
+
 Le coarse d'abord, et il est déjà là.
 Le contrôle grossier, c'est l'authentification PingFederate et le test d'appartenance au groupe MANAGER dans ton backend. C'est ce qui filtre l'écrasante majorité des appels illégitimes, et c'est peu coûteux.
 Le fine grained, c'est ta chaîne : ce manager précis peut-il agir sur ce noeud précis pour cette application. Il ne s'exécute que sur les appels qui ont déjà passé le premier filtre.
