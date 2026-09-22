@@ -1,3 +1,18 @@
+SELECT count(*) AS granted_count
+FROM app_role r
+JOIN role_permission rp ON rp.role_id = r.id
+JOIN permission p ON p.id = rp.permission_id
+JOIN application a ON a.id = r.application_id
+WHERE r.name = 'ShopAdmin'
+  AND a.name = 'BusinessApp1'
+  AND r.node_id IS NULL
+  AND p.name = 'assign'
+  AND rp.granted = true
+
+  
+
+
+
 ResponseEntity<String> response = rest.exchange(
         baseUrl + "/governance-engine/batch",
         HttpMethod.POST,
