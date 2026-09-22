@@ -1,3 +1,14 @@
+@PostConstruct
+void init() {
+    this.rest = new RestTemplate(trustAllRequestFactory());
+    this.rest.getMessageConverters().add(new MappingJackson2HttpMessageConverter());
+}
+
+org.springframework.http.converter.json.MappingJackson2HttpMessageConverter
+
+
+
+
 Ensuite parce qu'OpenFGA est un projet open source, donc la question du support et de la conformité se pose dans un contexte bancaire.
 
 
