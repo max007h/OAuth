@@ -1,3 +1,16 @@
+ResponseEntity<String> response = rest.exchange(
+        baseUrl + "/governance-engine/batch",
+        HttpMethod.POST,
+        entity,
+        String.class);
+
+JsonNode body = new ObjectMapper().readTree(response.getBody());
+JsonNode responses = body.path("responses");
+
+
+
+
+
 @PostConstruct
 void init() {
     this.rest = new RestTemplate(trustAllRequestFactory());
