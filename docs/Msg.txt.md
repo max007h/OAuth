@@ -1,3 +1,12 @@
+Le coarse d'abord, et il est déjà là.
+Le contrôle grossier, c'est l'authentification PingFederate et le test d'appartenance au groupe MANAGER dans ton backend. C'est ce qui filtre l'écrasante majorité des appels illégitimes, et c'est peu coûteux.
+Le fine grained, c'est ta chaîne : ce manager précis peut-il agir sur ce noeud précis pour cette application. Il ne s'exécute que sur les appels qui ont déjà passé le premier filtre.
+La doc Apigee dit exactement ça : intégrer PingAuthorize tard dans le PreFlow, après les contrôles d'authentification et d'autorisation grossiers, parce que c'est là qu'il apporte sa valeur.
+Pour ton POC, la priorité est inverse de l'ordre d'exécution. Le coarse est trivial et déjà fait, personne ne demande de le démontrer. Le fine grained est ce qui justifie un PDP, et c'est le sujet de l'atelier. C'est donc lui que tu portes.
+Un point à assumer en séance : ton /governance-engine ignore l'en-tête Authorization, donc le sujet est celui que l'appelant déclare. C'est acceptable parce que le PEP a validé le token en amont, mais il faut le dire avant qu'on te le demande
+
+
+
 
 docker cp env-pingauthorizepap-1:/opt/out/instance/lib/postgresql-42.7.3.jar /tmp/postgresql-42.7.3.jar
 
