@@ -1,3 +1,32 @@
+@Entity
+@Table(name = "app_role")
+public class AppRole {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, length = 100)
+    private String name;
+
+    @Column(name = "application_id", nullable = false)
+    private Long applicationId;
+
+    @Column(name = "parent_role_id")
+    private Long parentRoleId;
+
+    @Column(name = "node_id", length = 20)
+    private String nodeId;
+
+    // getters et setters
+}
+
+
+
+
+
+
+
 package com.puma.model;
 
 import jakarta.persistence.*;
