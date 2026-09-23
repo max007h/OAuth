@@ -1,3 +1,12 @@
+SELECT table_name, column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name IN ('app_role', 'permission', 'application', 'node_parent')
+ORDER BY table_name, ordinal_position;
+
+
+
+
 -- Roles globaux, node_id a NULL
 INSERT INTO app_role (name, application_id, parent_role_id, node_id)
 VALUES ('ShopAdmin', 'BusinessApp1', NULL, NULL),
