@@ -1,3 +1,18 @@
+INSERT INTO puma_user (uid, first_name, last_name, email) VALUES
+  ('thomas.martin', 'Thomas', 'Martin', 'thomas.martin@test.local')
+ON CONFLICT (uid) DO NOTHING;
+
+INSERT INTO assignment (user_id, role_id, node_id) VALUES
+  ('thomas.martin', 'R4', '9200002'),
+  ('thomas.martin', 'R4', '9200005'),
+  ('thomas.martin', 'R1', '9200005')
+ON CONFLICT (user_id, role_id, node_id) DO NOTHING;
+
+
+
+
+
+
 CREATE TABLE IF NOT EXISTS assignment (
   id          bigserial PRIMARY KEY,
   user_id     bigint NOT NULL,
