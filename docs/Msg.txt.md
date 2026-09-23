@@ -1,3 +1,22 @@
+CREATE TABLE IF NOT EXISTS puma_user (
+  id           bigserial PRIMARY KEY,
+  uid          varchar(100) NOT NULL UNIQUE,
+  email        varchar(255),
+  display_name varchar(255),
+  status       varchar(20) NOT NULL DEFAULT 'ACTIVE',
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS assignment (
+  id       bigserial PRIMARY KEY,
+  user_id  bigint      NOT NULL REFERENCES puma_user(id) ON DELETE CASCADE,
+  role_id  varchar(80) NOT NULL REFERENCES app_role(id),
+  node_id  varchar(20) NOT NULL REFERENCES node(id),
+  CONSTRAINT uq_assignment UNIQUE (user_id, role_id, node_id)
+);
+
+
+
 DELETE FROM assignment WHERE user_id IN ('thomas', 'julia');
 DELETE FROM puma_user  WHERE uid     IN ('thomas', 'julia');
 
