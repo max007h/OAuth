@@ -1,3 +1,54 @@
+-- Roles globaux, node_id a NULL
+INSERT INTO app_role (name, application_id, parent_role_id, node_id)
+VALUES ('ShopAdmin', 'BusinessApp1', NULL, NULL),
+       ('Viewer',    'BusinessApp1', NULL, NULL),
+       ('ShopAdmin', 'BusinessApp2', NULL, NULL)
+ON CONFLICT DO NOTHING;
+
+-- Permissions de BusinessApp1
+INSERT INTO permission (code, label, application_id)
+VALUES ('assign',      'Affecter un utilisateur', 'BusinessApp1'),
+       ('user.create', 'Creer un utilisateur',    'BusinessApp1')
+ON CONFLICT DO NOTHING;
+
+-- ShopAdmin sur BusinessApp1 detient les deux permissions
+INSERT INTO role_permission (role_id, permission_id, granted)
+SELECT r.id, p.id, true
+FROM app_role r, permission p
+WHERE r.name = 'ShopAdmin'
+  AND r.application_id = 'BusinessApp1'
+  AND r.node_id IS NULL
+  AND p.application_id = 'BusinessApp1'
+  AND p.code IN ('assign', 'user.create')
+ON CONFLICT DO NOTHING;
+
+-- Utilisateur de test
+INSERT INTO puma_user (uid, email, display_name, status)
+VALUES ('thomas.martin', 'thomas.martin@example.com', 'Thomas Martin', 'ACTIVE')
+ON CONFLICT (uid) DO NOTHING;
+
+-- Les trois assignments du diagramme
+INSERT INTO assignment (user_id, role_id, node_id, created_by)
+SELECT u.id, r.id, v.node, 'seed'
+FROM puma_user u
+JOIN app_role r ON r.name = 'ShopAdmin' AND r.node_id IS NULL
+JOIN (VALUES ('BusinessApp1', '9200005'),
+             ('BusinessApp1', '9200002'),
+             ('BusinessApp2', '9200005')) AS v(app, node)
+  ON v.app = r.application_id
+WHERE u.uid = 'thomas.martin'
+ON CONFLICT ON CONSTRAINT uq_assignment DO NOTHING;
+
+
+
+ALTER TABLE app_role ADD CONSTRAINT uq_app_role
+  UNIQUE (name, application_id, node_id);
+ALTER TABLE permission ADD CONSTRAINT uq_permission
+  UNIQUE (code, application_id);
+
+
+
+
 CREATE TABLE IF NOT EXISTS puma_user (
   id            bigserial PRIMARY KEY,
   uid           varchar(100) NOT NULL UNIQUE,
