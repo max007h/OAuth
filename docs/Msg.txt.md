@@ -1,3 +1,7 @@
+DELETE FROM assignment WHERE user_id IN ('thomas', 'julia');
+DELETE FROM puma_user  WHERE uid     IN ('thomas', 'julia');
+
+
 INSERT INTO puma_user (uid, first_name, last_name, email) VALUES
   ('thomas.martin', 'Thomas', 'Martin', 'thomas.martin@test.local')
 ON CONFLICT (uid) DO NOTHING;
