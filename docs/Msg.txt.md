@@ -1,3 +1,12 @@
+curl -k -u puma-backend:TonSecret https://localhost:9031/as/token.oauth2 \
+  -d grant_type=urn:ietf:params:oauth:grant-type:token-exchange \
+  -d subject_token=$TOKEN \
+  -d subject_token_type=urn:ietf:params:oauth:token-type:access_token
+
+  
+
+
+
 ALTER TABLE assignment
   ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now(),
   ADD COLUMN IF NOT EXISTS created_by varchar(100);
