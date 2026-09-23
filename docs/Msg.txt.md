@@ -1,3 +1,22 @@
+CREATE TABLE IF NOT EXISTS assignment (
+  id          bigserial PRIMARY KEY,
+  user_id     bigint NOT NULL,
+  role_id     varchar(100) NOT NULL,
+  node_id     varchar(20) NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  created_by  varchar(100),
+  CONSTRAINT fk_assignment_user FOREIGN KEY (user_id)
+      REFERENCES puma_user (id) ON DELETE CASCADE,
+  CONSTRAINT fk_assignment_role FOREIGN KEY (role_id)
+      REFERENCES app_role (id),
+  CONSTRAINT uq_assignment UNIQUE (user_id, role_id, node_id)
+);
+
+
+
+
+
+
 SELECT table_name, column_name, data_type, is_nullable
 FROM information_schema.columns
 WHERE table_schema = 'public'
