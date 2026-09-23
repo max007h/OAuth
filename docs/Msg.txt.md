@@ -1,3 +1,80 @@
+-- Applications
+INSERT INTO application (name) VALUES
+  ('BusinessApp1'),
+  ('BusinessApp2'),
+  ('BusinessApp3');
+
+-- Roles globaux, node_id a NULL
+INSERT INTO app_role (name, application_id, parent_role_id, node_id)
+SELECT 'ShopAdmin', id, NULL, NULL FROM application WHERE name = 'BusinessApp1';
+INSERT INTO app_role (name, application_id, parent_role_id, node_id)
+SELECT 'Viewer', id, NULL, NULL FROM application WHERE name = 'BusinessApp1';
+INSERT INTO app_role (name, application_id, parent_role_id, node_id)
+SELECT 'ShopAdmin', id, NULL, NULL FROM application WHERE name = 'BusinessApp2';
+INSERT INTO app_role (name, application_id, parent_role_id, node_id)
+SELECT 'Salesman', id, NULL, NULL FROM application WHERE name = 'BusinessApp3';
+
+-- Permissions, rattachees a leur application
+INSERT INTO permission (code, label, application_id)
+SELECT 'assign', 'Affecter un utilisateur', id FROM application WHERE name = 'BusinessApp1';
+INSERT INTO permission (code, label, application_id)
+SELECT 'user.create', 'Creer un utilisateur', id FROM application WHERE name = 'BusinessApp1';
+
+-- ShopAdmin sur BusinessApp1 peut assign et user.create
+INSERT INTO role_permission (role_id, permission_id, granted)
+SELECT r.id, p.id, true
+FROM app_role r
+JOIN application a ON a.id = r.application_id
+JOIN permission p ON p.application_id = a.id
+WHERE r.name = 'ShopAdmin' AND a.name = 'BusinessApp1'
+  AND p.code IN ('assign', 'user.create');
+
+-- Utilisateur
+INSERT INTO puma_user (uid, email, display_name, status)
+VALUES ('thomas.martin', 'thomas.martin@example.com', 'Thomas Martin', 'ACTIVE');
+
+-- Assignments, les trois du diagramme
+INSERT INTO assignment (user_id, role_id, node_id, created_by)
+SELECT u.id, r.id, '9200005', 'seed'
+FROM puma_user u, app_role r
+JOIN application a ON a.id = r.application_id
+WHERE u.uid = 'thomas.martin' AND r.name = 'ShopAdmin' AND a.name = 'BusinessApp1';
+
+INSERT INTO assignment (user_id, role_id, node_id, created_by)
+SELECT u.id, r.id, '9200002', 'seed'
+FROM puma_user u, app_role r
+JOIN application a ON a.id = r.application_id
+WHERE u.uid = 'thomas.martin' AND r.name = 'ShopAdmin' AND a.name = 'BusinessApp1';
+
+INSERT INTO assignment (user_id, role_id, node_id, created_by)
+SELECT u.id, r.id, '9200005', 'seed'
+FROM puma_user u, app_role r
+JOIN application a ON a.id = r.application_id
+WHERE u.uid = 'thomas.martin' AND r.name = 'ShopAdmin' AND a.name = 'BusinessApp2';
+
+
+
+SELECT a.node_id, r.name AS role, app.name AS application
+FROM assignment a
+JOIN puma_user u ON u.id = a.user_id
+JOIN app_role r ON r.id = a.role_id
+JOIN application app ON app.id = r.application_id
+WHERE u.uid = 'thomas.martin'
+ORDER BY app.name, a.node_id;
+
+
+SELECT count(*) FROM app_role r
+JOIN role_permission rp ON rp.role_id = r.id
+JOIN permission p ON p.id = rp.permission_id
+JOIN application a ON a.id = r.application_id
+WHERE r.name = 'ShopAdmin' AND a.name = 'BusinessApp1'
+  AND r.node_id IS NULL AND p.code = 'assign' AND rp.granted = true;
+
+
+
+
+
+
 @Entity
 @Table(name = "app_role")
 public class AppRole {
