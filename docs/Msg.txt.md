@@ -1,3 +1,23 @@
+ALTER TABLE assignment
+  ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS created_by varchar(100);
+
+  
+CREATE TABLE IF NOT EXISTS assignment (
+  id         bigserial PRIMARY KEY,
+  user_id    bigint       NOT NULL REFERENCES puma_user(id) ON DELETE CASCADE,
+  role_id    varchar(80)  NOT NULL REFERENCES app_role(id),
+  node_id    varchar(20)  NOT NULL REFERENCES node(id),
+  created_at timestamptz  NOT NULL DEFAULT now(),
+  created_by varchar(100),
+  CONSTRAINT uq_assignment UNIQUE (user_id, role_id, node_id)
+);
+
+
+
+
+
+
 INSERT INTO puma_user (uid, email, display_name) VALUES
   ('thomas.martin', 'thomas.martin@test.local', 'Thomas Martin')
 ON CONFLICT (uid) DO NOTHING;
