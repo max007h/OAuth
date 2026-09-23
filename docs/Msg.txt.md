@@ -1,3 +1,20 @@
+INSERT INTO puma_user (uid, email, display_name) VALUES
+  ('thomas.martin', 'thomas.martin@test.local', 'Thomas Martin')
+ON CONFLICT (uid) DO NOTHING;
+
+INSERT INTO assignment (user_id, role_id, node_id)
+SELECT u.id, v.role_id, v.node_id
+FROM puma_user u
+CROSS JOIN (VALUES
+  ('R4', '9200002'),
+  ('R4', '9200005'),
+  ('R1', '9200005')
+) AS v(role_id, node_id)
+WHERE u.uid = 'thomas.martin'
+ON CONFLICT (user_id, role_id, node_id) DO NOTHING;
+
+
+
 CREATE TABLE IF NOT EXISTS puma_user (
   id           bigserial PRIMARY KEY,
   uid          varchar(100) NOT NULL UNIQUE,
