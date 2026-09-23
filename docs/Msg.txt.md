@@ -1,3 +1,34 @@
+CREATE TABLE IF NOT EXISTS puma_user (
+  id            bigserial PRIMARY KEY,
+  uid           varchar(100) NOT NULL UNIQUE,
+  email         varchar(255),
+  display_name  varchar(255),
+  status        varchar(20) NOT NULL DEFAULT 'ACTIVE',
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS assignment (
+  id          bigserial PRIMARY KEY,
+  user_id     bigint NOT NULL,
+  role_id     bigint NOT NULL,
+  node_id     varchar(20) NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  created_by  varchar(100),
+  CONSTRAINT fk_assignment_user FOREIGN KEY (user_id)
+      REFERENCES puma_user (id) ON DELETE CASCADE,
+  CONSTRAINT fk_assignment_role FOREIGN KEY (role_id)
+      REFERENCES app_role (id),
+  CONSTRAINT uq_assignment UNIQUE (user_id, role_id, node_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_assignment_user ON assignment (user_id);
+CREATE INDEX IF NOT EXISTS idx_assignment_node ON assignment (node_id);
+
+
+
+
+
+
 -- Applications
 INSERT INTO application (name) VALUES
   ('BusinessApp1'),
