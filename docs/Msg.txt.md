@@ -1,3 +1,7 @@
+#r = #this.get("ds.pumaroles.role_id"), #r != null && #r.getValue() != null
+
+
+
 #this.get("ds.pumaroles.role_id") != null
 
 
