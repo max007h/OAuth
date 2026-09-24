@@ -1,3 +1,10 @@
+#this.get("context.HttpRequest").getObjectValue().getParameter("node")
+
+
+new org.sourceid.saml20.adapter.attribute.AttributeValue(@java.util.Arrays@asList(#this.get("context.HttpRequest").getObjectValue().getParameterValues("roles")))
+
+
+
 docker exec env-pingfederate-1 grep -i evaluateExpressions \
   /opt/out/instance/server/default/data/config-store/org.sourceid.common.ExpressionManager.xml
 
