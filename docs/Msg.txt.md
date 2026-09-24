@@ -1,3 +1,8 @@
+docker exec env-pingfederate-1 grep -i evaluateExpressions \
+  /opt/out/instance/server/default/data/config-store/org.sourceid.common.ExpressionManager.xml
+
+
+
 curl -k -u puma-backend:TonSecret https://localhost:9031/as/token.oauth2 \
   -d grant_type=urn:ietf:params:oauth:grant-type:token-exchange \
   -d subject_token=$TOKEN \
