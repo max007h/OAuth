@@ -1,3 +1,7 @@
+uid = '${subject}' AND node_id = '${node}'
+
+
+
 #this.get("context.HttpRequest").getObjectValue().getParameter("node")
 
 
