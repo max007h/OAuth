@@ -1,3 +1,7 @@
+#this.get("context.HttpRequest").getObjectValue().getParameter("node")
+
+
+
 docker exec env-pingfederate-1 ls /opt/out/instance/server/default/lib | grep -i postgres
 
 
