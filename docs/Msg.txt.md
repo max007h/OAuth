@@ -1,3 +1,12 @@
+curl -k -u puma-backend:LeSecret https://localhost:9031/as/token.oauth2 \
+  -d grant_type=urn:ietf:params:oauth:grant-type:token-exchange \
+  -d subject_token=$TOKEN \
+  -d subject_token_type=urn:ietf:params:oauth:token-type:access_token \
+  -d node=9200005 \
+  -d roles=R1 \
+  -d roles=R4
+
+
 #this.get("context.HttpRequest").getObjectValue().getParameter("node")
 
 
