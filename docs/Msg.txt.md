@@ -1,3 +1,14 @@
+CREATE OR REPLACE VIEW puma_user_node_roles AS
+SELECT DISTINCT u.uid, a.node_id, COALESCE(r.parent_role_id, r.id) AS role_id
+FROM assignment a
+JOIN puma_user u ON u.id = a.user_id
+JOIN app_role r  ON r.id = a.role_id
+WHERE u.status = 'ACTIVE';
+
+
+SELECT * FROM puma_user_node_roles WHERE uid = 'thomas.martin';
+
+
 #r = #this.get("context.HttpRequest").getObjectValue().getParameter("roles"), #r == null ? null : new org.sourceid.saml20.adapter.attribute.AttributeValue(@java.util.Arrays@asList(#r.split(",")))
 
 
