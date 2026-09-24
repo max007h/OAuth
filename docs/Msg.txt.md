@@ -1,3 +1,8 @@
+#this.get("ds.pumaroles.role_id") != null
+
+
+
+
 uid = '${subject}' AND node_id = '${node}'
 
 
