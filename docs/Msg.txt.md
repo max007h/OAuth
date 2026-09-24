@@ -1,3 +1,8 @@
+#r = #this.get("context.HttpRequest").getObjectValue().getParameter("roles"), #r == null ? null : new org.sourceid.saml20.adapter.attribute.AttributeValue(@java.util.Arrays@asList(#r.split(",")))
+
+
+
+
 curl -k -u puma-backend:LeSecret https://localhost:9031/as/token.oauth2 \
   -d grant_type=urn:ietf:params:oauth:grant-type:token-exchange \
   -d subject_token=$TOKEN \
