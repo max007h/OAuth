@@ -1,3 +1,8 @@
+docker exec env-pingfederate-1 ls /opt/out/instance/server/default/lib | grep -i postgres
+
+
+
+
 CREATE OR REPLACE VIEW puma_user_node_roles AS
 SELECT DISTINCT u.uid, a.node_id, COALESCE(r.parent_role_id, r.id) AS role_id
 FROM assignment a
