@@ -1,3 +1,118 @@
+Ce sont uniquement des **imports manquants** : le code que je t'ai donné ne les incluait pas. Astuce IntelliJ : place le curseur sur le symbole en rouge et fais **Option + Entrée**, puis "Import class". Sinon, voici les blocs complets.
+
+**`AssignmentRepository.java`**
+
+```java
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import java.util.List;
+```
+
+**`SelectContextRequest.java`**
+
+```java
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+```
+
+Si `jakarta.validation` reste introuvable après l'import, la dépendance manque dans le `pom.xml` :
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-validation</artifactId>
+</dependency>
+```
+
+**`TokenResponse.java`**
+
+```java
+import com.fasterxml.jackson.annotation.JsonProperty;
+```
+
+Les autres fichiers vont probablement sortir en erreur ensuite, autant les compléter tout de suite :
+
+**`PingFederateService.java`** (en plus de l'existant)
+
+```java
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.poc.banking.config.PingFederateProperties;
+import com.poc.banking.exception.ContextForbiddenException;
+import com.poc.banking.exception.TokenExchangeException;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientException;
+```
+
+**`UserContextService.java`**
+
+```java
+import com.poc.banking.dto.NodeContextDto;
+import com.poc.banking.repository.AssignmentRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
+import java.util.Locale;
+```
+
+**`ContextController.java`**
+
+```java
+import com.poc.banking.dto.NodeContextDto;
+import com.poc.banking.dto.SelectContextRequest;
+import com.poc.banking.dto.TokenResponse;
+import com.poc.banking.service.UserContextService;
+import com.poc.banking.util.JwtClaimsExtractor;
+import jakarta.validation.Valid;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+```
+
+**`ContextExceptionHandler.java`**
+
+```java
+import com.poc.banking.exception.ContextForbiddenException;
+import com.poc.banking.exception.TokenExchangeException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import java.util.Map;
+```
+
+**`SecurityConfig.java`** (pour le nouveau `jwtDecoder`)
+
+```java
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+import java.util.HexFormat;
+```
+
+Si le nom du package de `JwtClaimsExtractor` ou des exceptions diffère chez toi, adapte simplement la ligne correspondante. Relance ensuite `mvn compile` et envoie-moi les erreurs restantes s'il y en a.
+
+
+
+
+
+
+
+
+
+
+
 # PUMA : choix du contexte après authentification
 
 Objectif : juste après le login, une pop-up propose au manager la liste des noeuds sur lesquels il a des droits. Il en choisit un. Le backend demande alors à PingFederate un nouveau token (token exchange) qui contient `sub`, `node` et `roles`.
