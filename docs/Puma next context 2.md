@@ -1,3 +1,24 @@
+
+async open(): Promise<void> {
+  this.canCancel = this.contextService.hasContext();
+  this.selected = '';
+  this.error = '';
+  this.visible = true;
+  try {
+    this.nodes = await this.contextService.listNodes();
+  } catch (e: any) {
+    this.error = e.message;
+  }
+}
+
+cancel(): void {
+  this.visible = false;
+}
+
+
+
+
+
 @Value("${puma.pingfederate.token-url}")
 private String tokenUrl;
 
