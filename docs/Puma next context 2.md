@@ -1,3 +1,60 @@
+@Value("${puma.pingfederate.token-url}")
+private String tokenUrl;
+
+@Value("${puma.pingfederate.client-id}")
+private String clientId;
+
+@Value("${puma.pingfederate.client-secret}")
+private String clientSecret;
+
+private static final ObjectMapper MAPPER = new ObjectMapper();
+
++++++++++
+public String exchangeToken(String subjectToken, String nodeId) {
+    String form = "grant_type=" + enc("urn:ietf:params:oauth:grant-type:token-exchange")
+            + "&subject_token=" + enc(subjectToken)
+            + "&subject_token_type=" + enc("urn:ietf:params:oauth:token-type:access_token")
+            + "&node=" + enc(nodeId);
+
+    try {
+        HttpClient client = HttpClient.newBuilder()
+                .sslContext(trustAllSslContext())
+                .build();
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(tokenUrl))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .header("Authorization", basicAuth(clientId, clientSecret))
+                .POST(HttpRequest.BodyPublishers.ofString(form))
+                .build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() == 200) {
+            return MAPPER.readTree(response.body()).path("access_token").asText();
+        }
+        if (response.body().contains("context_not_allowed")
+                || response.body().contains("node_not_assigned")) {
+            throw new ContextForbiddenException();
+        }
+        throw new TokenExchangeException("Token exchange rejected: HTTP " + response.statusCode(), null);
+
+    } catch (ContextForbiddenException | TokenExchangeException e) {
+        throw e;
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new TokenExchangeException("Token exchange interrupted", e);
+    } catch (Exception e) {
+        throw new TokenExchangeException("Token exchange failed", e);
+    }
+}
+
+private static String enc(String value) {
+    return URLEncoder.encode(value, StandardCharsets.UTF_8);
+}
+
+
+
 Ce sont uniquement des **imports manquants** : le code que je t'ai donné ne les incluait pas. Astuce IntelliJ : place le curseur sur le symbole en rouge et fais **Option + Entrée**, puis "Import class". Sinon, voici les blocs complets.
 
 **`AssignmentRepository.java`**
@@ -33,6 +90,20 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 Les autres fichiers vont probablement sortir en erreur ensuite, autant les compléter tout de suite :
 
 **`PingFederateService.java`** (en plus de l'existant)
+
+@Value("${puma.pingfederate.token-url}")
+private String tokenUrl;
+
+@Value("${puma.pingfederate.client-id}")
+private String clientId;
+
+@Value("${puma.pingfederate.client-secret}")
+private String clientSecret;
+
+private static final ObjectMapper MAPPER = new ObjectMapper();
+
+
+
 
 ```java
 import com.fasterxml.jackson.core.JsonProcessingException;
