@@ -1,3 +1,12 @@
+public static boolean isManager(JwtAuthenticationToken token) {
+    Jwt jwt = token.getToken();
+    String node = jwt.getClaimAsString("node");
+    List<String> roles = jwt.getClaimAsStringList("roles");
+    return node != null && roles != null && !roles.isEmpty();
+}
+
+
+
 <button type="button" class="secondary" *ngIf="canCancel" (click)="cancel()">
   Cancel
 </button>
