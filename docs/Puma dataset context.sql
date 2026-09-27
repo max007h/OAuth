@@ -1,3 +1,56 @@
+public interface PumaUserRepository extends JpaRepository<PumaUser, Long> {
+    Optional<PumaUser> findByUid(String uid);
+}
+
+  
+boolean existsByUser_UidAndRole_IdAndNodeId(String uid, String roleId, String nodeId);
+
+@Service
+public class UserDatabaseService {
+
+    private final PumaUserRepository users;
+    private final AssignmentRepository assignments;
+    private final EntityManager entityManager;
+
+    public UserDatabaseService(PumaUserRepository users,
+                               AssignmentRepository assignments,
+                               EntityManager entityManager) {
+        this.users = users;
+        this.assignments = assignments;
+        this.entityManager = entityManager;
+    }
+
+    /** Crée l'utilisateur s'il n'existe pas, puis ajoute les affectations manquantes. */
+    @Transactional
+    public PumaUser save(CreateUserRequest req, String managerUid) {
+        String uid = req.uid().trim().toLowerCase(Locale.ROOT);
+
+        PumaUser user = users.findByUid(uid).orElseGet(() -> {
+            PumaUser u = new PumaUser();
+            u.setUid(uid);
+            u.setEmail(req.email());
+            u.setDisplayName(req.firstName() + " " + req.lastName());
+            return users.save(u);
+        });
+
+        for (AssignmentDto a : req.assignments()) {
+            if (!assignments.existsByUser_UidAndRole_IdAndNodeId(uid, a.role(), a.node())) {
+                Assignment assignment = new Assignment();
+                assignment.setUser(user);
+                assignment.setRole(entityManager.getReference(AppRole.class, a.role()));
+                assignment.setNodeId(a.node());
+                assignment.setCreatedBy(managerUid);
+                assignments.save(assignment);
+            }
+        }
+        return user;
+    }
+}
+
+
+
+
+
 docker exec env-pingdirectory-1 /opt/out/instance/bin/ldapsearch \
   --hostname localhost --port 1636 --useSSL --trustAll \
   --bindDN "cn=administrator" --bindPassword "2FederateM0re" \
