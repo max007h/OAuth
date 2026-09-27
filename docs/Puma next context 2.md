@@ -1,3 +1,29 @@
+public static String node(JwtAuthenticationToken token) {
+    return token.getToken().getClaimAsString("node");
+}
+
+
+@Query(value = """
+    WITH RECURSIVE sub AS (
+        SELECT CAST(:root AS varchar) AS node_id
+      UNION
+        SELECT np.node_id
+        FROM node_parent np
+        JOIN sub s ON np.parent_id = s.node_id
+    )
+    SELECT node_id FROM sub
+    """, nativeQuery = true)
+Set<String> findSubtree(@Param("root") String root);
+
+
+public Set<String> contextNodes(JwtAuthenticationToken token) {
+    String node = JwtSubject.node(token);
+    return node == null ? Set.of() : nodeParentRepository.findSubtree(node);
+}
+
+
+
+
 public static boolean isManager(JwtAuthenticationToken token) {
     Jwt jwt = token.getToken();
     String node = jwt.getClaimAsString("node");
