@@ -1,3 +1,15 @@
+SELECT COUNT(*) AS total
+FROM puma_user_node_roles v
+JOIN role_permission rp ON rp.role_id = v.role_id AND rp.granted = true
+JOIN permission p       ON p.id = rp.permission_id
+WHERE v.uid = {{uid}}
+  AND v.node_id = {{targetNode}}
+  AND p.code = 'user.create'
+
+
+
+
+
 /** Arbre du contexte choisi : le noeud du token est l'unique racine. */
 public List<NodeDto> contextSubtree(String contextNode, String applicationId) {
     if (contextNode == null) {
