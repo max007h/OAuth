@@ -1,3 +1,16 @@
+/** Arbre du contexte choisi : le noeud du token est l'unique racine. */
+public List<NodeDto> contextSubtree(String contextNode, String applicationId) {
+    if (contextNode == null) {
+        return List.of();
+    }
+    List<String> roots = List.of(contextNode);
+    if (applicationId == null || applicationId.isBlank()) {
+        return hierarchy.getSubtree(roots);
+    }
+    return hierarchy.getSubtreeForApplication(roots, applicationId);
+}
+
+
 -- =====================================================================
 -- PUMA : jeu de données de démonstration
 -- Quatre applications : PUMA, Partner Portal, Mobility Hub, Rataweb
