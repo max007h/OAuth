@@ -15,7 +15,8 @@
 CREATE UNIQUE INDEX IF NOT EXISTS uq_role_permission ON role_permission (role_id, permission_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_node_application ON node_application (node_id, application_id);
 
-
+DELETE FROM assignment a USING puma_user u
+WHERE a.user_id = u.id AND u.uid = 'thomas.martin' AND a.role_id IN ('R1', 'R4');
 -- ---------------------------------------------------------------------
 -- 1. Applications
 -- ---------------------------------------------------------------------
