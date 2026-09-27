@@ -1,3 +1,12 @@
+docker exec env-pingdirectory-1 /opt/out/instance/bin/ldapsearch \
+  --hostname localhost --port 1636 --useSSL --trustAll \
+  --bindDN "cn=administrator" --bindPassword "2FederateM0re" \
+  --baseDN "ou=people,dc=example,dc=com" \
+  "(objectClass=inetOrgPerson)" uid givenName sn mail partnerGrant
+
+
+
+
 curl -k -X POST https://localhost:7443/governance-engine/batch \
   -H "Content-Type: application/json" \
   -d '{"requests":[{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"uid":"thomas.martin","targetNode":"2602700","targetApplication":"A3"}}]}'
