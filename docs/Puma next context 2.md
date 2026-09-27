@@ -1,3 +1,14 @@
+<button type="button" class="secondary" *ngIf="canCancel" (click)="cancel()">
+  Cancel
+</button>
+
+
+
+@ViewChild(ContextPickerV2Component) picker!: ContextPickerV2Component;
+
+<button class="btn-logout" (click)="picker.open()">Change context</button>
+
+
 
 async open(): Promise<void> {
   this.canCancel = this.contextService.hasContext();
