@@ -1,3 +1,13 @@
+created_at timestamptz  NOT NULL DEFAULT now(),
+created_by varchar(100),
+
+ALTER TABLE assignment
+  ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS created_by varchar(100);
+
+
+
+
 import com.poc.banking.dto.AssignmentDto;
 import com.poc.banking.dto.CreateUserRequest;
 import com.poc.banking.entity.AppRole;
