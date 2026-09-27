@@ -1,3 +1,17 @@
+import com.poc.banking.dto.AssignmentDto;
+import com.poc.banking.dto.CreateUserRequest;
+import com.poc.banking.entity.AppRole;
+import com.poc.banking.entity.Assignment;
+import com.poc.banking.entity.PumaUser;
+import com.poc.banking.repository.AssignmentRepository;
+import com.poc.banking.repository.PumaUserRepository;
+import jakarta.persistence.EntityManager;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.Locale;
+
+
+
 public interface PumaUserRepository extends JpaRepository<PumaUser, Long> {
     Optional<PumaUser> findByUid(String uid);
 }
