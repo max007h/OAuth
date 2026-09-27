@@ -1,3 +1,13 @@
+curl -k -X POST https://localhost:7443/governance-engine/batch \
+  -H "Content-Type: application/json" \
+  -d '{"requests":[{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"uid":"thomas.martin","targetNode":"2602700","targetApplication":"A3"}}]}'
+
+  curl -k -X POST https://localhost:7443/governance-engine/batch \
+  -H "Content-Type: application/json" \
+  -d '{"requests":[{"domain":"PUMA","service":"PUMA.Administration","action":"assign","attributes":{"uid":"thomas.martin","targetNode":"2700015","targetApplication":"A3"}}]}'
+
+
+
 SELECT COUNT(*) AS total
 FROM puma_user_node_roles v
 JOIN role_permission rp ON rp.role_id = v.role_id AND rp.granted = true
