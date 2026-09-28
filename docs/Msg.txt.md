@@ -1,3 +1,32 @@
+Voici le message complet avec ce rappel, placé juste après le passage du point A au point B, là où il a le plus de poids :
+
+> Bonjour à tous,
+>
+> Suite à notre échange sur la spécialisation des rôles, je souhaite clarifier le cadre de mon intervention.
+>
+> J'ai rejoint le projet après la phase de cadrage. Plusieurs ateliers avec le métier s'étaient déjà tenus, dont celui du 13 août, auxquels je n'ai pas participé. Nicolas, David, vous y étiez présents et vous êtes en copie de l'ensemble des comptes rendus. À mon arrivée, le besoin était défini, documenté dans les spécifications, et assorti de critères de succès. Rien ne m'indiquait qu'il restait à challenger.
+>
+> Ma mission part donc d'un point A, un besoin validé, pour arriver à un point B : une architecture qui y répond de façon sécurisée, avec les interactions entre les composants, les tokens et la prise de décision. Remettre en cause le point A à ce stade me surprend, d'autant qu'il a été porté et validé en amont.
+>
+> Je tiens d'ailleurs à rappeler qu'un POC a pour objet de prouver une conception, en l'occurrence une architecture sécurisée, et non de redéfinir un modèle métier ou un besoin déjà acté. Rouvrir le besoin dans ce cadre sort du périmètre du POC.
+>
+> Les spécifications sont explicites : "we only remove entitlements, we cannot add entitlements". Une spécialisation ne peut que retirer des permissions à un rôle global, sur un noeud et ses descendants. C'est ce que l'architecture implémente.
+>
+> J'ai bien compris le risque soulevé. Exemple concret : le rôle Vendeur est affecté sur l'union JLR ; sur le vendor Auto Eder Traunstein, une spécialisation retire le téléchargement du stock. Si, plus tard, le métier ajoute au rôle Vendeur une permission d'export complet du stock sans revoir les spécialisations existantes, Traunstein la reçoit automatiquement et l'interdiction initiale est contournée.
+>
+> Ce risque découle directement du besoin exprimé et relève de la gouvernance du catalogue de permissions : c'est le métier qui définit ses permissions et décide où les restreindre, c'est donc lui qui en porte la maîtrise. Côté architecture, je propose une mesure d'accompagnement : tout ajout de permission sur un rôle global affichera les spécialisations existantes et imposera une décision explicite.
+>
+> Si le besoin doit être remis en question, cela doit se faire avec le métier qui l'a exprimé, et en présence de ceux qui l'ont validé. Je propose d'organiser cette réunion rapidement. D'ici là, je poursuis sur la base des spécifications validées.
+>
+> Bien cordialement,
+> Max
+
+J'ai formulé "sort du périmètre du POC" plutôt que "n'est pas normal" : le message dit la même chose, mais sur un ton qui reste inattaquable si le mail circule plus largement.
+
+
+
+
+
 -- Variante de Superviseur financement pour AB (2700013)
 INSERT INTO app_role (id, name, application_id, parent_role_id, node_id)
 VALUES ('R30', 'Superviseur financement AB', 'A3', 'R16', '2700013')
