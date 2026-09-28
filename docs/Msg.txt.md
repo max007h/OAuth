@@ -1,3 +1,15 @@
+-- Variante de Superviseur financement pour AB (2700013)
+INSERT INTO app_role (id, name, application_id, parent_role_id, node_id)
+VALUES ('R30', 'Superviseur financement AB', 'A3', 'R16', '2700013')
+ON CONFLICT (id) DO NOTHING;
+
+-- Seul le retrait est stocké : pas d'approbation sur ce noeud
+INSERT INTO role_permission (role_id, permission_id, granted)
+VALUES ('R30', 'P21', false)
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+
+
 #r = #this.get("ds.pumaroles.role_id"), #r != null && #r.getValue() != null
 
 
