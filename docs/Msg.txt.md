@@ -1,3 +1,15 @@
+"Côté PUMA, le socle fonctionne : token exchange PingFederate avec contexte de noeud, décision PingAuthorize sur la création d'utilisateur, et l'appli Rataweb de démo côté partenaire. Là, je traite les retours de Nicolas : retrait de isMemberOf du premier token, UUID seuls en base, libellés de rôles simplifiés et un délai plus long pour la démo. En parallèle, j'avance sur la vérification de signature JWT côté backend et le contrôle que la cible est bien sous le noeud du contexte dans le PDP. Seul point bloquant : la spécialisation est en attente de l'arbitrage métier, j'ai une proposition à présenter à la réunion
+
+
+
+Pas de souci, je ne l'ai pas mal pris. Je suis d'accord avec toi : challenger le métier, c'est justement notre rôle. Ce que je voulais surtout, c'est qu'on le fasse au bon endroit, avec le métier autour de la table, et que la décision soit tracée. D'ailleurs j'ai une proposition qui répond à ton point sur le moindre privilège : on garde le modèle par retrait demandé par la spec, mais toute nouvelle permission ajoutée à un rôle global est bloquée par défaut sur les spécialisations existantes, jusqu'à ce que le métier la débloque explicitement. On pourrait la présenter ensemble à la réunion. Et pour la suite, qui tranche côté nous si le métier et nous ne sommes pas d'accord ?"
+
+
+
+
+
+
+
 Voici le message complet avec ce rappel, placé juste après le passage du point A au point B, là où il a le plus de poids :
 
 > Bonjour à tous,
