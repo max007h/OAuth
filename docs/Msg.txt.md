@@ -1,3 +1,21 @@
+Following our discussions on the PUMA POC, I would like to get your decision on one point related to role specialization.
+
+As specified, a specialization can only remove entitlements from a global role, never add them. This works as intended today. However, there is one case worth deciding on explicitly: when a new permission is later added to a global role, it automatically applies to every node where that role is assigned, including nodes where a specialization exists.
+
+Example: the Salesman role is specialized on Auto Eder Traunstein to remove the stock list download. If an export permission is added to the Salesman role later, the users of Auto Eder Traunstein would get it too, even though the intent was to restrict their access to stock data.
+
+Two options:
+
+1. Keep the current behaviour. New permissions propagate to all nodes, and the business reviews the existing specializations each time a permission is added to a role.
+2. Block by default. When a permission is added to a global role, it is automatically blocked on every existing specialization of that role, until the business explicitly enables it node by node.
+
+Option 2 is safer and does not change the "remove only" principle of the specification. Both options can be implemented in the POC.
+
+Could you let me know which option you prefer, and who on your side owns the governance of the permission catalogue? I am happy to walk through it in a short call.
+
+
+
+
 "Côté PUMA, le socle fonctionne : token exchange PingFederate avec contexte de noeud, décision PingAuthorize sur la création d'utilisateur, et l'appli Rataweb de démo côté partenaire. Là, je traite les retours de Nicolas : retrait de isMemberOf du premier token, UUID seuls en base, libellés de rôles simplifiés et un délai plus long pour la démo. En parallèle, j'avance sur la vérification de signature JWT côté backend et le contrôle que la cible est bien sous le noeud du contexte dans le PDP. Seul point bloquant : la spécialisation est en attente de l'arbitrage métier, j'ai une proposition à présenter à la réunion
 
 
