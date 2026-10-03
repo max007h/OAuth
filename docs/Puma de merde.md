@@ -1,3 +1,138 @@
+-- =====================================================================
+-- PUMA : migration 2026-10 (cas A3 : sans vues partenaires, vue actuelle sans
+-- filtre node_application). Les rôles affichés sur un noeud où leur application
+-- n'est pas disponible disparaissent : c'est la correction attendue.
+-- Pour une base où partner_user_node_roles et partner_user_node_permissions
+-- n'ont jamais été créées. Elles sont créées ici.
+-- puma_user garde uid, status, created_at, created_by : plus aucune donnée
+-- d'identité (email, nom). Codes de rôles. Vues recréées.
+-- A exécuter une seule fois dans pgAdmin, d'un bloc. Transaction unique :
+-- au moindre écart, rien n'est modifié.
+-- =====================================================================
+BEGIN;
+
+-- 0. Photo des vues avant migration
+CREATE TEMP TABLE snap_roles ON COMMIT DROP AS
+  SELECT DISTINCT uid, node_id, role_id FROM puma_user_node_roles;
+
+-- 1. Les vues sont retirées puis recréées à l'identique (plus role_code)
+DROP VIEW IF EXISTS partner_user_node_permissions;
+DROP VIEW IF EXISTS partner_user_node_roles;
+DROP VIEW puma_user_node_roles;
+
+-- 2. puma_user : plus de données d'identité
+ALTER TABLE puma_user DROP COLUMN email;
+ALTER TABLE puma_user DROP COLUMN display_name;
+ALTER TABLE puma_user ADD COLUMN IF NOT EXISTS created_by varchar(100);
+
+-- Codes des rôles globaux : un mot, sans espace, affiché dans le frontend
+-- et émis dans le claim roles (les spécialisations n'ont pas de code)
+ALTER TABLE app_role ADD COLUMN IF NOT EXISTS code varchar(50);
+
+UPDATE app_role r SET code = c.code
+FROM (VALUES
+  ('R20', 'PUMA_ADMIN'),
+  ('R21', 'USER_MANAGER'),
+  ('R22', 'USER_VIEWER'),
+  ('R23', 'CATALOGUE_OWNER'),
+  ('R10', 'PARTNER_ADMIN'),
+  ('R11', 'TEMPORARY_SELLER'),
+  ('R12', 'POINT_OF_SALE_MANAGER'),
+  ('R13', 'SELLER'),
+  ('R14', 'SALES_MANAGER'),
+  ('R15', 'FINANCING_ADVISOR'),
+  ('R16', 'FINANCING_SUPERVISOR')
+) AS c(id, code)
+WHERE r.id = c.id;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_app_role_code ON app_role (code) WHERE code IS NOT NULL;
+
+-- Index utiles aux vues et au PDP
+CREATE INDEX IF NOT EXISTS idx_node_parent_parent ON node_parent (parent_id);
+CREATE INDEX IF NOT EXISTS idx_node_parent_node   ON node_parent (node_id);
+CREATE INDEX IF NOT EXISTS idx_assignment_user    ON assignment (user_id);
+CREATE INDEX IF NOT EXISTS idx_app_role_parent    ON app_role (parent_role_id);
+
+-- Vues : héritage descendant, rôle global, application disponible sur le noeud
+CREATE VIEW puma_user_node_roles AS
+WITH RECURSIVE scope AS (
+    SELECT a.user_id, a.role_id, a.node_id
+    FROM assignment a
+  UNION
+    SELECT s.user_id, s.role_id, np.node_id
+    FROM scope s
+    JOIN node_parent np ON np.parent_id = s.node_id
+)
+SELECT DISTINCT u.uid, s.node_id,
+       g.id   AS role_id,
+       g.application_id,
+       g.code AS role_code
+FROM scope s
+JOIN puma_user u         ON u.id = s.user_id
+JOIN app_role r          ON r.id = s.role_id
+JOIN app_role g          ON g.id = COALESCE(r.parent_role_id, r.id)
+JOIN node_application na ON na.node_id = s.node_id
+                        AND na.application_id = r.application_id
+WHERE u.status = 'ACTIVE';
+
+CREATE VIEW partner_user_node_roles AS
+SELECT v.uid, v.node_id, v.role_id, r.application_id
+FROM puma_user_node_roles v
+JOIN app_role r ON r.id = v.role_id;
+
+CREATE VIEW partner_user_node_permissions AS
+SELECT DISTINCT v.uid, v.node_id, v.application_id, p.code AS permission_code
+FROM partner_user_node_roles v
+JOIN role_permission rp ON rp.role_id = v.role_id AND rp.granted = true
+JOIN permission p       ON p.id = rp.permission_id;
+
+-- Contrôle de non-régression
+-- Seuls écarts admis : des lignes qui disparaissent parce que l'application
+-- du rôle n'est pas disponible sur le noeud (filtre node_application).
+-- Tout autre écart annule la migration.
+DO $$
+DECLARE
+  expected_removed int;
+  unexpected       int;
+BEGIN
+  SELECT count(*) INTO expected_removed
+  FROM (SELECT uid, node_id, role_id FROM snap_roles
+        EXCEPT SELECT uid, node_id, role_id FROM puma_user_node_roles) d
+  JOIN app_role g ON g.id = d.role_id
+  WHERE NOT EXISTS (SELECT 1 FROM node_application na
+                    WHERE na.node_id = d.node_id
+                      AND na.application_id = g.application_id);
+
+  SELECT count(*) INTO unexpected FROM (
+    (SELECT d.uid, d.node_id, d.role_id
+     FROM (SELECT uid, node_id, role_id FROM snap_roles
+           EXCEPT SELECT uid, node_id, role_id FROM puma_user_node_roles) d
+     JOIN app_role g ON g.id = d.role_id
+     WHERE EXISTS (SELECT 1 FROM node_application na
+                   WHERE na.node_id = d.node_id
+                     AND na.application_id = g.application_id))
+    UNION ALL
+    (SELECT uid, node_id, role_id FROM puma_user_node_roles
+     EXCEPT SELECT uid, node_id, role_id FROM snap_roles)) x;
+
+  IF unexpected > 0 THEN
+    RAISE EXCEPTION 'Migration annulee : % ecarts non expliques par node_application', unexpected;
+  END IF;
+  RAISE NOTICE 'Controle OK : % lignes retirees (application non disponible sur le noeud), aucun autre ecart',
+    expected_removed;
+END $$;
+
+COMMIT;
+
+
+
+
+
+
+
+
+
+
 -- Diagnostic : écarts entre la vue actuelle et la nouvelle définition.
 -- Lecture seule : rien n'est modifié (vue temporaire, supprimée en fin de session).
 ROLLBACK;
