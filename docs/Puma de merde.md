@@ -1,3 +1,298 @@
+-- =====================================================================
+-- PUMA : migration 2026-10 (cas A : la migration du 30/09 n'a PAS été lancée)
+-- puma_user garde uid, status, created_at, created_by : plus aucune donnée
+-- d'identité (email, nom). Codes de rôles. Vues recréées.
+-- A exécuter une seule fois dans pgAdmin, d'un bloc. Transaction unique :
+-- au moindre écart, rien n'est modifié.
+-- =====================================================================
+BEGIN;
+
+-- 0. Photo des vues avant migration
+CREATE TEMP TABLE snap_roles ON COMMIT DROP AS
+  SELECT DISTINCT uid, node_id, role_id FROM puma_user_node_roles;
+CREATE TEMP TABLE snap_perms ON COMMIT DROP AS
+  SELECT DISTINCT uid, node_id, application_id, permission_code FROM partner_user_node_permissions;
+
+-- 1. Les vues sont retirées puis recréées à l'identique (plus role_code)
+DROP VIEW partner_user_node_permissions;
+DROP VIEW partner_user_node_roles;
+DROP VIEW puma_user_node_roles;
+
+-- 2. puma_user : plus de données d'identité
+ALTER TABLE puma_user DROP COLUMN email;
+ALTER TABLE puma_user DROP COLUMN display_name;
+ALTER TABLE puma_user ADD COLUMN IF NOT EXISTS created_by varchar(100);
+
+-- Codes des rôles globaux : un mot, sans espace, affiché dans le frontend
+-- et émis dans le claim roles (les spécialisations n'ont pas de code)
+ALTER TABLE app_role ADD COLUMN IF NOT EXISTS code varchar(50);
+
+UPDATE app_role r SET code = c.code
+FROM (VALUES
+  ('R20', 'PUMA_ADMIN'),
+  ('R21', 'USER_MANAGER'),
+  ('R22', 'USER_VIEWER'),
+  ('R23', 'CATALOGUE_OWNER'),
+  ('R10', 'PARTNER_ADMIN'),
+  ('R11', 'TEMPORARY_SELLER'),
+  ('R12', 'POINT_OF_SALE_MANAGER'),
+  ('R13', 'SELLER'),
+  ('R14', 'SALES_MANAGER'),
+  ('R15', 'FINANCING_ADVISOR'),
+  ('R16', 'FINANCING_SUPERVISOR')
+) AS c(id, code)
+WHERE r.id = c.id;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_app_role_code ON app_role (code) WHERE code IS NOT NULL;
+
+-- Index utiles aux vues et au PDP
+CREATE INDEX IF NOT EXISTS idx_node_parent_parent ON node_parent (parent_id);
+CREATE INDEX IF NOT EXISTS idx_node_parent_node   ON node_parent (node_id);
+CREATE INDEX IF NOT EXISTS idx_assignment_user    ON assignment (user_id);
+CREATE INDEX IF NOT EXISTS idx_app_role_parent    ON app_role (parent_role_id);
+
+-- Vues : héritage descendant, rôle global, application disponible sur le noeud
+CREATE VIEW puma_user_node_roles AS
+WITH RECURSIVE scope AS (
+    SELECT a.user_id, a.role_id, a.node_id
+    FROM assignment a
+  UNION
+    SELECT s.user_id, s.role_id, np.node_id
+    FROM scope s
+    JOIN node_parent np ON np.parent_id = s.node_id
+)
+SELECT DISTINCT u.uid, s.node_id,
+       g.id   AS role_id,
+       g.application_id,
+       g.code AS role_code
+FROM scope s
+JOIN puma_user u         ON u.id = s.user_id
+JOIN app_role r          ON r.id = s.role_id
+JOIN app_role g          ON g.id = COALESCE(r.parent_role_id, r.id)
+JOIN node_application na ON na.node_id = s.node_id
+                        AND na.application_id = r.application_id
+WHERE u.status = 'ACTIVE';
+
+CREATE VIEW partner_user_node_roles AS
+SELECT v.uid, v.node_id, v.role_id, r.application_id
+FROM puma_user_node_roles v
+JOIN app_role r ON r.id = v.role_id;
+
+CREATE VIEW partner_user_node_permissions AS
+SELECT DISTINCT v.uid, v.node_id, v.application_id, p.code AS permission_code
+FROM partner_user_node_roles v
+JOIN role_permission rp ON rp.role_id = v.role_id AND rp.granted = true
+JOIN permission p       ON p.id = rp.permission_id;
+
+-- Contrôle de non-régression : mêmes lignes qu'avant la migration
+DO $$
+DECLARE
+  diff_roles int;
+  diff_perms int;
+BEGIN
+  SELECT count(*) INTO diff_roles FROM (
+    (SELECT uid, node_id, role_id FROM snap_roles
+     EXCEPT SELECT uid, node_id, role_id FROM puma_user_node_roles)
+    UNION ALL
+    (SELECT uid, node_id, role_id FROM puma_user_node_roles
+     EXCEPT SELECT uid, node_id, role_id FROM snap_roles)) d;
+
+  SELECT count(*) INTO diff_perms FROM (
+    (SELECT * FROM snap_perms
+     EXCEPT SELECT uid, node_id, application_id, permission_code FROM partner_user_node_permissions)
+    UNION ALL
+    (SELECT uid, node_id, application_id, permission_code FROM partner_user_node_permissions
+     EXCEPT SELECT * FROM snap_perms)) d;
+
+  IF diff_roles > 0 OR diff_perms > 0 THEN
+    RAISE EXCEPTION 'Migration annulee : % ecarts sur puma_user_node_roles, % sur partner_user_node_permissions',
+      diff_roles, diff_perms;
+  END IF;
+  RAISE NOTICE 'Controle OK : vues identiques avant et apres migration';
+END $$;
+
+COMMIT;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- =====================================================================
+-- PUMA : migration 2026-10 (cas B : la migration du 30/09 a été lancée)
+-- Recrée puma_user sous forme réduite (uid, status, created_at, created_by)
+-- et revient à assignment.user_id. Retire les colonnes de décision ajoutées
+-- le 30/09 (le workflow catalogue est reporté). Codes de rôles. Vues.
+-- A exécuter une seule fois dans pgAdmin, d'un bloc. Transaction unique.
+-- =====================================================================
+BEGIN;
+
+-- 0. Photo des vues avant migration
+CREATE TEMP TABLE snap_roles ON COMMIT DROP AS
+  SELECT DISTINCT uid, node_id, role_id FROM puma_user_node_roles;
+CREATE TEMP TABLE snap_perms ON COMMIT DROP AS
+  SELECT DISTINCT uid, node_id, application_id, permission_code FROM partner_user_node_permissions;
+
+-- 1. Garde-fou : une affectation suspendue individuellement serait perdue
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM assignment WHERE status <> 'ACTIVE') THEN
+    RAISE EXCEPTION 'Migration annulee : des affectations SUSPENDED existent, a traiter avant';
+  END IF;
+END $$;
+
+DROP VIEW partner_user_node_permissions;
+DROP VIEW partner_user_node_roles;
+DROP VIEW puma_user_node_roles;
+
+-- 2. puma_user réduite, alimentée par les uid des affectations
+CREATE TABLE puma_user (
+  id         bigserial    PRIMARY KEY,
+  uid        varchar(100) NOT NULL UNIQUE,
+  status     varchar(20)  NOT NULL DEFAULT 'ACTIVE',
+  created_at timestamptz  NOT NULL DEFAULT now(),
+  created_by varchar(100)
+);
+
+INSERT INTO puma_user (uid) SELECT DISTINCT uid FROM assignment;
+
+-- 3. assignment revient à user_id
+ALTER TABLE assignment ADD COLUMN user_id bigint;
+UPDATE assignment a SET user_id = u.id FROM puma_user u WHERE u.uid = a.uid;
+ALTER TABLE assignment ALTER COLUMN user_id SET NOT NULL;
+ALTER TABLE assignment ADD CONSTRAINT fk_assignment_user
+  FOREIGN KEY (user_id) REFERENCES puma_user(id) ON DELETE CASCADE;
+
+ALTER TABLE assignment DROP CONSTRAINT uq_assignment;
+DROP INDEX IF EXISTS idx_assignment_uid;
+ALTER TABLE assignment DROP COLUMN uid;
+ALTER TABLE assignment DROP COLUMN status;
+ALTER TABLE assignment ADD CONSTRAINT uq_assignment UNIQUE (user_id, role_id, node_id);
+
+-- 4. Colonnes de décision du 30/09 retirées
+ALTER TABLE role_permission DROP CONSTRAINT IF EXISTS chk_role_permission_decision;
+ALTER TABLE role_permission
+  DROP COLUMN IF EXISTS decision_status,
+  DROP COLUMN IF EXISTS requested_by,
+  DROP COLUMN IF EXISTS requested_at,
+  DROP COLUMN IF EXISTS decided_by,
+  DROP COLUMN IF EXISTS decided_at;
+
+-- Codes des rôles globaux : un mot, sans espace, affiché dans le frontend
+-- et émis dans le claim roles (les spécialisations n'ont pas de code)
+ALTER TABLE app_role ADD COLUMN IF NOT EXISTS code varchar(50);
+
+UPDATE app_role r SET code = c.code
+FROM (VALUES
+  ('R20', 'PUMA_ADMIN'),
+  ('R21', 'USER_MANAGER'),
+  ('R22', 'USER_VIEWER'),
+  ('R23', 'CATALOGUE_OWNER'),
+  ('R10', 'PARTNER_ADMIN'),
+  ('R11', 'TEMPORARY_SELLER'),
+  ('R12', 'POINT_OF_SALE_MANAGER'),
+  ('R13', 'SELLER'),
+  ('R14', 'SALES_MANAGER'),
+  ('R15', 'FINANCING_ADVISOR'),
+  ('R16', 'FINANCING_SUPERVISOR')
+) AS c(id, code)
+WHERE r.id = c.id;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_app_role_code ON app_role (code) WHERE code IS NOT NULL;
+
+-- Index utiles aux vues et au PDP
+CREATE INDEX IF NOT EXISTS idx_node_parent_parent ON node_parent (parent_id);
+CREATE INDEX IF NOT EXISTS idx_node_parent_node   ON node_parent (node_id);
+CREATE INDEX IF NOT EXISTS idx_assignment_user    ON assignment (user_id);
+CREATE INDEX IF NOT EXISTS idx_app_role_parent    ON app_role (parent_role_id);
+
+-- Vues : héritage descendant, rôle global, application disponible sur le noeud
+CREATE VIEW puma_user_node_roles AS
+WITH RECURSIVE scope AS (
+    SELECT a.user_id, a.role_id, a.node_id
+    FROM assignment a
+  UNION
+    SELECT s.user_id, s.role_id, np.node_id
+    FROM scope s
+    JOIN node_parent np ON np.parent_id = s.node_id
+)
+SELECT DISTINCT u.uid, s.node_id,
+       g.id   AS role_id,
+       g.application_id,
+       g.code AS role_code
+FROM scope s
+JOIN puma_user u         ON u.id = s.user_id
+JOIN app_role r          ON r.id = s.role_id
+JOIN app_role g          ON g.id = COALESCE(r.parent_role_id, r.id)
+JOIN node_application na ON na.node_id = s.node_id
+                        AND na.application_id = r.application_id
+WHERE u.status = 'ACTIVE';
+
+CREATE VIEW partner_user_node_roles AS
+SELECT v.uid, v.node_id, v.role_id, r.application_id
+FROM puma_user_node_roles v
+JOIN app_role r ON r.id = v.role_id;
+
+CREATE VIEW partner_user_node_permissions AS
+SELECT DISTINCT v.uid, v.node_id, v.application_id, p.code AS permission_code
+FROM partner_user_node_roles v
+JOIN role_permission rp ON rp.role_id = v.role_id AND rp.granted = true
+JOIN permission p       ON p.id = rp.permission_id;
+
+-- Contrôle de non-régression : mêmes lignes qu'avant la migration
+DO $$
+DECLARE
+  diff_roles int;
+  diff_perms int;
+BEGIN
+  SELECT count(*) INTO diff_roles FROM (
+    (SELECT uid, node_id, role_id FROM snap_roles
+     EXCEPT SELECT uid, node_id, role_id FROM puma_user_node_roles)
+    UNION ALL
+    (SELECT uid, node_id, role_id FROM puma_user_node_roles
+     EXCEPT SELECT uid, node_id, role_id FROM snap_roles)) d;
+
+  SELECT count(*) INTO diff_perms FROM (
+    (SELECT * FROM snap_perms
+     EXCEPT SELECT uid, node_id, application_id, permission_code FROM partner_user_node_permissions)
+    UNION ALL
+    (SELECT uid, node_id, application_id, permission_code FROM partner_user_node_permissions
+     EXCEPT SELECT * FROM snap_perms)) d;
+
+  IF diff_roles > 0 OR diff_perms > 0 THEN
+    RAISE EXCEPTION 'Migration annulee : % ecarts sur puma_user_node_roles, % sur partner_user_node_permissions',
+      diff_roles, diff_perms;
+  END IF;
+  RAISE NOTICE 'Controle OK : vues identiques avant et apres migration';
+END $$;
+
+COMMIT;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # PUMA : plan de travail pour la démo
 
 Version d'octobre 2026. Remplace le document du 30/09 (PUMA-migration-backend-pdp.md).
