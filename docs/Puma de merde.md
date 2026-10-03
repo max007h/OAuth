@@ -1,5 +1,7 @@
 -- =====================================================================
--- PUMA : migration 2026-10 (cas A : la migration du 30/09 n'a PAS été lancée)
+-- PUMA : migration 2026-10 (cas A, sans les vues partenaires)
+-- Pour une base où partner_user_node_roles et partner_user_node_permissions
+-- n'ont jamais été créées. Elles sont créées ici.
 -- puma_user garde uid, status, created_at, created_by : plus aucune donnée
 -- d'identité (email, nom). Codes de rôles. Vues recréées.
 -- A exécuter une seule fois dans pgAdmin, d'un bloc. Transaction unique :
@@ -10,12 +12,10 @@ BEGIN;
 -- 0. Photo des vues avant migration
 CREATE TEMP TABLE snap_roles ON COMMIT DROP AS
   SELECT DISTINCT uid, node_id, role_id FROM puma_user_node_roles;
-CREATE TEMP TABLE snap_perms ON COMMIT DROP AS
-  SELECT DISTINCT uid, node_id, application_id, permission_code FROM partner_user_node_permissions;
 
 -- 1. Les vues sont retirées puis recréées à l'identique (plus role_code)
-DROP VIEW partner_user_node_permissions;
-DROP VIEW partner_user_node_roles;
+DROP VIEW IF EXISTS partner_user_node_permissions;
+DROP VIEW IF EXISTS partner_user_node_roles;
 DROP VIEW puma_user_node_roles;
 
 -- 2. puma_user : plus de données d'identité
@@ -88,7 +88,6 @@ JOIN permission p       ON p.id = rp.permission_id;
 DO $$
 DECLARE
   diff_roles int;
-  diff_perms int;
 BEGIN
   SELECT count(*) INTO diff_roles FROM (
     (SELECT uid, node_id, role_id FROM snap_roles
@@ -97,18 +96,10 @@ BEGIN
     (SELECT uid, node_id, role_id FROM puma_user_node_roles
      EXCEPT SELECT uid, node_id, role_id FROM snap_roles)) d;
 
-  SELECT count(*) INTO diff_perms FROM (
-    (SELECT * FROM snap_perms
-     EXCEPT SELECT uid, node_id, application_id, permission_code FROM partner_user_node_permissions)
-    UNION ALL
-    (SELECT uid, node_id, application_id, permission_code FROM partner_user_node_permissions
-     EXCEPT SELECT * FROM snap_perms)) d;
-
-  IF diff_roles > 0 OR diff_perms > 0 THEN
-    RAISE EXCEPTION 'Migration annulee : % ecarts sur puma_user_node_roles, % sur partner_user_node_permissions',
-      diff_roles, diff_perms;
+  IF diff_roles > 0 THEN
+    RAISE EXCEPTION 'Migration annulee : % ecarts sur puma_user_node_roles', diff_roles;
   END IF;
-  RAISE NOTICE 'Controle OK : vues identiques avant et apres migration';
+  RAISE NOTICE 'Controle OK : puma_user_node_roles identique avant et apres migration';
 END $$;
 
 COMMIT;
