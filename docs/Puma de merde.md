@@ -1,3 +1,44 @@
+-- Diagnostic : écarts entre la vue actuelle et la nouvelle définition.
+-- Lecture seule : rien n'est modifié (vue temporaire, supprimée en fin de session).
+ROLLBACK;
+
+CREATE OR REPLACE TEMP VIEW new_roles AS
+WITH RECURSIVE scope AS (
+    SELECT a.user_id, a.role_id, a.node_id
+    FROM assignment a
+  UNION
+    SELECT s.user_id, s.role_id, np.node_id
+    FROM scope s
+    JOIN node_parent np ON np.parent_id = s.node_id
+)
+SELECT DISTINCT u.uid, s.node_id,
+       COALESCE(r.parent_role_id, r.id) AS role_id
+FROM scope s
+JOIN puma_user u         ON u.id = s.user_id
+JOIN app_role r          ON r.id = s.role_id
+JOIN node_application na ON na.node_id = s.node_id
+                        AND na.application_id = r.application_id
+WHERE u.status = 'ACTIVE';
+
+SELECT 'seulement dans la vue actuelle' AS cote, x.*
+FROM (SELECT uid, node_id, role_id FROM puma_user_node_roles
+      EXCEPT
+      SELECT uid, node_id, role_id FROM new_roles) x
+UNION ALL
+SELECT 'seulement dans la nouvelle vue', y.*
+FROM (SELECT uid, node_id, role_id FROM new_roles
+      EXCEPT
+      SELECT uid, node_id, role_id FROM puma_user_node_roles) y
+ORDER BY 1, 2, 3, 4;
+
+
+
+
+
+SELECT pg_get_viewdef('puma_user_node_roles', true);
+
+
+
 -- =====================================================================
 -- PUMA : migration 2026-10 (cas A, sans les vues partenaires)
 -- Pour une base où partner_user_node_roles et partner_user_node_permissions
