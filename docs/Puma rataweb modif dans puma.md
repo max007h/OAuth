@@ -1,3 +1,12 @@
+curl -sk -u "rataweb-backend:$RATAWEB_CLIENT_SECRET" https://localhost:9031/as/token.oauth2 \
+  -d grant_type=urn:ietf:params:oauth:grant-type:token-exchange \
+  -d subject_token="$LOGIN" \
+  -d subject_token_type=urn:ietf:params:oauth:token-type:access_token \
+  -d node=2700013
+
+
+
+
 uid = '${tepp.subject}' AND node_id = '${tepp.node}' AND application_id = 'A3'
 
 #this.get("context.HttpRequest").getObjectValue().getParameter("node")
