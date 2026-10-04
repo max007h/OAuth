@@ -1,6 +1,6 @@
 # Rataweb : application partenaire de démonstration
 
-Version du 04/10/2026. Rataweb est une application métier de démonstration. Elle consomme PUMA (choix du contexte, décision d'autorisation) mais ne fait pas partie du POC PUMA.
+Version du 05/10/2026. Rataweb est une application métier de démonstration. Elle consomme PUMA (choix du contexte, décision d'autorisation) mais ne fait pas partie du POC PUMA.
 
 ## Principes
 
@@ -8,13 +8,15 @@ Version du 04/10/2026. Rataweb est une application métier de démonstration. El
 |---|---|
 | Base | Une instance PostgreSQL, base postgres : schéma public pour PUMA, schéma rataweb pour le partenaire |
 | Isolation | Rataweb se connecte avec rataweb_app, propriétaire du schéma rataweb, sans droit sur les tables PUMA |
+| Audience | Les tokens Rataweb (login et contexte) portent aud = A3, l'identifiant de l'application dans le catalogue PUMA |
+| Identification de l'application | PUMA la déduit du token signé (aud, ou à défaut client_id via le catalogue). L'appelant ne la déclare jamais |
 | Token de login | Seul token présent dans le navigateur (client rataweb-portal) |
 | Token de contexte | Obtenu par token exchange (client rataweb-backend), il reste dans le backend Rataweb. Un token de login correspond à un seul contexte |
-| Modèle de décision | Service = ressource (Rataweb.Contract), action = verbe (read, approve), attributs = faits sur la ressource (montant) |
-| Catalogue | La permission (contract.approve) est déduite par PUMA de la ressource et de l'action ; elle reste gérée en base par le métier |
-| Rôle de la base | PIP : elle fournit des faits (cible dans le contexte, rôles qui accordent la permission). La politique décide |
+| Modèle de décision | Service = ressource (Rataweb.Contract), action = verbe (read, approve), attributs = faits sur la ressource (amount) |
+| Catalogue | La permission (contract.approve) est déduite par PUMA de la ressource et de l'action |
+| Rôle de la base | PIP : elle fournit des faits (cible dans le contexte, permission effective). La politique décide |
 | Règle métier | Approbation plafonnée à 20 000 EUR, refus nommé "Montant au-delà de la délégation" |
-| Sécurité | Refus par défaut ; toute erreur vaut refus ; uid et contexte viennent du token vérifié ; une application n'interroge que ses propres ressources |
+| Sécurité | Refus par défaut ; toute erreur vaut refus ; uid, contexte et application viennent du token vérifié |
 
 Les deux backends utilisent le package com.poc.banking.
 
@@ -23,18 +25,19 @@ Les deux backends utilisent le package com.poc.banking.
 | Contrôle | Où |
 |---|---|
 | Signature et expiration de chaque token | Spring Security (Rataweb et PUMA), clé HS256 poc-key |
+| Le token est destiné à Rataweb | Rataweb vérifie aud = A3 (RFC 9068) |
 | Le front ne détient pas le token de contexte | ContextResolver (Rataweb) |
-| Le contexte demandé est autorisé | PingFederate refuse le token exchange sans rôle sur le noeud |
-| Une application n'interroge que ses ressources | PartnerApiController : client_id du token = client déclaré pour l'application |
+| Le contexte demandé est autorisé | PingFederate refuse le token exchange sans rôle sur le noeud (Issuance Criteria) |
+| L'application ne peut pas être falsifiée | PUMA la déduit du token signé ; la requête n'a pas de champ application |
 | Pas d'incohérence action / permission | PUMA déduit la permission de la ressource et de l'action |
 | Les attributs de ressource ne masquent pas l'identité | Noms réservés refusés (uid, contextNode, targetNode, targetApplication, permission) |
 | Cible dans le contexte, permission effective, spécialisation | Règles PingAuthorize, à partir des faits du PIP |
 | Règle métier (plafond) | Politique PingAuthorize, sans code dans les applications |
-| Refus par défaut | PingAuthorize (pas de PERMIT, pas d'accès), PUMA et Rataweb (toute erreur vaut refus) |
+| Refus par défaut | PingAuthorize, PUMA et Rataweb |
 
 ---
 
-## Étape 0 : schéma public (PUMA), données du catalogue
+## Étape 0 : catalogue PUMA (schéma public)
 
 Rien à ajouter dans schema.sql de PUMA. Les ajouts sont des données.
 
@@ -61,12 +64,20 @@ INSERT INTO public.node_application (node_id, application_id)
 SELECT n, 'A3' FROM unnest(ARRAY['2700013','2700010','2700011','2700015','2672749']) AS n
 ON CONFLICT (node_id, application_id) DO NOTHING;
 
+-- Client du backend Rataweb, utilisé tant que l'audience n'est pas dans les tokens
+UPDATE public.application SET client_id = 'rataweb-backend' WHERE id = 'A3';
+
+-- Contrôles
 SELECT rp.role_id, p.code FROM public.role_permission rp
 JOIN public.permission p ON p.id = rp.permission_id
 WHERE p.id IN ('P23', 'P24') ORDER BY 1, 2;
 
+SELECT id, name, client_id FROM public.application WHERE id = 'A3';  -- attendu : A3 | Rataweb | rataweb-backend
+
 COMMIT;  -- ou ROLLBACK si un contrôle est faux
 ```
+
+Le name de A3 doit être exactement Rataweb : c'est le nom du service parent dans PingAuthorize.
 
 ### 0.2 Même ajout à la fin de data.sql du backend PUMA
 
@@ -84,6 +95,8 @@ ON CONFLICT (role_id, permission_id) DO NOTHING;
 INSERT INTO node_application (node_id, application_id) VALUES
   ('2700013', 'A3'), ('2700010', 'A3'), ('2700011', 'A3'), ('2700015', 'A3'), ('2672749', 'A3')
 ON CONFLICT (node_id, application_id) DO NOTHING;
+
+UPDATE application SET client_id = 'rataweb-backend' WHERE id = 'A3';
 ```
 
 ---
@@ -111,19 +124,74 @@ Attendu : permission denied.
 
 ---
 
-## Étape 2 : PingAuthorize, politique Rataweb Contrats
+## Étape 2 : PingFederate, audience dans les tokens Rataweb
 
-Les attributs uid, contextNode, targetNode, targetApplication, permission, targetInContextDB et effectiveRolesDB existent déjà (politique PUMA Assignation).
+Objectif : le token de login (rataweb-portal) et le token de contexte (rataweb-backend) portent aud = A3. Dans PingFederate, l'audience se règle sur l'Access Token Manager (ATM), pas sur le client. On crée donc un ATM dédié à Rataweb. Les libellés peuvent varier légèrement selon la version.
 
-### 2.1 Trust Framework
+### 2.1 Créer l'ATM JWTAccessToken-A3
+
+Applications, OAuth, Access Token Management, Create New Instance :
+
+| Champ | Valeur |
+|---|---|
+| Instance Name / ID | JWTAccessToken-A3 |
+| Type | JSON Web Tokens |
+| Signing | HMAC SHA-256, même clé que JWTAccessToken (poc-key, même Key ID) |
+| Audience Claim Value | A3 |
+| Issuer Claim Value | identique à JWTAccessToken |
+| Token Lifetime | 60 minutes (identique à JWTAccessToken) |
+| Access Token Attribute Contract | mêmes attributs que JWTAccessToken (sub, node, roles, et les autres déjà présents) |
+
+La même clé de signature permet à PUMA et Rataweb de vérifier ces tokens sans changement.
+
+### 2.2 Recopier les Access Token Mappings
+
+Applications, OAuth, Access Token Mappings. Pour l'ATM JWTAccessToken-A3, recréer les mêmes mappings que pour JWTAccessToken :
+
+1. Le contexte utilisé au login par rataweb-portal (Default, ou le contrat de la politique d'authentification) : mêmes sources et même fulfillment (sub...).
+2. Le contexte Token Exchange Processor Policy puma-context-policy :
+   - même source JDBC pumaRoles, même filtre : uid = '${tepp.subject}' AND node_id = '${tepp.node}' ;
+   - même fulfillment (sub, node, roles) ;
+   - **même Issuance Criteria : ds.pumaRoles.role_id non vide, message node_not_assigned.**
+
+Point de sécurité : sans l'Issuance Criteria, PingFederate émettrait un token de contexte même pour un noeud sans aucun rôle. C'est le contrôle qui ferme la porte au choix d'un mauvais contexte.
+
+### 2.3 Rattacher les clients
+
+Applications, OAuth, Clients :
+
+- rataweb-portal : Default Access Token Manager = JWTAccessToken-A3 ;
+- rataweb-backend : Default Access Token Manager = JWTAccessToken-A3.
+
+Ne pas toucher puma-portal ni puma-backend : PUMA garde JWTAccessToken.
+
+### 2.4 Vérification
+
+Se connecter à Rataweb, puis décoder le token de login (Session Storage, rw_login_token) dans le terminal :
+
+```bash
+echo "COLLE_LE_TOKEN" | cut -d. -f2 | tr '_-' '/+' | base64 -D 2>/dev/null; echo
+```
+
+Attendu : "aud":"A3". Puis choisir une entité : la console Rataweb affiche Token exchange OK. Pour voir l'aud du token de contexte, ajouter temporairement jwt.getAudience() dans le log de ContextResolver.select.
+
+Si le token exchange échoue après ce changement (subject token refusé), vérifier dans le Token Processor pf-jwt-processor qu'aucune audience attendue n'exclut A3.
+
+---
+
+## Étape 3 : PingAuthorize, politique Rataweb Contrats
+
+Les attributs uid, contextNode, targetNode, targetApplication, permission, targetInContextDB et effectiveRolesDB existent déjà (politique PUMA Assignation). On ne les modifie pas.
+
+### 3.1 Trust Framework
 
 1. Services : créer Rataweb (même type que PUMA), puis Contract avec Parent = Rataweb. Résultat : Rataweb.Contract.
 2. Actions : créer read et approve.
 3. Attributes : créer amount, type Number, resolver Request, sans valeur par défaut.
 
-Si une politique "PUMA Partner Decision", le service PUMA.Applications ou les actions contract.read et contract.approve ont été créés auparavant : les supprimer, ils sont remplacés.
+Si une politique "PUMA Partner Decision", un service PUMA.Applications ou des actions contract.read et contract.approve ont été créés auparavant : les supprimer.
 
-### 2.2 Politique
+### 3.2 Politique
 
 Policies, racine, Add Policy :
 
@@ -134,7 +202,7 @@ Policies, racine, Add Policy :
 | Combining Algorithm | A single deny will override any permit decisions |
 | Evaluate All | coché |
 
-### 2.3 Règles
+### 3.3 Règles
 
 Pour chaque règle : Add Rule, Applies to = l'action indiquée, When sur ALL, Effect.
 
@@ -146,9 +214,9 @@ Pour chaque règle : Add Rule, Applies to = l'action indiquée, When sur ALL, Ef
 
 Si l'opérateur Less Than Or Equal n'existe pas, utiliser Less Than 20000.01.
 
-La règle Permit contient toutes ses conditions : si l'on retire la règle Deny, la politique reste sûre. La règle Deny sert à nommer la raison du refus dans la trace.
+Chaque règle Permit contient toutes ses conditions : si l'on retire la règle Deny, la politique reste sûre. La règle Deny nomme la raison du refus dans la trace.
 
-### 2.4 Déploiement et tests directs
+### 3.4 Déploiement et tests directs
 
 Save, export du .SDP, redéploiement. Puis :
 
@@ -166,16 +234,18 @@ curl -sk -X POST https://localhost:7443/governance-engine -H "Content-Type: appl
        "targetApplication":"A3","permission":"contract.approve","amount":18500}}'
 ```
 
-Attendus complémentaires :
-
 | uid | action | amount | Attendu |
 |---|---|---|---|
+| julia.weber | read | | PERMIT |
+| max.walker | approve | 18500 | PERMIT |
 | max.walker | approve | 24300 | DENY, règle Montant au-delà de la délégation |
 | julia.weber | approve | 18500 | NOT_APPLICABLE (R15 n'accorde pas contract.approve) |
 
 ---
 
-## Étape 3 : backend PUMA, API de décision pour les partenaires
+## Étape 4 : backend PUMA, API de décision pour les partenaires
+
+PUMA ne contient aucune liste de partenaires. L'application est déduite du token : audience d'abord, client_id via le catalogue sinon.
 
 Vérifier l'existant pour remplacer plutôt que dupliquer :
 
@@ -183,66 +253,9 @@ Vérifier l'existant pour remplacer plutôt que dupliquer :
 grep -rln "PartnerApiController\|PartnerDecisionService\|PartnerRegistry" src/main/java/
 ```
 
-### 3.1 application.yml (ajout)
+Si PartnerRegistry.java existe, le supprimer, ainsi que tout bloc puma.partner et toute ligne partner-service dans application.yml.
 
-```yaml
-puma:
-  # bloc authz existant inchangé (base-url, domain...)
-  partner:
-    applications:
-      rataweb:
-        application-id: A3
-        client-id: rataweb-backend
-        service-prefix: Rataweb
-```
-
-Si une ligne partner-service a été ajoutée auparavant sous puma.authz.pdp, la supprimer.
-
-### 3.2 config/PartnerRegistry.java
-
-Applications partenaires autorisées à demander une décision.
-
-```java
-package com.poc.banking.config;
-
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
-
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-
-@Component
-@ConfigurationProperties(prefix = "puma.partner")
-public class PartnerRegistry {
-
-    public static class Partner {
-        private String applicationId;
-        private String clientId;
-        private String servicePrefix;
-
-        public String getApplicationId() { return applicationId; }
-        public void setApplicationId(String applicationId) { this.applicationId = applicationId; }
-        public String getClientId() { return clientId; }
-        public void setClientId(String clientId) { this.clientId = clientId; }
-        public String getServicePrefix() { return servicePrefix; }
-        public void setServicePrefix(String servicePrefix) { this.servicePrefix = servicePrefix; }
-    }
-
-    private Map<String, Partner> applications = new HashMap<>();
-
-    public Map<String, Partner> getApplications() { return applications; }
-    public void setApplications(Map<String, Partner> applications) { this.applications = applications; }
-
-    public Optional<Partner> find(String name) {
-        return name == null ? Optional.empty()
-                : Optional.ofNullable(applications.get(name.toLowerCase(Locale.ROOT)));
-    }
-}
-```
-
-### 3.3 service/PartnerDecisionService.java (remplace l'existant)
+### 4.1 service/PartnerDecisionService.java (remplace l'existant)
 
 ```java
 package com.poc.banking.service;
@@ -340,18 +353,21 @@ public class PartnerDecisionService {
 }
 ```
 
-### 3.4 controller/PartnerApiController.java (remplace l'existant)
+### 4.2 controller/PartnerApiController.java (remplace l'existant)
 
 ```java
 package com.poc.banking.controller;
 
-import com.poc.banking.config.PartnerRegistry;
 import com.poc.banking.service.PartnerDecisionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -359,28 +375,31 @@ import java.util.Set;
 
 /**
  * Décision pour les applications partenaires.
- * uid et contexte viennent du token vérifié ; une application n'interroge que ses propres ressources.
+ * uid, contexte et application viennent du token vérifié, jamais du corps de la requête.
  */
 @RestController
 @RequestMapping("/api")
 public class PartnerApiController {
 
-    public record DecisionRequest(String application, String resource, String action,
+    public record DecisionRequest(String resource, String action,
                                   String targetNode, Map<String, Object> attributes) { }
 
     public record DecisionResponse(boolean permitted) { }
 
+    private record Application(String id, String name) { }
+
+    private static final Logger log = LoggerFactory.getLogger(PartnerApiController.class);
     private static final String NAME = "^[A-Za-z]{1,40}$";
     private static final String NODE = "^[A-Za-z0-9_-]{1,20}$";
     private static final Set<String> RESERVED =
             Set.of("uid", "contextNode", "targetNode", "targetApplication", "permission");
 
-    private final PartnerRegistry registry;
     private final PartnerDecisionService decisions;
+    private final JdbcTemplate jdbc;
 
-    public PartnerApiController(PartnerRegistry registry, PartnerDecisionService decisions) {
-        this.registry = registry;
+    public PartnerApiController(PartnerDecisionService decisions, JdbcTemplate jdbc) {
         this.decisions = decisions;
+        this.jdbc = jdbc;
     }
 
     @PostMapping("/decisions")
@@ -390,14 +409,15 @@ public class PartnerApiController {
         String uid = jwt.getSubject();
         String contextNode = jwt.getClaimAsString("node");
         if (uid == null || contextNode == null || req == null
-                || !matches(req.application(), NAME) || !matches(req.resource(), NAME)
-                || !matches(req.action(), NAME) || !matches(req.targetNode(), NODE)) {
+                || !matches(req.resource(), NAME) || !matches(req.action(), NAME)
+                || !matches(req.targetNode(), NODE)) {
             return deny(400);
         }
 
-        // Une application ne peut interroger que ses propres ressources.
-        Optional<PartnerRegistry.Partner> partner = registry.find(req.application());
-        if (partner.isEmpty() || !partner.get().getClientId().equals(jwt.getClaimAsString("client_id"))) {
+        Optional<Application> application = resolveApplication(jwt);
+        if (application.isEmpty()) {
+            log.warn("Application introuvable pour aud={} client_id={}",
+                    jwt.getAudience(), jwt.getClaimAsString("client_id"));
             return deny(403);
         }
 
@@ -410,13 +430,37 @@ public class PartnerApiController {
         }
 
         String action = req.action().toLowerCase(Locale.ROOT);
-        String service = partner.get().getServicePrefix() + "." + req.resource();
+        String service = application.get().name() + "." + req.resource();
         // La permission du catalogue est déduite, jamais fournie par l'application.
         String permission = req.resource().toLowerCase(Locale.ROOT) + "." + action;
 
-        boolean permitted = decisions.decide(uid, contextNode, partner.get().getApplicationId(),
+        boolean permitted = decisions.decide(uid, contextNode, application.get().id(),
                 service, action, permission, req.targetNode(), resourceAttributes);
         return ResponseEntity.ok(new DecisionResponse(permitted));
+    }
+
+    /**
+     * Application du catalogue désignée par le token signé : audience d'abord,
+     * client_id ensuite (tant que l'audience n'est pas configurée dans PingFederate).
+     */
+    private Optional<Application> resolveApplication(Jwt jwt) {
+        List<String> audience = jwt.getAudience();
+        if (audience != null) {
+            for (String aud : audience) {
+                List<Application> found = jdbc.query("SELECT id, name FROM application WHERE id = ?",
+                        (rs, i) -> new Application(rs.getString("id"), rs.getString("name")), aud);
+                if (found.size() == 1) {
+                    return Optional.of(found.get(0));
+                }
+            }
+        }
+        String clientId = jwt.getClaimAsString("client_id");
+        if (clientId == null) {
+            return Optional.empty();
+        }
+        List<Application> found = jdbc.query("SELECT id, name FROM application WHERE client_id = ?",
+                (rs, i) -> new Application(rs.getString("id"), rs.getString("name")), clientId);
+        return found.size() == 1 ? Optional.of(found.get(0)) : Optional.empty();
     }
 
     private static boolean matches(String value, String pattern) {
@@ -429,7 +473,7 @@ public class PartnerApiController {
 }
 ```
 
-### 3.5 Compilation
+### 4.3 Compilation
 
 ```bash
 mvn compile
@@ -439,11 +483,11 @@ Puis redémarrage de PUMA.
 
 ---
 
-## Étape 4 : backend Rataweb (port 8082)
+## Étape 5 : backend Rataweb (port 8082)
 
 Fichiers à supprimer de l'ancienne version : controller/ActionController.java, config/CorsFilter.java. Si DatabaseBootstrap.java ou ContextExceptionHandler.java empêchent le démarrage, les supprimer aussi.
 
-### 4.1 pom.xml
+### 5.1 pom.xml
 
 ```xml
 <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
@@ -453,7 +497,7 @@ Fichiers à supprimer de l'ancienne version : controller/ActionController.java, 
 <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><scope>runtime</scope></dependency>
 ```
 
-### 4.2 src/main/resources/application.yml (remplace tout)
+### 5.2 src/main/resources/application.yml (remplace tout)
 
 ```yaml
 server:
@@ -474,10 +518,8 @@ logging:
 
 rataweb:
   cors-origin: http://localhost:4300
-  # Identifiant de l'application dans le catalogue PUMA (filtre de la pop-up)
+  # Identifiant de l'application dans le catalogue PUMA : filtre de la pop-up et audience attendue
   application-id: A3
-  # Nom de l'application auprès de l'API de décision PUMA
-  partner-name: Rataweb
   # Client OAuth du front (token de login)
   portal-client-id: rataweb-portal
   token-url: https://localhost:9031/as/token.oauth2
@@ -486,6 +528,8 @@ rataweb:
   client-secret: ${RATAWEB_CLIENT_SECRET}
   jwt:
     secret-hex: ${RATAWEB_JWT_SECRET_HEX}
+    # Passer à true après l'étape 2 (audience configurée dans PingFederate)
+    require-audience: false
   puma:
     base-url: http://localhost:8081
 ```
@@ -495,7 +539,7 @@ Variables d'environnement (configuration de lancement IntelliJ) :
 - RATAWEB_CLIENT_SECRET : secret du client rataweb-backend ;
 - RATAWEB_JWT_SECRET_HEX : même valeur hex que la clé poc-key de PUMA.
 
-### 4.3 src/main/resources/schema.sql
+### 5.3 src/main/resources/schema.sql
 
 ```sql
 CREATE TABLE IF NOT EXISTS contract (
@@ -512,7 +556,7 @@ CREATE TABLE IF NOT EXISTS contract (
 );
 ```
 
-### 4.4 src/main/resources/data.sql
+### 5.4 src/main/resources/data.sql
 
 ```sql
 INSERT INTO contract (reference, customer_name, amount, node_id, created_at) VALUES
@@ -531,7 +575,9 @@ INSERT INTO contract (reference, customer_name, amount, node_id, created_at) VAL
 ON CONFLICT (reference) DO NOTHING;
 ```
 
-### 4.5 config/SecurityConfig.java
+### 5.5 config/SecurityConfig.java
+
+Vérifie la signature, l'expiration et, une fois l'étape 2 faite, l'audience.
 
 ```java
 package com.poc.banking.config;
@@ -543,8 +589,14 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimNames;
+import org.springframework.security.oauth2.jwt.JwtClaimValidator;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
@@ -573,11 +625,20 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /** Vérifie la signature HS256 des tokens émis par PingFederate (ATM JWTAccessToken). */
+    /** Signature HS256 (poc-key), expiration, et audience A3 si require-audience vaut true. */
     @Bean
-    public JwtDecoder jwtDecoder(@Value("${rataweb.jwt.secret-hex}") String secretHex) {
+    public JwtDecoder jwtDecoder(@Value("${rataweb.jwt.secret-hex}") String secretHex,
+                                 @Value("${rataweb.application-id}") String applicationId,
+                                 @Value("${rataweb.jwt.require-audience:false}") boolean requireAudience) {
         SecretKey key = new SecretKeySpec(HexFormat.of().parseHex(secretHex), "HmacSHA256");
-        return NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+        if (requireAudience) {
+            OAuth2TokenValidator<Jwt> audience = new JwtClaimValidator<List<String>>(
+                    JwtClaimNames.AUD, aud -> aud != null && aud.contains(applicationId));
+            decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                    JwtValidators.createDefault(), audience));
+        }
+        return decoder;
     }
 
     @Bean
@@ -593,7 +654,9 @@ public class SecurityConfig {
 }
 ```
 
-### 4.6 config/InsecureSsl.java
+Le même décodeur sert aussi à ContextResolver : avec require-audience à true, un token de contexte sans aud = A3 est refusé, ce qui contrôle aussi la configuration de rataweb-backend.
+
+### 5.6 config/InsecureSsl.java
 
 ```java
 package com.poc.banking.config;
@@ -626,7 +689,7 @@ public final class InsecureSsl {
 }
 ```
 
-### 4.7 service/TokenExchangeService.java
+### 5.7 service/TokenExchangeService.java
 
 ```java
 package com.poc.banking.service;
@@ -699,9 +762,7 @@ public class TokenExchangeService {
 }
 ```
 
-### 4.8 service/ContextResolver.java (BFF)
-
-Un token de login correspond à un seul token de contexte, rangé en mémoire sous le jti du token de login.
+### 5.8 service/ContextResolver.java (BFF)
 
 ```java
 package com.poc.banking.service;
@@ -717,6 +778,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
+/** Un token de login correspond à un seul token de contexte, rangé sous le jti du token de login. */
 @Service
 public class ContextResolver {
 
@@ -741,9 +803,9 @@ public class ContextResolver {
         if (context.isPresent()) {
             Jwt jwt = context.get();
             contexts.put(key(login), new Entry(jwt, login.getExpiresAt()));
-            log.info("Token exchange OK : sub={} node={} roles={} client_id={} expire={}",
+            log.info("Token exchange OK : sub={} node={} roles={} client_id={} aud={} expire={}",
                     jwt.getSubject(), jwt.getClaimAsString("node"), jwt.getClaimAsStringList("roles"),
-                    jwt.getClaimAsString("client_id"), jwt.getExpiresAt());
+                    jwt.getClaimAsString("client_id"), jwt.getAudience(), jwt.getExpiresAt());
         } else {
             contexts.remove(key(login));
             log.info("Token exchange refusé par PingFederate : sub={} node={}", login.getSubject(), nodeId);
@@ -776,7 +838,9 @@ public class ContextResolver {
 }
 ```
 
-### 4.9 service/PumaClient.java
+### 5.9 service/PumaClient.java
+
+La requête de décision ne contient pas d'application : PUMA la déduit du token.
 
 ```java
 package com.poc.banking.service;
@@ -810,9 +874,6 @@ public class PumaClient {
     @Value("${rataweb.application-id}")
     private String applicationId;
 
-    @Value("${rataweb.partner-name}")
-    private String partnerName;
-
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
     /** Entités où l'utilisateur a un rôle dans cette application. JSON brut de PUMA. */
@@ -840,15 +901,11 @@ public class PumaClient {
         }
     }
 
-    /**
-     * Décision PUMA, donc PingAuthorize : ressource, action, noeud cible et faits sur la ressource.
-     * Toute erreur vaut refus.
-     */
+    /** Décision PUMA, donc PingAuthorize. Toute erreur vaut refus. */
     public boolean isPermitted(String contextToken, String resource, String action,
                                String targetNode, Map<String, Object> resourceAttributes) {
         try {
             Map<String, Object> body = new LinkedHashMap<>();
-            body.put("application", partnerName);
             body.put("resource", resource);
             body.put("action", action);
             body.put("targetNode", targetNode);
@@ -877,7 +934,7 @@ public class PumaClient {
 }
 ```
 
-### 4.10 dto/Contract.java
+### 5.10 dto/Contract.java
 
 ```java
 package com.poc.banking.dto;
@@ -890,7 +947,7 @@ public record Contract(Long id, String reference, String customerName, BigDecima
                        String approvedBy, OffsetDateTime approvedAt) { }
 ```
 
-### 4.11 repository/ContractRepository.java
+### 5.11 repository/ContractRepository.java
 
 ```java
 package com.poc.banking.repository;
@@ -938,7 +995,7 @@ public class ContractRepository {
 }
 ```
 
-### 4.12 controller/ContextController.java
+### 5.12 controller/ContextController.java
 
 ```java
 package com.poc.banking.controller;
@@ -1012,7 +1069,7 @@ public class ContextController {
 }
 ```
 
-### 4.13 controller/ContractController.java
+### 5.13 controller/ContractController.java
 
 Rataweb fournit la ressource, l'action et les faits (noeud, montant). Il ne décide rien.
 
@@ -1111,11 +1168,11 @@ public class ContractController {
 }
 ```
 
-### 4.14 Compilation et tests
+### 5.14 Compilation et tests
 
 ```bash
 mvn compile
-grep -rn "X-Context-Node\|resolve(\|checkRequest" src/main/java/   # attendu : aucun résultat
+grep -rn "X-Context-Node\|resolve(\|checkRequest\|partner-name\|partnerName" src/main/java/   # attendu : aucun résultat
 ```
 
 Contrôle de la table dans pgAdmin :
@@ -1135,15 +1192,19 @@ curl -i -X POST -H "Authorization: Bearer $LOGIN" -H "Content-Type: application/
 curl -i -m 60 -H "Authorization: Bearer $LOGIN" http://localhost:8082/api/contracts
 ```
 
-Un token PUMA est refusé (403). Une réponse vide est un 401 : regarder l'en-tête WWW-Authenticate.
+Un token PUMA est refusé (403, ou 401 une fois require-audience activé). Une réponse vide est un 401 : regarder l'en-tête WWW-Authenticate.
+
+### 5.15 Activation du contrôle d'audience
+
+Après l'étape 2 et la vérification aud = A3 : passer rataweb.jwt.require-audience à true, redémarrer Rataweb, refaire les trois curl. Un token PUMA doit alors être refusé en 401 par Spring Security, avant même les contrôleurs.
 
 ---
 
-## Étape 5 : front Rataweb (port 4300, composants standalone)
+## Étape 6 : front Rataweb (port 4300, composants standalone)
 
-Le front ne garde que son token de login. "Changer d'entité" rappelle /api/context/select, ce qui remplace le contexte côté backend. Le front ne connaît ni l'application, ni les permissions.
+Le front ne garde que son token de login. "Changer d'entité" rappelle /api/context/select. Le front ne connaît ni l'application, ni les permissions.
 
-### 5.1 Nettoyage et génération
+### 6.1 Nettoyage et génération
 
 Garder : src/main.ts, src/index.html, src/styles.css, et dans src/app : app.component.ts, .html, .css, app.config.ts, app.routes.ts. Supprimer le reste de src/app.
 
@@ -1157,9 +1218,7 @@ ng generate service core/contract --skip-tests
 ng serve --port 4300
 ```
 
-Créer à la main src/app/core/config.ts (5.2).
-
-app.config.ts doit contenir au minimum :
+Créer à la main src/app/core/config.ts (6.2). app.config.ts doit contenir au minimum :
 
 ```typescript
 import { ApplicationConfig } from '@angular/core';
@@ -1171,7 +1230,7 @@ export const appConfig: ApplicationConfig = {
 };
 ```
 
-### 5.2 src/app/core/config.ts
+### 6.2 src/app/core/config.ts
 
 ```typescript
 export const CONFIG = {
@@ -1183,7 +1242,7 @@ export const CONFIG = {
 };
 ```
 
-### 5.3 src/app/core/auth.service.ts
+### 6.3 src/app/core/auth.service.ts
 
 ```typescript
 import { Injectable } from '@angular/core';
@@ -1278,7 +1337,7 @@ export class AuthService {
 }
 ```
 
-### 5.4 src/app/core/context.service.ts
+### 6.4 src/app/core/context.service.ts
 
 ```typescript
 import { Injectable } from '@angular/core';
@@ -1334,7 +1393,7 @@ export class ContextService {
 }
 ```
 
-### 5.5 src/app/core/contract.service.ts
+### 6.5 src/app/core/contract.service.ts
 
 ```typescript
 import { Injectable } from '@angular/core';
@@ -1387,7 +1446,7 @@ export class ContractService {
 }
 ```
 
-### 5.6 src/app/pages/callback/
+### 6.6 src/app/pages/callback/
 
 callback.component.ts :
 
@@ -1437,7 +1496,7 @@ callback.component.css :
 .message { padding: 24px; font-family: sans-serif; }
 ```
 
-### 5.7 src/app/pages/home/
+### 6.7 src/app/pages/home/
 
 home.component.ts :
 
@@ -1631,7 +1690,7 @@ th, td { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; }
 .dialog select, .dialog button { width: 100%; padding: 8px; margin-top: 10px; }
 ```
 
-### 5.8 src/app/app.routes.ts
+### 6.8 src/app/app.routes.ts
 
 ```typescript
 import { Routes } from '@angular/router';
@@ -1645,7 +1704,7 @@ export const routes: Routes = [
 ];
 ```
 
-### 5.9 src/app/app.component.html
+### 6.9 src/app/app.component.html
 
 Remplacer tout le contenu par :
 
@@ -1655,41 +1714,48 @@ Remplacer tout le contenu par :
 
 Le composant racine doit importer RouterOutlet. Garder son nom de classe (importé par main.ts).
 
----
-
-## Étape 6 : PingFederate
-
-Client rataweb-portal :
+### 6.10 Réglages PingFederate du client rataweb-portal
 
 - redirect URI : http://localhost:4300/callback ;
 - Authorization Code coché, PKCE requis, Client Authentication à NONE ;
 - Bypass Authorization Approval coché ;
 - origine http://localhost:4300 autorisée dans les réglages CORS du serveur d'autorisation.
 
-Client rataweb-backend : JWTAccessToken (HMAC, clé poc-key), Token Exchange seul, secret.
+---
 
-Durée de vie : réglée sur l'ATM. Les deux tokens passent par JWTAccessToken (60 minutes recommandées pour la démo). Une durée différente pour le token de contexte demanderait un second ATM.
+## Étape 7 : ordre d'exécution conseillé
+
+1. Étapes 0 et 1 (bases).
+2. Étape 3 (PingAuthorize) et ses curl directs.
+3. Étape 4 (PUMA), redémarrage.
+4. Étape 5 (Rataweb) avec require-audience à false, tests curl.
+5. Étape 6 (front), scénario de l'étape 8.
+6. Étape 2 (audience PingFederate), vérification aud = A3.
+7. Étape 5.15 : require-audience à true, nouveau passage du scénario.
+
+L'audience arrive en dernier : le scénario fonctionne d'abord grâce au repli client_id du catalogue, puis on durcit sans rien casser.
 
 ---
 
-## Étape 7 : scénario de démonstration
+## Étape 8 : scénario de démonstration
 
 1. PUMA, thomas.martin, contexte Roller 5 : créer julia.weber avec FINANCING_ADVISOR (R15), application A3, sur AB (2700013).
 2. Rataweb, julia.weber : la pop-up ne propose que AB. "Contrats" : les 5 contrats s'affichent (règle Consultation autorisée).
 3. "Approuver" sur CT-2026-001 : refus, statut inchangé (R15 n'accorde pas contract.approve).
 4. PUMA : ajouter FINANCING_SUPERVISOR (R16) à julia.weber sur 2700013.
-5. Rataweb, sans se reconnecter : "Approuver" CT-2026-001 (18 500 EUR). Attendu : "Contrat approuvé" (règle Approbation autorisée).
+5. Rataweb, sans se reconnecter : "Approuver" CT-2026-001 (18 500 EUR). Attendu : "Contrat approuvé".
 6. "Approuver" CT-2026-003 (24 300 EUR). Attendu : refus. La raison "Montant au-delà de la délégation" apparaît dans le Decision Visualiser.
 
 Messages de démo :
 
-- le droit change sans redéploiement ni nouveau token, parce que le PDP lit l'état réel de la base à chaque décision ;
+- le droit change sans redéploiement ni nouveau token : le PDP lit l'état réel de la base à chaque décision ;
 - le plafond est une règle métier portée par la politique, sans une ligne de code dans Rataweb ;
+- l'application est identifiée par le token signé : un partenaire ne peut pas se faire passer pour un autre ;
 - le token de contexte ne quitte jamais le serveur.
 
 Traces à montrer :
 
-- console Rataweb : Token exchange OK, Decision PUMA Contract approve ;
+- console Rataweb : Token exchange OK (avec aud), Decision PUMA Contract approve ;
 - console PUMA : Decision partenaire ... service=Rataweb.Contract action=approve attributs={amount=...} ;
 - PingAuthorize : Decision Visualiser, règle appliquée.
 
@@ -1727,14 +1793,17 @@ Le code expire vite : enchaîner sans attendre. Puis export LOGIN="access_token"
 | Point | État |
 |---|---|
 | Latence des décisions (10 à 15 s) | À traiter avant la démo |
-| Raison du refus affichée à l'utilisateur | Aujourd'hui dans le Decision Visualiser ; à remonter via les statements de PingAuthorize |
-| Règle des quatre yeux (on n'approuve pas son propre contrat) | Ajout d'une colonne created_by et d'une règle Deny, après la démo |
+| Spécialisation R30 (R16 sur 2700013, retire request.approve) | Sans effet sur contract.approve ; à retirer si elle gêne |
+| Repli client_id dans PartnerApiController | À supprimer une fois l'audience en place partout |
+| Audience côté PUMA (aud = A0 pour puma-portal et puma-backend) | Même procédure qu'à l'étape 2, après la démo |
+| Simplification du PDP (grantingRoles + retraits sur le chemin) | Après la démo, avec root_role_id écrit par le module de gouvernance du catalogue |
+| Raison du refus affichée à l'utilisateur | Aujourd'hui dans le Decision Visualiser ; à remonter via les statements PingAuthorize |
+| Règle des quatre yeux | Colonne created_by et règle Deny, après la démo |
 | Cache des contextes en mémoire | Perdu au redémarrage : le front rouvre la pop-up (code no_context) |
-| Onglet dupliqué | Partage le token de login, donc le contexte |
 | Token de login dans le navigateur | Cible : session serveur (cookie HttpOnly) |
-| Token Rataweb portant les rôles de toutes les applications du noeud | Filtre par application ou audience, après la démo |
 | Vue d'un superviseur sur les vendors de son entité | Le sous-arbre viendra d'une API hiérarchie de PUMA |
 | Même BFF côté PUMA | Plan 3.3 |
 | Client secrets visibles en clair | Variables d'environnement ; régénérer après la démo |
 | Certificats auto-signés acceptés sans vérification | POC uniquement |
+| Restes de l'ancienne implémentation dans app_role (R1 à R4, salesman...) | Sans effet grâce au filtre d'application ; à nettoyer |
 | Règles Deny explicatives de la politique PUMA Assignation | Après la démo |
