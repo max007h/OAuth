@@ -1,3 +1,11 @@
+uid = '${tepp.subject}' AND node_id = '${tepp.node}' AND application_id = 'A3'
+
+
+
+#r = #this.get("ds.pumaRoles.role_id"), #r != null && #r.getValue() != null
+
+
+
 # Rataweb : application partenaire de démonstration
 
 Version du 05/10/2026. Rataweb est une application métier de démonstration. Elle consomme PUMA (choix du contexte, décision d'autorisation) mais ne fait pas partie du POC PUMA.
