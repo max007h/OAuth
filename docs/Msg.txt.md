@@ -1,3 +1,52 @@
+SELECT t.cas, t.uid, t.ctx, t.target, t.app, t.perm,
+  (WITH RECURSIVE sub AS (
+       SELECT CAST(t.ctx AS varchar) AS node_id
+     UNION
+       SELECT np.node_id FROM node_parent np JOIN sub s ON np.parent_id = s.node_id)
+   SELECT COUNT(*) FROM sub WHERE node_id = t.target) AS in_context,
+  (SELECT COUNT(DISTINCT v.role_id)
+   FROM puma_user_node_roles v
+   JOIN role_permission rp ON rp.role_id = v.role_id AND rp.granted = true
+   JOIN permission p       ON p.id = rp.permission_id
+   WHERE v.uid = t.uid AND v.node_id = t.target AND v.application_id = t.app
+     AND p.code = t.perm AND p.application_id = t.app) AS granting,
+  (WITH RECURSIVE anc AS (
+       SELECT CAST(t.target AS varchar) AS node_id
+     UNION
+       SELECT np.parent_id FROM node_parent np JOIN anc a ON np.node_id = a.node_id),
+   chain AS (
+       SELECT r.id AS spec_id, r.parent_role_id AS root_id, r.node_id
+       FROM app_role r WHERE r.parent_role_id IS NOT NULL
+     UNION
+       SELECT c.spec_id, p.parent_role_id, c.node_id
+       FROM chain c JOIN app_role p ON p.id = c.root_id
+       WHERE p.parent_role_id IS NOT NULL)
+   SELECT COUNT(DISTINCT v.role_id)
+   FROM puma_user_node_roles v
+   JOIN role_permission rp ON rp.role_id = v.role_id AND rp.granted = true
+   JOIN permission p       ON p.id = rp.permission_id
+   WHERE v.uid = t.uid AND v.node_id = t.target AND v.application_id = t.app
+     AND p.code = t.perm AND p.application_id = t.app
+     AND NOT EXISTS (
+         SELECT 1 FROM chain c
+         JOIN role_permission rx ON rx.role_id = c.spec_id
+                                AND rx.granted = false
+                                AND rx.permission_id = p.id
+         WHERE c.root_id = v.role_id
+           AND c.node_id IN (SELECT node_id FROM anc))) AS effective,
+  t.attendu
+FROM (VALUES
+  (1, 'thomas.martin', '9200005', '2700013', 'A0', 'user.create',        '1 / 1+ / 1+'),
+  (2, 'thomas.martin', '9200005', '2700015', 'A0', 'user.create',        '0 / 0 / 0'),
+  (3, 'thomas.martin', '2672756', '2672756', 'A2', 'stocklist.download', '1 / 1 / 0'),
+  (4, 'thomas.martin', '2672749', '2672749', 'A2', 'stocklist.download', '1 / 1 / 1'),
+  (5, 'thomas.martin', '2672749', '2672749', 'A2', 'customer.edit',      '1 / 1 / 0'),
+  (6, 'max.walker',    '2700013', '2700013', 'A3', 'request.approve',    '1 / 1 / 1')
+) AS t(cas, uid, ctx, target, app, perm, attendu)
+ORDER BY t.cas;
+
+
+
 # Étape 1 : le socle commun dans PingAuthorize
 
 Objectif : créer les 5 attributs de requête, puis les 3 requêtes SQL et leurs 3 attributs. On ne touche ni aux politiques ni à canCreateUser.
