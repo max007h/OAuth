@@ -1,3 +1,151 @@
+Voici toutes les étapes, dans l'ordre. Les étapes 1 à 6 se font sans attendre. Pour l'étape 7, il faut d'abord faire la petite recherche indiquée.
+
+## 1. application.yml
+
+Dans le bloc `puma.authz.pdp` existant, ajoute les deux dernières lignes :
+
+```yaml
+puma:
+  authz:
+    pdp:
+      # lignes existantes inchangées (base-url, domain, service, action...)
+      admin-application: A0
+      admin-permission: user.create
+```
+
+Volontairement, il n'y a **pas de valeur par défaut** dans le code. Si une ligne manque, le backend refuse de démarrer, au lieu d'envoyer une valeur silencieuse.
+
+## 2. PingAuthorizeDecisionService
+
+**a. Les deux champs**, à côté des autres `@Value` :
+
+```java
+@Value("${puma.authz.pdp.admin-application}")
+private String adminApplication;
+
+@Value("${puma.authz.pdp.admin-permission}")
+private String adminPermission;
+```
+
+**b. La signature**, où le 4e paramètre change de nom :
+
+```java
+public Map<String, Boolean> canAssign(String managerUid, List<String> nodeIds,
+                                      String bearerToken, String contextNode) {
+```
+
+**c. Les attributs**, en remplacement des lignes 105 à 112 :
+
+```java
+Map<String, Object> attributes = new LinkedHashMap<>();
+attributes.put("uid", managerUid);
+attributes.put("contextNode", contextNode);
+attributes.put("targetNode", nodeId);
+attributes.put("targetApplication", adminApplication);
+attributes.put("permission", adminPermission);
+```
+
+**d. Le println** de la ligne 120 :
+
+```java
+System.out.println(String.format(
+        "Preparing Data for PDP with uid:%s contextNode:%s targetNode:%s app:%s permission:%s",
+        managerUid, contextNode, nodeId, adminApplication, adminPermission));
+```
+
+**e. La lecture de la décision**, lignes 157 à 159. On retire le repli `authorized`, qui ne fonctionnait jamais :
+
+```java
+boolean permit = "PERMIT".equalsIgnoreCase(decision.path("decision").asText());
+```
+
+## 3. AuthorizationDecisionService (l'interface)
+
+Renomme le 4e paramètre : `String application` devient `String contextNode`.
+
+## 4. DelegationService
+
+Même renommage dans `canAssign`, et dans l'appel qu'elle fait à l'interface.
+
+## 5. LocalDecisionService
+
+Même renommage. Si la méthode **utilise** `application` dans son calcul, ne change rien d'autre et envoie-la-moi.
+
+## 6. UserProvisioningService.checkDelegation
+
+```java
+private void checkDelegation(CreateUserRequest req, String managerUid,
+                             String bearerToken, String contextNode) {
+    if (contextNode == null || contextNode.isBlank()) {
+        throw new SecurityException("Aucun contexte selectionne");
+    }
+    // ... construction de nodes et distinct inchangée ...
+    Map<String, Boolean> decisions =
+            delegationService.canAssign(managerUid, distinct, bearerToken, contextNode);
+    // ... boucle de contrôle inchangée ...
+}
+```
+
+Supprime la ligne `String application = req.assignments().get(0).application(); // TODO`.
+
+## 7. Faire remonter contextNode jusqu'au contrôleur
+
+D'abord la recherche :
+
+```bash
+grep -rn "checkDelegation(\|createOrUpdate\|canAssign(" src/main/java/ src/test/java/
+```
+
+Puis le principe, à appliquer à ce que la recherche montre :
+- la **méthode publique** de UserProvisioningService qui appelle checkDelegation reçoit un paramètre `String contextNode` en plus, et le transmet ;
+- le **contrôleur** (POST /api/users) l'appelle avec `JwtSubject.node(token)`.
+
+Si la recherche montre autre chose que ce schéma, envoie-moi le résultat avant de modifier.
+
+## 8. Le test d'intégration
+
+Si PingAuthorizePdpIntegrationTest apparaît dans la recherche, son 4e argument est sans doute une application. Remplace-le par un noeud de contexte, par exemple `"9200005"`.
+
+## 9. Compilation
+
+```bash
+mvn compile
+```
+
+Toute erreur restante indique un appel oublié : le compilateur te dit lequel.
+
+## 10. Tests
+
+Redémarre le backend, connecte-toi avec thomas.martin et choisis le contexte **Roller 5 (9200005)**.
+
+**Test A, depuis l'écran** : crée un utilisateur sur un noeud du contexte, par exemple 2700013. Attendu : **200**. Dans la console, la ligne « Preparing Data for PDP » doit afficher `contextNode:9200005`.
+
+**Test B, avec curl** : un noeud hors contexte, que l'écran ne propose pas. Récupère le token de contexte dans le navigateur (outils de développement, Application, puis Session Storage, puis access_token) :
+
+```bash
+curl -s -w "\n%{http_code}\n" -X POST http://localhost:8081/api/users \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"uid":"test.horscontexte","firstName":"Test","lastName":"Hors","email":"test.hc@example.com",
+       "assignments":[{"application":"A0","role":"R22","node":"2700015"}]}'
+```
+
+Attendu : **403**, avec un message de noeud hors périmètre.
+
+Un point à garder en tête : tant que les anciennes politiques (Delegation, DelegationV2) sont actives, un résultat inattendu peut venir d'elles. Si le test B ne donne pas 403, envoie-moi la ligne « PDP raw response » de la console.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 curl -sk -X POST https://localhost:7443/governance-engine \
   -H "Content-Type: application/json" \
   -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign",
