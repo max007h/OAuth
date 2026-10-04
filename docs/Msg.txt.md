@@ -1,3 +1,7 @@
+System.out.println("TOKEN CONTEXTE (debug) : " + jwt.getTokenValue());
+
+
+
 Oui, ça marche, à une condition : **la clé de la mémoire doit être le token de login lui-même** (son identifiant `jti`), et non le `sub` de l'utilisateur. Un token de login correspond alors à un seul contexte, et choisir une autre entité remplace le précédent.
 
 Deux comportements à connaître :
