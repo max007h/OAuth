@@ -1,5 +1,6 @@
 uid = '${tepp.subject}' AND node_id = '${tepp.node}' AND application_id = 'A3'
 
+#this.get("context.HttpRequest").getObjectValue().getParameter("node")
 
 
 #r = #this.get("ds.pumaRoles.role_id"), #r != null && #r.getValue() != null
