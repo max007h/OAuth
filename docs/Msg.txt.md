@@ -1,3 +1,32 @@
+private void checkDelegation(CreateUserRequest req, String managerUid,
+                             String bearerToken, String contextNode) {
+    if (contextNode == null || contextNode.isBlank()) {
+        throw new SecurityException("Aucun contexte selectionne");
+    }
+    List<String> nodes = new ArrayList<>();
+    req.assignments().forEach(a -> nodes.add(a.node()));
+    if (req.scopes() != null) {
+        addAll(nodes, req.scopes().opScope());
+        addAll(nodes, req.scopes().opScopeExclude());
+        addAll(nodes, req.scopes().reportScope());
+    }
+    List<String> distinct = nodes.stream().distinct().toList();
+    Map<String, Boolean> decisions =
+            delegationService.canAssign(managerUid, distinct, bearerToken, contextNode);
+
+    for (String node : distinct) {
+        if (!Boolean.TRUE.equals(decisions.get(node))) {
+            throw new SecurityException("Noeud hors du perimetre du manager : " + node);
+        }
+    }
+}
+
+
+
+
+
+
+
 Voici toutes les étapes, dans l'ordre. Les étapes 1 à 6 se font sans attendre. Pour l'étape 7, il faut d'abord faire la petite recherche indiquée.
 
 ## 1. application.yml
