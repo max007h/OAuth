@@ -1,3 +1,17 @@
+@org.springframework.beans.factory.annotation.Value("${rataweb.application-id}")
+private String applicationId;
+
+
+if (jwt.getAudience() == null || !jwt.getAudience().contains(applicationId)) {
+    log.warn("Token de contexte sans audience {} : refusé", applicationId);
+    contexts.remove(key(login));
+    return Optional.empty();
+}
+
+
+
+
+
 docker ps --format '{{.Names}}' | grep -i federate
 docker exec NOM_DU_CONTENEUR tail -150 /opt/out/instance/log/server.log | grep -i -E "token|exchange|processor|audience"
 
