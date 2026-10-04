@@ -1,3 +1,7 @@
+docker ps --format '{{.Names}}' | grep -i federate
+docker exec NOM_DU_CONTENEUR tail -150 /opt/out/instance/log/server.log | grep -i -E "token|exchange|processor|audience"
+
+
 curl -sk -u "rataweb-backend:$RATAWEB_CLIENT_SECRET" https://localhost:9031/as/token.oauth2 \
   -d grant_type=urn:ietf:params:oauth:grant-type:token-exchange \
   -d subject_token="$LOGIN" \
