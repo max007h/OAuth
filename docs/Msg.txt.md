@@ -1,3 +1,139 @@
+# Étape 1 : le socle commun dans PingAuthorize
+
+Objectif : créer les 5 attributs de requête, puis les 3 requêtes SQL et leurs 3 attributs. On ne touche ni aux politiques ni à canCreateUser.
+
+## 1.1 Vérifications préalables dans pgAdmin
+
+```sql
+-- Colonnes réelles de la vue
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'puma_user_node_roles' ORDER BY ordinal_position;
+
+-- Application de chaque permission de test
+SELECT id, code, application_id FROM permission
+WHERE code IN ('user.create', 'stocklist.download', 'customer.edit', 'request.approve');
+```
+
+Attendu : la vue expose au moins uid, node_id, role_id, application_id. Note l'application de stocklist.download, elle servira aux tests.
+
+## 1.2 Les trois requêtes, à tester d'abord dans pgAdmin
+
+Je n'ai pas le texte des requêtes de la section 5 du plan. Si tu les as, garde-les. Sinon, voici les miennes, écrites sur le schéma du contexte et **pas encore exécutées**. Les paramètres sont notés `:uid` et ainsi de suite. Dans pgAdmin, remplace-les par des valeurs.
+
+**targetInContext** : la cible est-elle le contexte ou un de ses descendants ?
+
+```sql
+WITH RECURSIVE sub AS (
+    SELECT CAST(:contextNode AS varchar) AS node_id
+  UNION
+    SELECT np.node_id FROM node_parent np JOIN sub s ON np.parent_id = s.node_id
+)
+SELECT COUNT(*) AS total FROM sub WHERE node_id = :targetNode;
+```
+
+**grantingRoles** : rôles globaux de l'utilisateur sur la cible qui accordent la permission.
+
+```sql
+SELECT COUNT(DISTINCT v.role_id) AS total
+FROM puma_user_node_roles v
+JOIN role_permission rp ON rp.role_id = v.role_id AND rp.granted = true
+JOIN permission p       ON p.id = rp.permission_id
+WHERE v.uid = :uid
+  AND v.node_id = :targetNode
+  AND v.application_id = :targetApplication
+  AND p.code = :permission;
+```
+
+**effectiveRoles** : la même chose, en excluant les rôles dont une spécialisation, placée sur la cible ou un de ses ancêtres, retire la permission.
+
+```sql
+WITH RECURSIVE anc AS (
+    SELECT CAST(:targetNode AS varchar) AS node_id
+  UNION
+    SELECT np.parent_id FROM node_parent np JOIN anc a ON np.node_id = a.node_id
+),
+chain AS (
+    SELECT r.id AS spec_id, r.parent_role_id AS root_id, r.node_id
+    FROM app_role r WHERE r.parent_role_id IS NOT NULL
+  UNION
+    SELECT c.spec_id, p.parent_role_id, c.node_id
+    FROM chain c JOIN app_role p ON p.id = c.root_id
+    WHERE p.parent_role_id IS NOT NULL
+)
+SELECT COUNT(DISTINCT v.role_id) AS total
+FROM puma_user_node_roles v
+JOIN role_permission rp ON rp.role_id = v.role_id AND rp.granted = true
+JOIN permission p       ON p.id = rp.permission_id
+WHERE v.uid = :uid
+  AND v.node_id = :targetNode
+  AND v.application_id = :targetApplication
+  AND p.code = :permission
+  AND NOT EXISTS (
+      SELECT 1
+      FROM chain c
+      JOIN role_permission rx ON rx.role_id = c.spec_id
+                             AND rx.granted = false
+                             AND rx.permission_id = p.id
+      WHERE c.root_id = v.role_id
+        AND c.node_id IN (SELECT node_id FROM anc)
+  );
+```
+
+La CTE chain relie chaque spécialisation à tous ses ancêtres de rôle. R18 est donc rattaché à R17 et à R13. Le retrait de R18 sur 2672756 s'applique ainsi au rôle global R13.
+
+**Résultats attendus** (application X = celle relevée en 1.1) :
+
+| Requête | uid | contexte | cible | appli / permission | Attendu |
+|---|---|---|---|---|---|
+| targetInContext | | 9200005 | 2700013 | | 1 |
+| targetInContext | | 9200005 | 2700015 | | 0 |
+| grantingRoles | thomas.martin | | 2672756 | X / stocklist.download | 1 |
+| effectiveRoles | thomas.martin | | 2672756 | X / stocklist.download | 0 |
+| effectiveRoles | thomas.martin | | 2672749 | X / stocklist.download | 1 |
+| effectiveRoles | thomas.martin | | 2672749 | X / customer.edit | 0, si R13 accorde P17 |
+| grantingRoles | thomas.martin | | 2700013 | A0 / user.create | 1 ou plus |
+
+Si une ligne diffère, envoie-moi le résultat avant d'aller plus loin.
+
+## 1.3 Attributs de requête (Trust Framework, Attributes)
+
+Crée-les en type String, avec un resolver de type Request, sous un dossier PUMA.Request :
+
+uid, contextNode, targetNode, targetApplication, permission
+
+Si canCreateUser utilise déjà un attribut uid ou targetNode, **réutilise-le** au lieu d'en créer un doublon.
+
+## 1.4 Trois services SQL (Trust Framework, Services)
+
+Duplique le service canCreateUser pour en reprendre la connexion et la syntaxe exacte des paramètres. Je ne la connais pas, donc reprends celle qu'il utilise. Crée ensuite :
+- PUMA.TargetInContext
+- PUMA.GrantingRoles
+- PUMA.EffectiveRoles
+
+Chacun contient la requête validée en 1.2, avec les paramètres liés aux attributs de 1.3.
+
+## 1.5 Trois attributs calculés
+
+Sur le modèle de canCreateUserDB : resolver de type Service, value processor JSON Path `$[0].total`, type Number.
+- targetInContextDB, sur PUMA.TargetInContext
+- grantingRolesDB, sur PUMA.GrantingRoles
+- effectiveRolesDB, sur PUMA.EffectiveRoles
+
+## Fin de l'étape 1
+
+Envoie-moi :
+1. les résultats du tableau 1.2 ;
+2. une photo du service canCreateUser (requête et paramètres), pour vérifier la syntaxe.
+
+L'étape 2 portera sur la politique Assignation et ses règles nommées.
+
+
+
+
+
+
+
+
 Following our discussions on the PUMA POC, I would like to get your decision on one point related to role specialization.
 
 As specified, a specialization can only remove entitlements from a global role, never add them. This works as intended today. However, there is one case worth deciding on explicitly: when a new permission is later added to a global role, it automatically applies to every node where that role is assigned, including nodes where a specialization exists.
