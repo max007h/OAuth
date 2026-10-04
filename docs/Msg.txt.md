@@ -1,3 +1,248 @@
+Oui, ça marche, à une condition : **la clé de la mémoire doit être le token de login lui-même** (son identifiant `jti`), et non le `sub` de l'utilisateur. Un token de login correspond alors à un seul contexte, et choisir une autre entité remplace le précédent.
+
+Deux comportements à connaître :
+- **Un onglet ouvert normalement** refait son propre login (transparent grâce à la session SSO de PingFederate). Il a donc son propre token de login, et son propre contexte : pas d'interférence.
+- **Un onglet dupliqué** partage le même token de login, donc le même contexte : le dernier choix l'emporte dans les deux onglets. C'est acceptable pour la démo.
+
+Voici les modifications.
+
+## Backend
+
+### `service/ContextResolver.java` (remplace tout)
+
+```java
+package com.poc.banking.service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * BFF : un token de login correspond à un seul token de contexte, gardé dans ce backend.
+ * Clé : jti du token de login vérifié.
+ */
+@Service
+public class ContextResolver {
+
+    private static final Logger log = LoggerFactory.getLogger(ContextResolver.class);
+
+    private record Entry(Jwt context, Instant loginExpiresAt) { }
+
+    private final TokenExchangeService tokenExchange;
+    private final JwtDecoder jwtDecoder;
+    private final Map<String, Entry> contexts = new ConcurrentHashMap<>();
+
+    public ContextResolver(TokenExchangeService tokenExchange, JwtDecoder jwtDecoder) {
+        this.tokenExchange = tokenExchange;
+        this.jwtDecoder = jwtDecoder;
+    }
+
+    /** Choix d'une entité : remplace le contexte précédent de ce token de login. */
+    public Optional<Jwt> select(Jwt login, String nodeId) {
+        purgeExpiredLogins();
+        Optional<Jwt> context = tokenExchange.exchange(login.getTokenValue(), nodeId)
+                .map(jwtDecoder::decode);
+        if (context.isPresent()) {
+            Jwt jwt = context.get();
+            contexts.put(key(login), new Entry(jwt, login.getExpiresAt()));
+            log.info("Token exchange OK : sub={} node={} roles={} client_id={} expire={}",
+                    jwt.getSubject(), jwt.getClaimAsString("node"), jwt.getClaimAsStringList("roles"),
+                    jwt.getClaimAsString("client_id"), jwt.getExpiresAt());
+        } else {
+            contexts.remove(key(login));
+            log.info("Token exchange refusé par PingFederate : sub={} node={}", login.getSubject(), nodeId);
+        }
+        return context;
+    }
+
+    /** Contexte courant de ce token de login, renouvelé s'il a expiré. Vide si aucune entité choisie. */
+    public Optional<Jwt> current(Jwt login) {
+        Entry entry = contexts.get(key(login));
+        if (entry == null) {
+            return Optional.empty();
+        }
+        Jwt context = entry.context();
+        if (context.getExpiresAt() != null
+                && context.getExpiresAt().isAfter(Instant.now().plusSeconds(30))) {
+            return Optional.of(context);
+        }
+        return select(login, context.getClaimAsString("node"));
+    }
+
+    private static String key(Jwt login) {
+        return login.getId() != null ? login.getId() : login.getTokenValue();
+    }
+
+    private void purgeExpiredLogins() {
+        Instant now = Instant.now();
+        contexts.values().removeIf(e -> e.loginExpiresAt() != null && e.loginExpiresAt().isBefore(now));
+    }
+}
+```
+
+### `controller/ContextController.java`
+
+Dans `select`, remplace `resolver.resolve(token.getToken(), req.nodeId())` par :
+
+```java
+resolver.select(token.getToken(), req.nodeId())
+```
+
+### `controller/ContractController.java` (remplace tout)
+
+```java
+package com.poc.banking.controller;
+
+import com.poc.banking.dto.Contract;
+import com.poc.banking.repository.ContractRepository;
+import com.poc.banking.service.ContextResolver;
+import com.poc.banking.service.PumaClient;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+import java.util.Optional;
+
+@RestController
+@RequestMapping("/api/contracts")
+public class ContractController {
+
+    private final ContractRepository contracts;
+    private final ContextResolver resolver;
+    private final PumaClient puma;
+
+    @Value("${rataweb.portal-client-id}")
+    private String portalClientId;
+
+    public ContractController(ContractRepository contracts, ContextResolver resolver, PumaClient puma) {
+        this.contracts = contracts;
+        this.resolver = resolver;
+        this.puma = puma;
+    }
+
+    @GetMapping
+    public ResponseEntity<?> list(JwtAuthenticationToken token) {
+        if (!isPortalToken(token)) {
+            return error(403, "Token de login Rataweb attendu");
+        }
+        Optional<Jwt> context = resolver.current(token.getToken());
+        if (context.isEmpty()) {
+            return noContext();
+        }
+        String node = context.get().getClaimAsString("node");
+        if (!puma.isPermitted(context.get().getTokenValue(), "contract.read", node)) {
+            return error(403, "Vous n'avez pas le droit de consulter les contrats");
+        }
+        return ResponseEntity.ok(contracts.findByNode(node));
+    }
+
+    @PostMapping("/{id}/approve")
+    public ResponseEntity<?> approve(@PathVariable long id, JwtAuthenticationToken token) {
+        if (!isPortalToken(token)) {
+            return error(403, "Token de login Rataweb attendu");
+        }
+        Optional<Jwt> context = resolver.current(token.getToken());
+        if (context.isEmpty()) {
+            return noContext();
+        }
+        String node = context.get().getClaimAsString("node");
+        Optional<Contract> contract = contracts.findByNodeAndId(node, id);
+        if (contract.isEmpty()) {
+            return error(404, "Contrat introuvable");
+        }
+        if (!puma.isPermitted(context.get().getTokenValue(), "contract.approve", contract.get().nodeId())) {
+            return error(403, "Vous ne pouvez pas approuver ce contrat");
+        }
+        if (!contracts.approve(id, token.getToken().getSubject())) {
+            return error(409, "Ce contrat est déjà approuvé");
+        }
+        return ResponseEntity.ok(Map.of(
+                "message", "Contrat approuvé",
+                "contract", contracts.findByNodeAndId(node, id).orElseThrow()));
+    }
+
+    private boolean isPortalToken(JwtAuthenticationToken token) {
+        return portalClientId.equals(token.getToken().getClaimAsString("client_id"));
+    }
+
+    /** Aucun contexte pour ce token de login (jamais choisi, ou backend redémarré). */
+    private static ResponseEntity<Map<String, String>> noContext() {
+        return ResponseEntity.status(409).body(Map.of(
+                "code", "no_context",
+                "message", "Choisissez d'abord une entité"));
+    }
+
+    private static ResponseEntity<Map<String, String>> error(int status, String message) {
+        return ResponseEntity.status(status).body(Map.of("message", message));
+    }
+}
+```
+
+J'ai mis le package `com.poc.banking`, comme dans ton projet.
+
+## Front
+
+### `core/contract.service.ts` : méthode `call`
+
+Plus d'en-tête `X-Context-Node`. Si le backend n'a plus de contexte (après un redémarrage, par exemple), le front oublie le sien :
+
+```typescript
+private async call(path: string, method: string): Promise<any> {
+  const resp = await fetch(`${CONFIG.ratawebApi}${path}`, {
+    method,
+    headers: { Authorization: 'Bearer ' + this.auth.loginToken() }
+  });
+  const body = await resp.json().catch(() => ({}));
+  if (resp.status === 401) {
+    throw new Error('Session expirée, reconnectez-vous');
+  }
+  if (body.code === 'no_context') {
+    this.auth.clearContext();
+  }
+  if (!resp.ok) {
+    throw new Error(body.message ?? `Erreur ${resp.status}`);
+  }
+  return body;
+}
+```
+
+### `pages/home/home.component.ts`
+
+Dans les deux `catch`, de `loadContracts` et de `approve`, ajoute après `this.error = e.message;` :
+
+```typescript
+if (!this.context.currentNode()) {
+  await this.openPicker();
+}
+```
+
+Ainsi, si le backend a perdu le contexte, la pop-up se rouvre d'elle-même.
+
+## Ce qui ne change pas
+
+`/api/context/select` reste l'unique moment du token exchange. Le front garde `rw_context_node` et `rw_context_roles` pour l'affichage seulement : le backend ne les lit plus du tout. Tu peux aussi retirer `X-Context-Node` de la liste des en-têtes autorisés dans SecurityConfig ; ce n'est pas obligatoire.
+
+
+
+
+
+
+
+
+
+
+
+
 private void checkDelegation(CreateUserRequest req, String managerUid,
                              String bearerToken, String contextNode) {
     if (contextNode == null || contextNode.isBlank()) {
