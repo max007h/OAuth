@@ -1,3 +1,16 @@
+curl -sk -X POST https://localhost:7443/governance-engine \
+  -H "Content-Type: application/json" \
+  -d '{"domain":"PUMA","service":"PUMA.Administration","action":"assign",
+       "attributes":{"uid":"thomas.martin","contextNode":"9200005",
+       "targetNode":"2700013","targetApplication":"A0","permission":"user.create"}}'
+
+
+
+
+
+
+
+
 La syntaxe est `{{nomAttribut}}`, sans guillemets. Voici les trois services à créer.
 
 ## Création de chaque service
