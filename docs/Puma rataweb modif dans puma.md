@@ -1,3 +1,13 @@
+SELECT a.id, a.role_id, r.code, r.application_id, a.node_id, a.created_by
+FROM assignment a
+JOIN puma_user u ON u.id = a.user_id
+JOIN app_role r  ON r.id = a.role_id
+WHERE u.uid = 'julia.weber'
+ORDER BY a.node_id, a.role_id;
+
+
+
+
 @org.springframework.beans.factory.annotation.Value("${rataweb.application-id}")
 private String applicationId;
 
