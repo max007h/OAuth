@@ -1,3 +1,18 @@
+BEGIN;
+INSERT INTO node_application (node_id, application_id)
+VALUES ('9100002', 'A0') ON CONFLICT (node_id, application_id) DO NOTHING;
+
+INSERT INTO assignment (user_id, role_id, node_id, created_by)
+SELECT u.id, 'R21', '9100002', 'script.demo' FROM puma_user u WHERE u.uid = 'thomas.martin'
+ON CONFLICT (user_id, role_id, node_id) DO NOTHING;
+
+SELECT node_id, role_id FROM puma_user_node_roles
+WHERE uid = 'thomas.martin' AND node_id = '9100002';   -- attendu : R21
+COMMIT;
+
+
+
+
 SELECT a.id, a.role_id, r.code, r.application_id, a.node_id, a.created_by
 FROM assignment a
 JOIN puma_user u ON u.id = a.user_id
