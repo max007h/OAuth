@@ -314,3 +314,148 @@ Les permissions sont simplifiées pour l'exemple et seront alignées sur le cata
 
 
 
+
+
+# PUMA : fonctionnement du serveur d'autorisation et du PDP
+
+## 1. Serveur d'autorisation et PDP
+
+Le rôle de chaque composant est séparé. PingFederate, le serveur d'autorisation, authentifie l'utilisateur et fabrique le token. PingAuthorize, le PDP, prend les décisions d'accès. Les deux ne communiquent pas entre eux : ils lisent la même source de vérité, les affectations stockées en base.
+
+Après l'authentification, l'utilisateur reçoit un token de login qui ne contient que son identité. Il choisit ensuite le noeud sur lequel il veut travailler. Le backend demande alors à PingFederate un token de contexte par un token exchange. PingFederate lit en base les rôles de l'utilisateur sur ce noeud, héritage compris. S'il n'en trouve aucun, il refuse. Sinon, il signe un token qui contient l'utilisateur, le noeud, les rôles, l'audience et une durée de validité.
+
+Le token sert au contrôle gros grain : signature, audience, présence d'un noeud et de rôles. Il ne contient aucune permission. La décision fine est demandée au PDP au moment de l'action, sur l'état réel de la base, en deux contrôles : la cible est-elle dans le périmètre du noeud choisi, et un rôle hérité sur la cible porte-t-il la permission demandée.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Manager
+    participant F as Front PUMA
+    participant B as Backend PUMA
+    participant PF as PingFederate (serveur d'autorisation)
+    participant PD as PingDirectory
+    participant DB as PostgreSQL
+    participant PAZ as PingAuthorize (PDP)
+
+    rect rgb(235, 242, 250)
+    Note over U,PAZ: Authentification
+    U->>PF: Login (client puma-portal, PKCE)
+    PF->>PD: Vérifie les identifiants
+    PD-->>PF: Identité
+    PF-->>F: Token de login, identité seule
+    end
+
+    rect rgb(240, 248, 236)
+    Note over U,PAZ: Choix du contexte et fabrication du token
+    F->>B: Quels noeuds pour cet utilisateur ?
+    B->>DB: Noeuds où il a au moins un rôle
+    B-->>F: Liste des noeuds
+    U->>F: Choisit son noeud de travail
+    F->>B: Noeud choisi
+    B->>PF: Token exchange (client puma-backend, noeud choisi)
+    PF->>DB: Rôles de l'utilisateur sur ce noeud, héritage compris
+    alt Aucun rôle sur ce noeud
+        PF-->>B: Refus
+    else Au moins un rôle
+        PF-->>B: Token de contexte signé (sub, noeud, rôles, audience, durée)
+    end
+    Note over B,PF: Le token porte le contexte et les rôles.<br/>Il ne porte aucune permission.
+    end
+
+    rect rgb(252, 246, 234)
+    Note over U,PAZ: Action et décision
+    U->>F: Action (par exemple créer un utilisateur)
+    F->>B: Requête avec le token de contexte
+    Note over B: Contrôle gros grain sur le token<br/>signature, audience, noeud et rôles présents
+    B->>PAZ: Puis-je ? (uid, noeud du contexte, noeud cible, application, permission)
+    PAZ->>DB: 1. La cible est-elle dans le périmètre ?
+    PAZ->>DB: 2. Un rôle hérité porte-t-il la permission ?
+    PAZ-->>B: PERMIT ou DENY, avec identifiant de décision et version des politiques
+    end
+
+    Note over PF,PAZ: PingFederate et PingAuthorize ne communiquent pas entre eux.<br/>Ils lisent la même source de vérité : les affectations en base.
+```
+
+## 2. Applications et PDP
+
+Une application partenaire, ici Rataweb, suit le même principe. L'utilisateur se connecte avec le client de l'application, choisit son noeud, et le backend de l'application obtient un token de contexte dont l'audience est celle de l'application.
+
+Pour chaque action métier, l'application contrôle le token, puis demande la décision en transmettant l'application, la permission, le noeud cible et les attributs métier utiles, comme le montant d'une demande. Le PDP vérifie le périmètre et la permission, puis applique les règles métier propres à l'application, par exemple un plafond de montant. L'application ne contient aucune règle d'autorisation : elle exécute ou refuse selon la réponse.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Utilisateur partenaire
+    participant FR as Front Rataweb
+    participant BR as Backend Rataweb
+    participant PF as PingFederate
+    participant BP as Backend PUMA
+    participant PAZ as PingAuthorize (PDP)
+    participant DB as PostgreSQL
+
+    rect rgb(240, 248, 236)
+    Note over U,DB: Connexion et contexte, même principe que PUMA
+    U->>PF: Login (client rataweb-portal, PKCE)
+    PF-->>FR: Token de login
+    FR->>BP: Noeuds de l'utilisateur pour l'application Rataweb
+    BP-->>FR: Liste des noeuds
+    U->>FR: Choisit son noeud
+    FR->>BR: Noeud choisi
+    BR->>PF: Token exchange (client rataweb-backend)
+    PF-->>BR: Token de contexte (audience Rataweb)
+    end
+
+    rect rgb(252, 246, 234)
+    Note over U,DB: Action métier et décision
+    U->>FR: Approuver une demande
+    FR->>BR: POST /requests/approve (montant)
+    Note over BR: Contrôle gros grain<br/>signature et audience Rataweb
+    BR->>BP: POST /api/decisions (application, permission, noeud cible, montant)
+    BP->>PAZ: Décision (uid, noeud du contexte, noeud cible, application, permission, montant)
+    PAZ->>DB: Périmètre et permission
+    Note over PAZ: Règles métier en plus, par exemple le plafond de montant
+    PAZ-->>BP: PERMIT ou DENY
+    BP-->>BR: Autorisé ou non
+    alt Autorisé
+        BR-->>FR: Action exécutée
+    else Refusé
+        BR-->>FR: 403
+    end
+    end
+
+    Note over BR,BP: Dans le POC, l'application passe par le backend PUMA pour joindre le PDP.<br/>En cible, elle peut passer par l'API Gateway, la décision reste la même.
+```
+
+## 3. Mise à jour des politiques du PDP
+
+Les politiques sont modifiées dans le Policy Editor de PingAuthorize, sur une branche. Chaque modification fait l'objet d'un commit qui conserve l'auteur, la date et un message. L'historique complet reste consultable et comparable.
+
+Une version livrable est un deployment package, construit à partir d'un commit précis et d'un noeud racine de politiques. Toutes les politiques sont regroupées sous un Policy Set racine unique, afin qu'un package contienne toujours l'ensemble des règles. Le package peut être soumis à approbation avant livraison, ce qui permet de séparer celui qui écrit la politique de celui qui la valide.
+
+Le package est ensuite déployé sur le PDP. Dans le POC, le PDP est embarqué et le package y est copié puis chargé par configuration. En production, ce déploiement passera par la chaîne de livraison habituelle, selon le mode retenu avec Ping. Chaque décision rendue indique l'identifiant du package qui l'a produite. Revenir en arrière consiste à redéployer le package précédent.
+
+## 4. Traçabilité des requêtes
+
+Chaque décision du PDP porte un identifiant unique, un horodatage, l'identifiant du package de politiques utilisé, les attributs reçus, la décision et le détail de l'évaluation, c'est-à-dire la politique et la règle qui ont joué. On peut donc expliquer après coup pourquoi une action a été autorisée ou refusée, et avec quelle version des règles.
+
+Le backend PUMA journalise chaque demande de décision avec l'utilisateur, le noeud, l'application, la permission et le résultat. En base, chaque affectation et chaque utilisateur créé conservent leur auteur et leur date de création. PingFederate journalise de son côté l'émission des tokens.
+
+Deux évolutions sont prévues pour la production : un identifiant de corrélation propagé de bout en bout, de l'application jusqu'au PDP, et la centralisation de ces journaux dans le SIEM.
+
+## 5. Déclarer les permissions d'une nouvelle application
+
+| Étape | Où | Quoi |
+|---|---|---|
+| 1 | Base PUMA | Déclarer l'application dans le catalogue |
+| 2 | Base PUMA | Déclarer ses permissions, une par action métier, avec un code explicite (par exemple quote.create, request.approve) |
+| 3 | Base PUMA | Créer ses rôles et leur attribuer des permissions |
+| 4 | Base PUMA | Ouvrir l'application sur les noeuds concernés de la hiérarchie |
+| 5 | PingFederate | Créer le client de connexion et le client de token exchange de l'application, avec une audience propre |
+| 6 | PingAuthorize | Ajouter la politique de l'application sous le Policy Set racine, avec ses éventuelles règles métier, puis livrer un nouveau package |
+| 7 | Application | Appeler la décision avant chaque action, avec l'application, la permission, le noeud cible et les attributs métier |
+
+Les affectations des utilisateurs se font ensuite dans PUMA, sans aucune modification de l'application ni du PDP. Une nouvelle API suit exactement le même parcours : ses opérations deviennent des permissions de l'application qui l'expose.
+
+
+
+
