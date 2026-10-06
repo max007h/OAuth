@@ -29,30 +29,30 @@ import java.util.Set;
 import java.util.logging.Logger;
 
 /**
- * Choix du noeud de travail après l'authentification, dans le parcours PingFederate.
- * Chaîné après HTMLFormAdapter. Renvoie subject et node au contrat de la politique.
+ * Lets the user pick a working node right after authentication, inside the PingFederate flow.
+ * Chained after HTMLFormAdapter. Returns subject and node to the policy contract.
  */
 public class NodeSelectionAdapter implements IdpAuthenticationAdapterV2 {
 
     private static final Logger LOG = Logger.getLogger(NodeSelectionAdapter.class.getName());
 
-    // Clés PingFederate, en littéral pour ne dépendre d'aucune constante du SDK
+    // PingFederate keys, kept as literals to avoid depending on SDK constants
     private static final String KEY_CHAINED = "com.pingidentity.adapter.input.parameter.chained.attributes";
     private static final String KEY_RESUME = "com.pingidentity.adapter.input.parameter.resume.path";
 
-    // Paramètres du formulaire et de la session
+    // Form and session parameters
     private static final String PARAM_NODE = "puma_node";
     private static final String PARAM_CSRF = "puma_csrf";
     private static final String SESSION_CSRF = "puma.node.selection.csrf";
 
-    // Application PUMA dans le catalogue
+    // PUMA application in the catalogue
     private static final String APPLICATION = "A0";
 
-    // Connexion PostgreSQL : surchargeable par variables d'environnement du conteneur.
-    // Valeurs par défaut A REPRENDRE du data store puma-postgres de PingFederate.
-    private static final String DB_URL = env("PUMA_DB_URL", "jdbc:postgresql://host.docker.internal:5432/A_COMPLETER");
-    private static final String DB_USER = env("PUMA_DB_USER", "A_COMPLETER");
-    private static final String DB_PASSWORD = env("PUMA_DB_PASSWORD", "A_COMPLETER");
+    // PostgreSQL connection, can be overridden by container environment variables.
+    // Default values TO BE COPIED from the PingFederate puma-postgres data store.
+    private static final String DB_URL = env("PUMA_DB_URL", "jdbc:postgresql://host.docker.internal:5432/TO_BE_SET");
+    private static final String DB_USER = env("PUMA_DB_USER", "TO_BE_SET");
+    private static final String DB_PASSWORD = env("PUMA_DB_PASSWORD", "TO_BE_SET");
 
     private static final String SQL_NODES =
             "SELECT DISTINCT v.node_id, n.label "
@@ -102,31 +102,31 @@ public class NodeSelectionAdapter implements IdpAuthenticationAdapterV2 {
 
         String uid = chainedUid(inParameters);
         if (uid == null) {
-            LOG.warning("[NodeSelectionAdapter] Aucun utilisateur dans les attributs chaînés. Cles recues : "
+            LOG.warning("[NodeSelectionAdapter] No user found in chained attributes. Received keys: "
                     + (inParameters == null ? "null" : inParameters.keySet()));
-            return failure("Utilisateur non identifie");
+            return failure("User not identified");
         }
 
         Map<String, String> nodes;
         try {
             nodes = loadNodes(uid);
         } catch (SQLException | ClassNotFoundException e) {
-            LOG.severe("[NodeSelectionAdapter] Lecture des noeuds impossible : " + e.getMessage());
-            return failure("Contextes indisponibles");
+            LOG.severe("[NodeSelectionAdapter] Unable to load nodes: " + e.getMessage());
+            return failure("Contexts unavailable");
         }
 
         if (nodes.isEmpty()) {
-            LOG.warning("[NodeSelectionAdapter] Aucun noeud pour " + uid);
-            return failure("Aucun contexte disponible pour cet utilisateur");
+            LOG.warning("[NodeSelectionAdapter] No node for " + uid);
+            return failure("No context available for this user");
         }
 
         String chosen = request.getParameter(PARAM_NODE);
 
-        // Premier passage : affichage de la page de choix
+        // First pass: render the selection page
         if (chosen == null) {
             String resume = resumePath(inParameters);
             if (resume == null) {
-                return failure("Chemin de reprise absent");
+                return failure("Missing resume path");
             }
             String csrf = newToken();
             request.getSession(true).setAttribute(SESSION_CSRF, csrf);
@@ -136,19 +136,19 @@ public class NodeSelectionAdapter implements IdpAuthenticationAdapterV2 {
             return inProgress;
         }
 
-        // Second passage : contrôle du jeton anti CSRF puis du noeud choisi
+        // Second pass: check the CSRF token, then the selected node
         HttpSession session = request.getSession(false);
         Object expected = session == null ? null : session.getAttribute(SESSION_CSRF);
         if (session != null) {
             session.removeAttribute(SESSION_CSRF);
         }
         if (expected == null || !expected.equals(request.getParameter(PARAM_CSRF))) {
-            LOG.warning("[NodeSelectionAdapter] Jeton CSRF invalide pour " + uid);
-            return failure("Requete invalide");
+            LOG.warning("[NodeSelectionAdapter] Invalid CSRF token for " + uid);
+            return failure("Invalid request");
         }
         if (!nodes.containsKey(chosen)) {
-            LOG.warning("[NodeSelectionAdapter] Noeud refuse pour " + uid + " : " + chosen);
-            return failure("Contexte non autorise");
+            LOG.warning("[NodeSelectionAdapter] Node rejected for " + uid + " : " + chosen);
+            return failure("Context not allowed");
         }
 
         Map<String, Object> attributes = new HashMap<>();
@@ -158,11 +158,11 @@ public class NodeSelectionAdapter implements IdpAuthenticationAdapterV2 {
         AuthnAdapterResponse ok = new AuthnAdapterResponse();
         ok.setAuthnStatus(AUTHN_STATUS.SUCCESS);
         ok.setAttributeMap(attributes);
-        LOG.info("[NodeSelectionAdapter] Contexte choisi par " + uid + " : " + chosen);
+        LOG.info("[NodeSelectionAdapter] Context selected by " + uid + " : " + chosen);
         return ok;
     }
 
-    // Identifiant de l'utilisateur authentifié par l'adapter précédent
+    // Identifier of the user authenticated by the previous adapter
     @SuppressWarnings("unchecked")
     private String chainedUid(Map<String, Object> inParameters) {
         if (inParameters == null) {
@@ -227,17 +227,17 @@ public class NodeSelectionAdapter implements IdpAuthenticationAdapterV2 {
         response.setHeader("Cache-Control", "no-store");
         response.setHeader("X-Frame-Options", "DENY");
         PrintWriter out = response.getWriter();
-        out.println("<!DOCTYPE html><html lang=\"fr\"><head><meta charset=\"UTF-8\">");
+        out.println("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\">");
         out.println("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-        out.println("<title>PUMA, choix du contexte</title>");
+        out.println("<title>PUMA, select your context</title>");
         out.println("<style>body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0}"
                 + ".card{max-width:420px;margin:80px auto;background:#fff;padding:32px;border-radius:8px;"
                 + "box-shadow:0 2px 8px rgba(0,0,0,.1)}h1{font-size:20px;margin:0 0 8px}"
                 + "p{color:#555;font-size:14px}select,button{width:100%;padding:10px;margin-top:12px;"
                 + "font-size:15px}button{background:#00754a;color:#fff;border:0;border-radius:4px;cursor:pointer}"
                 + "</style></head><body><div class=\"card\">");
-        out.println("<h1>Choix du contexte</h1>");
-        out.println("<p>Sélectionnez le noeud sur lequel vous souhaitez travailler.</p>");
+        out.println("<h1>Select your context</h1>");
+        out.println("<p>Choose the node you want to work on.</p>");
         out.println("<form method=\"post\" action=\"" + escape(resume) + "\">");
         out.println("<input type=\"hidden\" name=\"" + PARAM_CSRF + "\" value=\"" + escape(csrf) + "\">");
         out.println("<select name=\"" + PARAM_NODE + "\" required>");
@@ -245,7 +245,7 @@ public class NodeSelectionAdapter implements IdpAuthenticationAdapterV2 {
             out.println("<option value=\"" + escape(e.getKey()) + "\">"
                     + escape(e.getValue()) + " (" + escape(e.getKey()) + ")</option>");
         }
-        out.println("</select><button type=\"submit\">Continuer</button></form></div></body></html>");
+        out.println("</select><button type=\"submit\">Continue</button></form></div></body></html>");
         out.flush();
     }
 
@@ -275,6 +275,8 @@ public class NodeSelectionAdapter implements IdpAuthenticationAdapterV2 {
         return (v == null || v.isBlank()) ? fallback : v;
     }
 }
+
+        
 
 
 
