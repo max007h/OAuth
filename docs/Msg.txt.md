@@ -1,3 +1,35 @@
+BEGIN;
+
+INSERT INTO rataweb.contract (reference, customer_name, amount, status, node_id)
+SELECT
+  'CT-' || na.node_id || '-' || lpad(n::text, 2, '0'),
+  'Client ' || (1000 + floor(random() * 9000))::int,
+  round((5000 + random() * 25000)::numeric, 2),
+  'PENDING',
+  na.node_id
+FROM public.node_application na
+CROSS JOIN generate_series(1, 10) AS n
+WHERE na.application_id = 'A3'
+  AND na.node_id <> '2700013'
+  AND NOT EXISTS (SELECT 1 FROM rataweb.contract c WHERE c.node_id = na.node_id);
+
+SELECT node_id, count(*) AS nb, min(amount) AS min_montant, max(amount) AS max_montant
+FROM rataweb.contract
+GROUP BY node_id
+ORDER BY node_id;
+
+-- Si le contrôle est bon : COMMIT;  sinon : ROLLBACK;
+
+
+
+
+
+
+
+
+
+
+
 System.out.println("TOKEN CONTEXTE (debug) : " + jwt.getTokenValue());
 
 
