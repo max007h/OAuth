@@ -54,3 +54,79 @@ flowchart TD
 | Après l'affectation de R14 sur l'union | R13 spécialisé + R14 hérité complet | **Autorisé** |
 
 Les permissions indiquées sont simplifiées pour l'exemple et doivent être alignées sur le catalogue réel.
+
+
+
+
+# Solution : des rôles qui s'additionnent, sans retrait
+
+On ne retire plus aucune permission sur un noeud, il n'y a donc plus de spécialisation. Une affectation reste simple : un utilisateur, un rôle et un noeud. Elle vaut pour ce noeud et pour tous ses descendants.
+
+Chaque permission sensible est isolée dans un petit rôle à part. Dans l'exemple, le téléchargement du stock n'existe que dans STOCK_DOWNLOAD, et dans aucun autre rôle. Pour qu'un point de vente n'ait pas cette permission, il suffit de ne pas poser STOCK_DOWNLOAD au-dessus de lui et de le donner uniquement là où il est autorisé.
+
+Un rôle affecté plus tard sur l'union ne peut plus ramener le téléchargement sur Vendor 2, puisqu'il ne le contient pas. La restriction tient sans aucun mécanisme de retrait, et ce que l'on lit dans les affectations correspond exactement à ce que l'utilisateur obtient.
+
+## Illustration
+
+Même hiérarchie et même nouvelle affectation que dans le problème. En rouge, la nouvelle affectation. En bleu, les noeuds où le téléchargement du stock est accordé. En vert, le noeud protégé.
+
+```mermaid
+flowchart TD
+    NEW["Nouvelle affectation<br/>SALES_MANAGER pour thomas"]:::nouveau
+    U["Union JLR<br/>SELLER pour thomas"]
+    CA["Chaîne A<br/>hérite SELLER et SALES_MANAGER"]
+    CB["Chaîne B<br/>hérite SELLER et SALES_MANAGER<br/>+ STOCK_DOWNLOAD pour thomas"]:::download
+    V1["Vendor 1<br/>hérite SELLER et SALES_MANAGER<br/>+ STOCK_DOWNLOAD pour thomas"]:::download
+    V2["Vendor 2<br/>hérite SELLER et SALES_MANAGER<br/>aucun STOCK_DOWNLOAD"]:::protege
+    V3["Vendor 3<br/>hérite tout, dont STOCK_DOWNLOAD"]:::download
+    V4["Vendor 4<br/>hérite tout, dont STOCK_DOWNLOAD"]:::download
+    RES["Résultat sur Vendor 2<br/>stocklist.download reste refusé"]:::protege
+
+    NEW -. ajoutée sur .-> U
+    U --> CA
+    U --> CB
+    CA --> V1
+    CA --> V2
+    CB --> V3
+    CB --> V4
+    V2 -.-> RES
+
+    classDef nouveau fill:#FCEBEB,stroke:#A32D2D,color:#791F1F
+    classDef download fill:#E6F1FB,stroke:#185FA5,color:#0C447C
+    classDef protege fill:#EAF3DE,stroke:#3B6D11,color:#27500A
+```
+
+## Rôles et permissions
+
+| Rôle | Permissions |
+|---|---|
+| SELLER | quote.create, customer.edit |
+| SALES_MANAGER (nouvelle affectation) | request.approve |
+| STOCK_DOWNLOAD | stocklist.download |
+
+## Affectations de thomas
+
+| Rôle | Noeud | Portée |
+|---|---|---|
+| SELLER | Union JLR | Tous les points de vente de l'union |
+| SALES_MANAGER | Union JLR | Tous les points de vente de l'union (nouvelle affectation) |
+| STOCK_DOWNLOAD | Vendor 1 | Vendor 1 uniquement |
+| STOCK_DOWNLOAD | Chaîne B | Vendor 3, Vendor 4 et les futurs points de vente de la chaîne B |
+
+## Ce qui se passe sur Vendor 2
+
+| Étape | Rôles reçus sur Vendor 2 | stocklist.download |
+|---|---|---|
+| Avant | SELLER | Refusé |
+| Après l'affectation de SALES_MANAGER sur l'union | SELLER et SALES_MANAGER | Toujours refusé |
+
+## Ce que la solution demande
+
+Elle repose sur une règle de catalogue simple : une permission sensible n'appartient qu'à un seul rôle. Cette règle peut être contrôlée automatiquement en base.
+
+Un point de vente ajouté plus tard sous la chaîne A ne reçoit pas le téléchargement du stock tant qu'on ne le lui donne pas. Le comportement est donc fermé par défaut.
+
+Une restriction locale se traite en affectant le petit rôle plus bas, uniquement là où il est autorisé. Le coût dépend du nombre de restrictions qui existent réellement, chiffre à confirmer avec le métier.
+
+Les permissions sont simplifiées pour l'exemple et seront alignées sur le catalogue réel.
+
