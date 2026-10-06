@@ -1,3 +1,90 @@
+# Solution : restreindre en choisissant où l'on affecte
+
+On reprend exactement les mêmes données que dans le problème. R13 SELLER et R14 SALES_MANAGER contiennent tous les deux stocklist.download, et Vendor 2 ne doit pas l'avoir.
+
+Il n'y a plus de spécialisation ni de retrait. Une affectation reste simple : un utilisateur, un rôle et un noeud, valable pour ce noeud et tous ses descendants. Chaque rôle qui contient une permission à restreindre existe aussi en version limitée, sans cette permission.
+
+La règle est la suivante : au-dessus d'un noeud restreint, on n'affecte que la version limitée. La version complète est affectée plus bas, uniquement sur les noeuds où elle est autorisée. Vendor 2 ne reçoit donc la version complète ni de son parent ni de l'union.
+
+La nouvelle affectation de R14 suit la même règle que R13 : R14L sur l'union, R14 complet sur la chaîne B et sur Vendor 1. Le contenu de R14 ne change pas, seul l'endroit où on l'affecte compte.
+
+## Illustration
+
+Même hiérarchie et même nouvelle affectation que dans le problème. En rouge, la nouvelle affectation. En vert, le noeud protégé et le résultat.
+
+```mermaid
+flowchart TD
+    NEW["Nouvelle affectation<br/>R14L SALES_MANAGER_LIMITED pour thomas"]:::nouveau
+    U["Union JLR<br/>R13L SELLER_LIMITED pour thomas"]
+    CA["Chaîne A<br/>hérite R13L et R14L"]
+    CB["Chaîne B<br/>hérite R13L et R14L<br/>R13 et R14 affectés ici"]
+    V1["Vendor 1<br/>hérite R13L et R14L<br/>R13 et R14 affectés ici"]
+    V2["Vendor 2<br/>hérite R13L et R14L<br/><br/>aucun rôle avec stocklist.download"]:::protege
+    V3["Vendor 3<br/>hérite R13 et R14 de la chaîne B"]
+    V4["Vendor 4<br/>hérite R13 et R14 de la chaîne B"]
+    RES["Résultat sur Vendor 2<br/>stocklist.download reste refusé"]:::protege
+
+    NEW -. ajoutée sur .-> U
+    U --> CA
+    U --> CB
+    CA --> V1
+    CA --> V2
+    CB --> V3
+    CB --> V4
+    V2 -.-> RES
+
+    classDef nouveau fill:#FCEBEB,stroke:#A32D2D,color:#791F1F
+    classDef protege fill:#EAF3DE,stroke:#3B6D11,color:#27500A
+```
+
+Vendor 1 reçoit R13 et R14 par une affectation directe. Ils ne viennent pas de la chaîne A, sinon ils descendraient aussi sur Vendor 2.
+
+## Rôles et permissions
+
+| Code | Rôle | Permissions |
+|---|---|---|
+| R13 | SELLER | stocklist.download, quote.create, customer.edit |
+| R13L | SELLER_LIMITED | quote.create, customer.edit |
+| R14 | SALES_MANAGER | stocklist.download, request.approve |
+| R14L | SALES_MANAGER_LIMITED | request.approve |
+
+R13 et R14 sont identiques à ceux du problème. R13L et R14L sont des codes proposés.
+
+## Affectations de thomas
+
+| Rôle | Noeud | Portée |
+|---|---|---|
+| R13L | Union JLR | Tous les points de vente de l'union |
+| R13 | Chaîne B | Vendor 3, Vendor 4 et les futurs points de vente de la chaîne B |
+| R13 | Vendor 1 | Vendor 1 uniquement |
+| R14L | Union JLR | Tous les points de vente de l'union (nouvelle affectation) |
+| R14 | Chaîne B | Vendor 3, Vendor 4 et les futurs points de vente de la chaîne B (nouvelle affectation) |
+| R14 | Vendor 1 | Vendor 1 uniquement (nouvelle affectation) |
+
+## Ce qui se passe sur Vendor 2
+
+| Étape | Rôles reçus sur Vendor 2 | stocklist.download |
+|---|---|---|
+| Problème, après l'affectation de R14 | R13 spécialisé et R14 complet | Autorisé |
+| Solution, après l'affectation de R14 | R13L et R14L | Refusé |
+
+## Ce que la solution demande
+
+La restriction ne repose plus sur un mécanisme caché mais sur l'endroit où l'on affecte. Ce que l'on lit dans les affectations correspond exactement à ce que l'utilisateur obtient.
+
+En contrepartie, affecter par erreur R14 complet sur l'union redonnerait le téléchargement sur Vendor 2. Ce ne serait plus un contournement silencieux mais une affectation visible, que l'écran d'affectation peut signaler en affichant les noeuds concernés.
+
+Un point de vente ajouté plus tard sous la chaîne A ne reçoit que les versions limitées tant qu'on ne lui affecte pas les rôles complets. Le comportement est donc fermé par défaut.
+
+Le coût dépend du nombre de restrictions qui existent réellement, chiffre à confirmer avec le métier.
+
+Les permissions sont simplifiées pour l'exemple et seront alignées sur le catalogue réel.
+
+
+
+
+
+
 7# Problème : l'héritage contourne les restrictions
 
 ## En bref
