@@ -1,3 +1,9 @@
+uid = '${apc.subject}' AND node_id = '${apc.node}'
+
+
+
+
+
 package com.poc.adapter;
 
 import com.pingidentity.sdk.AuthnAdapterResponse;
