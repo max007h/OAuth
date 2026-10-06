@@ -137,3 +137,93 @@ Une restriction locale se traite en affectant le petit rôle plus bas, uniquemen
 Les permissions sont simplifiées pour l'exemple et seront alignées sur le catalogue réel.
 
 
+
+# Solution : restreindre en choisissant où l'on affecte
+
+On reprend exactement les mêmes données que dans le problème. R13 SELLER et R14 SALES_MANAGER contiennent tous les deux stocklist.download, et Vendor 2 ne doit pas l'avoir.
+
+Il n'y a plus de spécialisation et plus aucun retrait. Une affectation reste simple : un utilisateur, un rôle et un noeud, valable pour ce noeud et tous ses descendants. Chaque rôle qui contient la permission à restreindre existe aussi en version limitée, sans cette permission.
+
+La règle est la suivante : au-dessus d'un noeud restreint, on n'affecte que la version limitée. La version complète est affectée plus bas, uniquement sur les noeuds où elle est autorisée. Vendor 2 ne reçoit donc jamais la version complète, ni de son parent ni de l'union.
+
+Quand R14 est affecté à thomas, il suit la même règle que R13 : R14L sur l'union, R14 complet sur la chaîne B et sur Vendor 1. Le contenu de R14 ne change pas, seul l'endroit où on l'affecte compte.
+
+## Illustration
+
+En bleu foncé, les affectations de thomas. En bleu clair, les noeuds qui reçoivent les rôles complets. En vert, le noeud protégé.
+
+```mermaid
+flowchart TD
+    AU["Affectations sur l'union<br/>R13L et R14L (nouveau)"]:::affect
+    AB["Affectations sur la chaîne B<br/>R13 et R14 (nouveau)"]:::affect
+    A1["Affectations sur Vendor 1<br/>R13 et R14 (nouveau)"]:::affect
+    U["Union JLR"]
+    CA["Chaîne A<br/>hérite R13L et R14L"]
+    CB["Chaîne B<br/>hérite R13L et R14L<br/>reçoit R13 et R14"]:::download
+    V1["Vendor 1<br/>hérite R13L et R14L<br/>reçoit R13 et R14"]:::download
+    V2["Vendor 2<br/>hérite R13L et R14L uniquement"]:::protege
+    V3["Vendor 3<br/>hérite R13 et R14 de la chaîne B"]:::download
+    V4["Vendor 4<br/>hérite R13 et R14 de la chaîne B"]:::download
+    RES["Résultat sur Vendor 2<br/>stocklist.download reste refusé"]:::protege
+
+    AU -.-> U
+    AB -.-> CB
+    A1 -.-> V1
+    U --> CA
+    U --> CB
+    CA --> V1
+    CA --> V2
+    CB --> V3
+    CB --> V4
+    V2 -.-> RES
+
+    classDef affect fill:#B5D4F4,stroke:#185FA5,color:#042C53
+    classDef download fill:#E6F1FB,stroke:#185FA5,color:#0C447C
+    classDef protege fill:#EAF3DE,stroke:#3B6D11,color:#27500A
+```
+
+Vendor 1 reçoit R13 et R14 par une affectation directe. Ils ne viennent pas de la chaîne A, sinon ils descendraient aussi sur Vendor 2.
+
+## Rôles et permissions
+
+| Code | Rôle | Permissions |
+|---|---|---|
+| R13 | SELLER | stocklist.download, quote.create, customer.edit |
+| R13L | SELLER_LIMITED | quote.create, customer.edit |
+| R14 | SALES_MANAGER | stocklist.download, request.approve |
+| R14L | SALES_MANAGER_LIMITED | request.approve |
+
+R13 et R14 sont identiques à ceux du problème. R13L et R14L sont des codes proposés.
+
+## Affectations de thomas
+
+| Rôle | Noeud | Portée |
+|---|---|---|
+| R13L | Union JLR | Tous les points de vente de l'union |
+| R13 | Chaîne B | Vendor 3, Vendor 4 et les futurs points de vente de la chaîne B |
+| R13 | Vendor 1 | Vendor 1 uniquement |
+| R14L | Union JLR | Tous les points de vente de l'union (nouvelle affectation) |
+| R14 | Chaîne B | Vendor 3, Vendor 4 et les futurs points de vente de la chaîne B (nouvelle affectation) |
+| R14 | Vendor 1 | Vendor 1 uniquement (nouvelle affectation) |
+
+## Ce qui se passe sur Vendor 2
+
+| Étape | Rôles reçus sur Vendor 2 | stocklist.download |
+|---|---|---|
+| Avant | R13L | Refusé |
+| Après l'affectation de R14 | R13L et R14L | Toujours refusé |
+
+## Ce que la solution demande
+
+La restriction ne repose plus sur un mécanisme caché mais sur l'endroit où l'on affecte. Ce que l'on lit dans les affectations correspond exactement à ce que l'utilisateur obtient.
+
+En contrepartie, affecter par erreur R14 complet sur l'union redonnerait le téléchargement sur Vendor 2. Ce ne serait plus un contournement silencieux mais une affectation visible, que l'écran d'affectation peut signaler en affichant les noeuds concernés.
+
+Un point de vente ajouté plus tard sous la chaîne A ne reçoit que les versions limitées tant qu'on ne lui affecte pas les rôles complets. Le comportement est donc fermé par défaut.
+
+Le coût dépend du nombre de restrictions qui existent réellement, chiffre à confirmer avec le métier.
+
+Les permissions sont simplifiées pour l'exemple et seront alignées sur le catalogue réel.
+
+
+
