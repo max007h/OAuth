@@ -1,4 +1,4 @@
-# Problème : l'héritage contourne les restrictions
+7# Problème : l'héritage contourne les restrictions
 
 ## En bref
 
@@ -57,7 +57,6 @@ Les permissions indiquées sont simplifiées pour l'exemple et doivent être ali
 
 
 
-
 # Solution : des rôles qui s'additionnent, sans retrait
 
 On ne retire plus aucune permission sur un noeud, il n'y a donc plus de spécialisation. Une affectation reste simple : un utilisateur, un rôle et un noeud. Elle vaut pour ce noeud et pour tous ses descendants.
@@ -68,21 +67,27 @@ Un rôle affecté plus tard sur l'union ne peut plus ramener le téléchargement
 
 ## Illustration
 
-Même hiérarchie et même nouvelle affectation que dans le problème. En rouge, la nouvelle affectation. En bleu, les noeuds où le téléchargement du stock est accordé. En vert, le noeud protégé.
+Même hiérarchie et même nouvelle affectation que dans le problème. En rouge, la nouvelle affectation. En bleu foncé, les affectations directes de STOCK_DOWNLOAD, posées uniquement là où le téléchargement est autorisé. En bleu clair, les noeuds qui en bénéficient. En vert, le noeud protégé.
+
+STOCK_DOWNLOAD n'est pas affecté sur la chaîne A, sinon il descendrait aussi sur Vendor 2. Il est donc affecté directement sur Vendor 1, ce qui explique que Vendor 1 l'ait et pas son voisin Vendor 2.
 
 ```mermaid
 flowchart TD
     NEW["Nouvelle affectation<br/>SALES_MANAGER pour thomas"]:::nouveau
+    AB["Affectation directe<br/>STOCK_DOWNLOAD pour thomas"]:::affect
+    A1["Affectation directe<br/>STOCK_DOWNLOAD pour thomas"]:::affect
     U["Union JLR<br/>SELLER pour thomas"]
     CA["Chaîne A<br/>hérite SELLER et SALES_MANAGER"]
-    CB["Chaîne B<br/>hérite SELLER et SALES_MANAGER<br/>+ STOCK_DOWNLOAD pour thomas"]:::download
-    V1["Vendor 1<br/>hérite SELLER et SALES_MANAGER<br/>+ STOCK_DOWNLOAD pour thomas"]:::download
+    CB["Chaîne B<br/>hérite SELLER et SALES_MANAGER<br/>reçoit STOCK_DOWNLOAD"]:::download
+    V1["Vendor 1<br/>hérite SELLER et SALES_MANAGER<br/>reçoit STOCK_DOWNLOAD"]:::download
     V2["Vendor 2<br/>hérite SELLER et SALES_MANAGER<br/>aucun STOCK_DOWNLOAD"]:::protege
-    V3["Vendor 3<br/>hérite tout, dont STOCK_DOWNLOAD"]:::download
-    V4["Vendor 4<br/>hérite tout, dont STOCK_DOWNLOAD"]:::download
+    V3["Vendor 3<br/>hérite SELLER, SALES_MANAGER<br/>et STOCK_DOWNLOAD de la chaîne B"]:::download
+    V4["Vendor 4<br/>hérite SELLER, SALES_MANAGER<br/>et STOCK_DOWNLOAD de la chaîne B"]:::download
     RES["Résultat sur Vendor 2<br/>stocklist.download reste refusé"]:::protege
 
     NEW -. ajoutée sur .-> U
+    AB -. ajoutée sur .-> CB
+    A1 -. ajoutée sur .-> V1
     U --> CA
     U --> CB
     CA --> V1
@@ -92,6 +97,7 @@ flowchart TD
     V2 -.-> RES
 
     classDef nouveau fill:#FCEBEB,stroke:#A32D2D,color:#791F1F
+    classDef affect fill:#B5D4F4,stroke:#185FA5,color:#042C53
     classDef download fill:#E6F1FB,stroke:#185FA5,color:#0C447C
     classDef protege fill:#EAF3DE,stroke:#3B6D11,color:#27500A
 ```
@@ -129,4 +135,5 @@ Un point de vente ajouté plus tard sous la chaîne A ne reçoit pas le téléch
 Une restriction locale se traite en affectant le petit rôle plus bas, uniquement là où il est autorisé. Le coût dépend du nombre de restrictions qui existent réellement, chiffre à confirmer avec le métier.
 
 Les permissions sont simplifiées pour l'exemple et seront alignées sur le catalogue réel.
+
 
