@@ -1,3 +1,285 @@
+package com.poc.adapter;
+
+import com.pingidentity.sdk.AuthnAdapterResponse;
+import com.pingidentity.sdk.AuthnAdapterResponse.AUTHN_STATUS;
+import com.pingidentity.sdk.IdpAuthenticationAdapterV2;
+import org.sourceid.saml20.adapter.AuthnAdapterException;
+import org.sourceid.saml20.adapter.conf.Configuration;
+import org.sourceid.saml20.adapter.idp.authn.AuthnPolicy;
+import org.sourceid.saml20.adapter.idp.authn.IdpAuthnAdapterDescriptor;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.security.SecureRandom;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.logging.Logger;
+
+/**
+ * Choix du noeud de travail après l'authentification, dans le parcours PingFederate.
+ * Chaîné après HTMLFormAdapter. Renvoie subject et node au contrat de la politique.
+ */
+public class NodeSelectionAdapter implements IdpAuthenticationAdapterV2 {
+
+    private static final Logger LOG = Logger.getLogger(NodeSelectionAdapter.class.getName());
+
+    // Clés PingFederate, en littéral pour ne dépendre d'aucune constante du SDK
+    private static final String KEY_CHAINED = "com.pingidentity.adapter.input.parameter.chained.attributes";
+    private static final String KEY_RESUME = "com.pingidentity.adapter.input.parameter.resume.path";
+
+    // Paramètres du formulaire et de la session
+    private static final String PARAM_NODE = "puma_node";
+    private static final String PARAM_CSRF = "puma_csrf";
+    private static final String SESSION_CSRF = "puma.node.selection.csrf";
+
+    // Application PUMA dans le catalogue
+    private static final String APPLICATION = "A0";
+
+    // Connexion PostgreSQL : surchargeable par variables d'environnement du conteneur.
+    // Valeurs par défaut A REPRENDRE du data store puma-postgres de PingFederate.
+    private static final String DB_URL = env("PUMA_DB_URL", "jdbc:postgresql://host.docker.internal:5432/A_COMPLETER");
+    private static final String DB_USER = env("PUMA_DB_USER", "A_COMPLETER");
+    private static final String DB_PASSWORD = env("PUMA_DB_PASSWORD", "A_COMPLETER");
+
+    private static final String SQL_NODES =
+            "SELECT DISTINCT v.node_id, n.label "
+          + "FROM puma_user_node_roles v "
+          + "JOIN node n ON n.id = v.node_id "
+          + "WHERE v.uid = lower(?) AND v.application_id = ? "
+          + "ORDER BY n.label";
+
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    @Override
+    public IdpAuthnAdapterDescriptor getAdapterDescriptor() {
+        return new IdpAuthnAdapterDescriptor(this, "PUMA Node Selection Adapter",
+                Set.of("subject", "node"), false, null);
+    }
+
+    @Override
+    public void configure(Configuration configuration) {
+    }
+
+    @Override
+    public Map<String, Object> getAdapterInfo() {
+        return Collections.emptyMap();
+    }
+
+    @Override
+    @SuppressWarnings("rawtypes")
+    public Map lookupAuthN(HttpServletRequest req, HttpServletResponse resp,
+                           String partnerSpEntityId, AuthnPolicy policy, String resumePath)
+            throws AuthnAdapterException, IOException {
+        return Collections.emptyMap();
+    }
+
+    @Override
+    @SuppressWarnings("rawtypes")
+    public boolean logoutAuthN(Map authnIdentifiers, HttpServletRequest req,
+                               HttpServletResponse resp, String resumePath)
+            throws AuthnAdapterException, IOException {
+        return false;
+    }
+
+    @Override
+    public AuthnAdapterResponse lookupAuthN(HttpServletRequest request,
+                                            HttpServletResponse response,
+                                            Map<String, Object> inParameters)
+            throws AuthnAdapterException, IOException {
+
+        String uid = chainedUid(inParameters);
+        if (uid == null) {
+            LOG.warning("[NodeSelectionAdapter] Aucun utilisateur dans les attributs chaînés. Cles recues : "
+                    + (inParameters == null ? "null" : inParameters.keySet()));
+            return failure("Utilisateur non identifie");
+        }
+
+        Map<String, String> nodes;
+        try {
+            nodes = loadNodes(uid);
+        } catch (SQLException | ClassNotFoundException e) {
+            LOG.severe("[NodeSelectionAdapter] Lecture des noeuds impossible : " + e.getMessage());
+            return failure("Contextes indisponibles");
+        }
+
+        if (nodes.isEmpty()) {
+            LOG.warning("[NodeSelectionAdapter] Aucun noeud pour " + uid);
+            return failure("Aucun contexte disponible pour cet utilisateur");
+        }
+
+        String chosen = request.getParameter(PARAM_NODE);
+
+        // Premier passage : affichage de la page de choix
+        if (chosen == null) {
+            String resume = resumePath(inParameters);
+            if (resume == null) {
+                return failure("Chemin de reprise absent");
+            }
+            String csrf = newToken();
+            request.getSession(true).setAttribute(SESSION_CSRF, csrf);
+            renderPage(response, resume, nodes, csrf);
+            AuthnAdapterResponse inProgress = new AuthnAdapterResponse();
+            inProgress.setAuthnStatus(AUTHN_STATUS.IN_PROGRESS);
+            return inProgress;
+        }
+
+        // Second passage : contrôle du jeton anti CSRF puis du noeud choisi
+        HttpSession session = request.getSession(false);
+        Object expected = session == null ? null : session.getAttribute(SESSION_CSRF);
+        if (session != null) {
+            session.removeAttribute(SESSION_CSRF);
+        }
+        if (expected == null || !expected.equals(request.getParameter(PARAM_CSRF))) {
+            LOG.warning("[NodeSelectionAdapter] Jeton CSRF invalide pour " + uid);
+            return failure("Requete invalide");
+        }
+        if (!nodes.containsKey(chosen)) {
+            LOG.warning("[NodeSelectionAdapter] Noeud refuse pour " + uid + " : " + chosen);
+            return failure("Contexte non autorise");
+        }
+
+        Map<String, Object> attributes = new HashMap<>();
+        attributes.put("subject", uid.toLowerCase());
+        attributes.put("node", chosen);
+
+        AuthnAdapterResponse ok = new AuthnAdapterResponse();
+        ok.setAuthnStatus(AUTHN_STATUS.SUCCESS);
+        ok.setAttributeMap(attributes);
+        LOG.info("[NodeSelectionAdapter] Contexte choisi par " + uid + " : " + chosen);
+        return ok;
+    }
+
+    // Identifiant de l'utilisateur authentifié par l'adapter précédent
+    @SuppressWarnings("unchecked")
+    private String chainedUid(Map<String, Object> inParameters) {
+        if (inParameters == null) {
+            return null;
+        }
+        Object chained = inParameters.get(KEY_CHAINED);
+        if (!(chained instanceof Map)) {
+            return null;
+        }
+        Map<String, Object> attrs = (Map<String, Object>) chained;
+        for (String key : new String[] {"username", "subject", "uid"}) {
+            String value = firstValue(attrs.get(key));
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private String resumePath(Map<String, Object> inParameters) {
+        Object value = inParameters.get(KEY_RESUME);
+        if (value == null) {
+            value = inParameters.get("resumePath");
+        }
+        return value == null ? null : value.toString();
+    }
+
+    private static String firstValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Collection) {
+            Collection<?> c = (Collection<?>) value;
+            return c.isEmpty() ? null : String.valueOf(c.iterator().next());
+        }
+        if (value instanceof String[]) {
+            String[] a = (String[]) value;
+            return a.length == 0 ? null : a[0];
+        }
+        return String.valueOf(value);
+    }
+
+    private Map<String, String> loadNodes(String uid) throws SQLException, ClassNotFoundException {
+        Class.forName("org.postgresql.Driver");
+        Map<String, String> nodes = new LinkedHashMap<>();
+        try (Connection c = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+             PreparedStatement ps = c.prepareStatement(SQL_NODES)) {
+            ps.setString(1, uid);
+            ps.setString(2, APPLICATION);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    nodes.put(rs.getString(1), rs.getString(2));
+                }
+            }
+        }
+        return nodes;
+    }
+
+    private void renderPage(HttpServletResponse response, String resume,
+                            Map<String, String> nodes, String csrf) throws IOException {
+        response.setContentType("text/html; charset=UTF-8");
+        response.setHeader("Cache-Control", "no-store");
+        response.setHeader("X-Frame-Options", "DENY");
+        PrintWriter out = response.getWriter();
+        out.println("<!DOCTYPE html><html lang=\"fr\"><head><meta charset=\"UTF-8\">");
+        out.println("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+        out.println("<title>PUMA, choix du contexte</title>");
+        out.println("<style>body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0}"
+                + ".card{max-width:420px;margin:80px auto;background:#fff;padding:32px;border-radius:8px;"
+                + "box-shadow:0 2px 8px rgba(0,0,0,.1)}h1{font-size:20px;margin:0 0 8px}"
+                + "p{color:#555;font-size:14px}select,button{width:100%;padding:10px;margin-top:12px;"
+                + "font-size:15px}button{background:#00754a;color:#fff;border:0;border-radius:4px;cursor:pointer}"
+                + "</style></head><body><div class=\"card\">");
+        out.println("<h1>Choix du contexte</h1>");
+        out.println("<p>Sélectionnez le noeud sur lequel vous souhaitez travailler.</p>");
+        out.println("<form method=\"post\" action=\"" + escape(resume) + "\">");
+        out.println("<input type=\"hidden\" name=\"" + PARAM_CSRF + "\" value=\"" + escape(csrf) + "\">");
+        out.println("<select name=\"" + PARAM_NODE + "\" required>");
+        for (Map.Entry<String, String> e : nodes.entrySet()) {
+            out.println("<option value=\"" + escape(e.getKey()) + "\">"
+                    + escape(e.getValue()) + " (" + escape(e.getKey()) + ")</option>");
+        }
+        out.println("</select><button type=\"submit\">Continuer</button></form></div></body></html>");
+        out.flush();
+    }
+
+    private static AuthnAdapterResponse failure(String message) {
+        AuthnAdapterResponse r = new AuthnAdapterResponse();
+        r.setAuthnStatus(AUTHN_STATUS.FAILURE);
+        r.setErrorMessage(message);
+        return r;
+    }
+
+    private static String newToken() {
+        byte[] b = new byte[32];
+        RANDOM.nextBytes(b);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(b);
+    }
+
+    private static String escape(String s) {
+        if (s == null) {
+            return "";
+        }
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\"", "&quot;").replace("'", "&#39;");
+    }
+
+    private static String env(String name, String fallback) {
+        String v = System.getenv(name);
+        return (v == null || v.isBlank()) ? fallback : v;
+    }
+}
+
+
+
+
+
 # PUMA phase 2 : choix du noeud dans PingFederate, sans token exchange
 
 Le noeud est choisi dans le parcours PingFederate, sur une page affichée juste après le login. Le token final émis au client puma-portal contient directement sub, node et roles. Le flux actuel par token exchange reste en place tant que celui-ci n'est pas validé.
