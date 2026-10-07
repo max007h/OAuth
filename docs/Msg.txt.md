@@ -1,3 +1,54 @@
+sequenceDiagram
+    autonumber
+    participant F as Front PUMA
+    participant PF as PingFederate
+    participant PD as PingDirectory
+    participant DB as PostgreSQL
+    participant B as Backend PUMA
+    participant PAZ as PingAuthorize (PDP)
+
+    rect rgb(235, 242, 250)
+    Note over F,PAZ: Authentification et choix du noeud, dans PingFederate
+    F->>PF: Demande d'autorisation (client puma-portal, PKCE)
+    PF->>PD: Vérifie login et mot de passe (HTMLFormAdapter)
+    PD-->>PF: Identité
+    PF->>DB: Noeuds où l'utilisateur a un rôle PUMA (NodeSelectionAdapter)
+    DB-->>PF: Liste des noeuds
+    PF-->>F: Page de choix du noeud
+    F->>PF: Noeud choisi
+    Note over PF: Vérifie que le noeud fait partie de la liste
+    PF->>DB: Rôles de l'utilisateur sur ce noeud, héritage compris
+    DB-->>PF: Rôles
+    PF-->>F: Code d'autorisation
+    F->>PF: Échange du code (code_verifier)
+    PF-->>F: Token (sub, node, roles, audience, expiration)
+    Note over F,PF: Le token porte directement le noeud et les rôles.<br/>Plus de pop-up ni de token exchange.
+    end
+
+    rect rgb(252, 246, 234)
+    Note over F,PAZ: Création et affectation d'un utilisateur
+    F->>B: POST /api/users (token)
+    Note over B: Gros grain : signature, expiration, audience<br/>Intermédiaire : le rôle autorise-t-il cet endpoint ?
+    B->>PAZ: Puis-je ? (token, noeud cible, application, user.create)
+    Note over PAZ: Contrôle fin
+    PAZ->>DB: 1. La cible est-elle dans le périmètre du noeud du token ?
+    PAZ->>DB: 2. Un rôle hérité sur la cible porte-t-il user.create ?
+    alt Hors périmètre ou permission absente
+        PAZ-->>B: DENY
+        B-->>F: 403
+    else Dans le périmètre et permission présente
+        PAZ-->>B: PERMIT
+        B->>DB: Écrit puma_user et assignment
+        B->>PD: Crée le compte s'il n'existe pas (uid, prénom, nom, email)
+        B-->>F: 200, utilisateur créé et affecté
+    end
+    end
+
+
+
+
+
+
 BEGIN;
 
 INSERT INTO rataweb.contract (reference, customer_name, amount, status, node_id)
