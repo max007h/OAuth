@@ -8,13 +8,15 @@ Rien d'existant n'est modifié, sauf une route et un lien. Pour revenir en arri�
 
 1. Le tableau liste les affectations dont le noeud est dans le sous-arbre du noeud de contexte du manager (celui du token). Jamais toute la base.
 2. Le nom, le prénom et l'email sont lus dans PingDirectory, en une seule recherche LDAP pour toute la liste. Si l'annuaire ne répond pas, le tableau s'affiche quand même, avec le login seul.
-3. Le changement de rôle passe par le même contrôle PingAuthorize que la création, puis met à jour la table assignment. Rien ne change dans PingDirectory.
+3. Le changement de rôle vérifie que le noeud est dans le sous-arbre du manager (requête SQL, sans appel au PDP dans cette version), que le rôle est global et de la même application, puis met à jour la table assignment. Rien ne change dans PingDirectory.
 4. PingAuthorize voit le nouveau rôle immédiatement, puisqu'il lit la base à chaque décision. Le token de l'utilisateur, lui, ne contient le nouveau rôle qu'après une nouvelle connexion.
 
 ## Fichiers à créer
 
 ```
 Backend (package com.poc.banking)
+  repository/UserAdminV2Repository.java
+  service/LdapIdentityV2Service.java
   controller/UserAdminV2Controller.java
 
 Frontend (src/app)
@@ -32,11 +34,9 @@ Ce module a été écrit sans voir le code actuel de ces fichiers. Chaque point 
 
 | Point | Hypothèse | Si ça ne compile pas |
 |---|---|---|
-| Contrôle PDP | `UserProvisioningService.checkDelegation(CreateUserRequest, String managerUid, String bearerToken)` est public et lève une exception en cas de refus | Adapter la méthode `verifierDelegation` du contrôleur, en recopiant l'appel exact de la création |
-| CreateUserRequest et AssignmentDto | Records : `CreateUserRequest(uid, firstName, lastName, email, assignments)` et `AssignmentDto(role, node)` | Adapter les deux constructeurs dans `verifierDelegation` |
 | JwtSubject | `isManager(token)`, `node(token)` et `uid(token)` renvoient boolean, String et String | Adapter les trois appels |
-| Tables | application(id, name), node(id, label), node_parent(node_id, parent_id), app_role(id, name, application_id, parent_role_id), puma_user(id, uid), assignment(id, user_id, role_id, node_id) | Adapter les noms de colonnes dans les requêtes SQL |
-| LDAP | Mêmes paramètres que createViaLdap | Renseigner les quatre propriétés puma.ldap.* avec les valeurs déjà utilisées |
+| Tables (repository) | application(id, name), node(id, label), node_parent(node_id, parent_id), app_role(id, name, application_id, parent_role_id), puma_user(id, uid), assignment(id, user_id, role_id, node_id) | Adapter les noms de colonnes dans les requêtes SQL |
+| LDAP (LdapIdentityV2Service) | Mêmes paramètres que createViaLdap | Renseigner les quatre propriétés puma.ldap.* avec les valeurs déjà utilisées |
 | RoleV2Service | `list(applicationId, nodeId)` renvoie des objets avec `id` et `name` | Adapter l'appel dans `edit()` |
 | Guard | La route create-user-v2 utilise `managerGuard` | Reprendre le guard de cette route |
 
@@ -46,44 +46,30 @@ Les requêtes SQL ont été testées sur PostgreSQL avec un schéma reproduisant
 
 # Backend
 
-## `controller/UserAdminV2Controller.java`
+Trois classes, une par couche :
+
+```
+repository/UserAdminV2Repository.java   requêtes SQL (JdbcTemplate)
+service/LdapIdentityV2Service.java      identités lues dans PingDirectory
+controller/UserAdminV2Controller.java   orchestration et codes HTTP
+```
+
+Le repository utilise JdbcTemplate plutôt que Spring Data JPA : les requêtes renvoient des jointures sur cinq tables, c'est-à-dire une projection et non une entité. Il ne dépend donc ni de l'entité Assignment ni des relations JPA existantes.
+
+## `repository/UserAdminV2Repository.java`
 
 ```java
-package com.poc.banking.controller;
+package com.poc.banking.repository;
 
-import com.poc.banking.dto.AssignmentDto;
-import com.poc.banking.dto.CreateUserRequest;
-import com.poc.banking.service.UserProvisioningService;
-import com.poc.banking.util.JwtSubject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.stereotype.Repository;
 
-import javax.naming.Context;
-import javax.naming.NamingEnumeration;
-import javax.naming.NamingException;
-import javax.naming.directory.Attribute;
-import javax.naming.directory.Attributes;
-import javax.naming.directory.DirContext;
-import javax.naming.directory.InitialDirContext;
-import javax.naming.directory.SearchControls;
-import javax.naming.directory.SearchResult;
-import java.util.*;
+import java.util.List;
+import java.util.Optional;
 
-/**
- * Liste des affectations du périmètre du manager et changement de rôle.
- * Nouveau contrôleur : aucun contrôleur existant n'est modifié.
- */
-@RestController
-@RequestMapping("/api/users-v2")
-public class UserAdminV2Controller {
-
-    private static final Logger LOG = LoggerFactory.getLogger(UserAdminV2Controller.class);
+/** Accès base du module users-v2 : affectations du périmètre et changement de rôle. */
+@Repository
+public class UserAdminV2Repository {
 
     /** Sous-arbre du noeud de contexte, noeud compris. */
     private static final String SOUS_ARBRE =
@@ -106,17 +92,18 @@ public class UserAdminV2Controller {
       + "WHERE a.node_id::text IN (SELECT node_id FROM sous_arbre) "
       + "ORDER BY u.uid, ap.name, n.label";
 
-    private static final String SQL_CURRENT =
-        "SELECT a.user_id, u.uid, a.node_id::text AS node_id, r.application_id::text AS application_id "
+    private static final String SQL_FIND =
+        "SELECT a.id, a.user_id, u.uid, a.node_id::text AS node_id, "
+      + "       r.application_id::text AS application_id "
       + "FROM assignment a "
       + "JOIN puma_user u ON u.id = a.user_id "
       + "JOIN app_role r  ON r.id = a.role_id "
       + "WHERE a.id = ?";
 
-    private static final String SQL_IN_PERIMETER = SOUS_ARBRE
+    private static final String SQL_IN_SUBTREE = SOUS_ARBRE
       + "SELECT count(*) FROM sous_arbre WHERE node_id = ?";
 
-    /** Le nouveau rôle doit être global et appartenir à la même application. */
+    /** Le rôle doit être global et appartenir à l'application de l'affectation. */
     private static final String SQL_ROLE_VALID =
         "SELECT count(*) FROM app_role "
       + "WHERE id::text = ? AND application_id::text = ? AND parent_role_id IS NULL";
@@ -125,144 +112,118 @@ public class UserAdminV2Controller {
         "SELECT count(*) FROM assignment "
       + "WHERE user_id = ? AND role_id::text = ? AND node_id::text = ? AND id <> ?";
 
-    private static final String SQL_UPDATE =
+    private static final String SQL_UPDATE_ROLE =
         "UPDATE assignment SET role_id = ? WHERE id = ?";
 
+    /** Ligne du tableau, sans l'identité qui vient de l'annuaire. */
+    public record AssignmentRow(long id, String uid, String applicationId, String applicationName,
+                                String nodeId, String nodeLabel, String roleId, String roleName) {}
+
+    /** Affectation ciblée par un changement de rôle. */
+    public record AssignmentRef(long id, long userId, String uid, String nodeId, String applicationId) {}
+
     private final JdbcTemplate jdbc;
-    private final UserProvisioningService provisioning;
+
+    public UserAdminV2Repository(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
+    }
+
+    public List<AssignmentRow> findInSubtree(String contextNode) {
+        return jdbc.query(SQL_LIST, (rs, i) -> new AssignmentRow(
+            rs.getLong("id"), rs.getString("uid"),
+            rs.getString("application_id"), rs.getString("application_name"),
+            rs.getString("node_id"), rs.getString("node_label"),
+            rs.getString("role_id"), rs.getString("role_name")), contextNode);
+    }
+
+    public Optional<AssignmentRef> findById(long id) {
+        List<AssignmentRef> rows = jdbc.query(SQL_FIND, (rs, i) -> new AssignmentRef(
+            rs.getLong("id"), rs.getLong("user_id"), rs.getString("uid"),
+            rs.getString("node_id"), rs.getString("application_id")), id);
+        return rows.stream().findFirst();
+    }
+
+    public boolean isInSubtree(String contextNode, String nodeId) {
+        Integer c = jdbc.queryForObject(SQL_IN_SUBTREE, Integer.class, contextNode, nodeId);
+        return c != null && c > 0;
+    }
+
+    public boolean isRoleValidForApplication(String roleId, String applicationId) {
+        Integer c = jdbc.queryForObject(SQL_ROLE_VALID, Integer.class, roleId, applicationId);
+        return c != null && c > 0;
+    }
+
+    public boolean existsOther(long userId, String roleId, String nodeId, long excludedId) {
+        Integer c = jdbc.queryForObject(SQL_DUPLICATE, Integer.class, userId, roleId, nodeId, excludedId);
+        return c != null && c > 0;
+    }
+
+    public int updateRole(long assignmentId, String roleId) {
+        return jdbc.update(SQL_UPDATE_ROLE, roleId, assignmentId);
+    }
+}
+```
+
+## `service/LdapIdentityV2Service.java`
+
+```java
+package com.poc.banking.service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import javax.naming.Context;
+import javax.naming.NamingEnumeration;
+import javax.naming.NamingException;
+import javax.naming.directory.Attribute;
+import javax.naming.directory.Attributes;
+import javax.naming.directory.DirContext;
+import javax.naming.directory.InitialDirContext;
+import javax.naming.directory.SearchControls;
+import javax.naming.directory.SearchResult;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Hashtable;
+import java.util.Map;
+import java.util.Objects;
+
+/** Lecture des identités dans PingDirectory, en une seule recherche pour toute la liste. */
+@Service
+public class LdapIdentityV2Service {
+
+    private static final Logger LOG = LoggerFactory.getLogger(LdapIdentityV2Service.class);
+
+    public record Identity(String firstName, String lastName, String email) {
+        public static final Identity EMPTY = new Identity("", "", "");
+    }
 
     @Value("${puma.ldap.url:ldap://localhost:1389}")
-    private String ldapUrl;
+    private String url;
 
     @Value("${puma.ldap.bind-dn:cn=administrator}")
-    private String ldapBindDn;
+    private String bindDn;
 
     @Value("${puma.ldap.password:2FederateM0re}")
-    private String ldapPassword;
+    private String password;
 
     @Value("${puma.ldap.base-dn:ou=people,dc=example,dc=com}")
-    private String ldapBaseDn;
+    private String baseDn;
 
-    public UserAdminV2Controller(JdbcTemplate jdbc, UserProvisioningService provisioning) {
-        this.jdbc = jdbc;
-        this.provisioning = provisioning;
-    }
-
-    public record UserAssignmentV2(long id, String uid, String firstName, String lastName,
-                                   String email, String applicationId, String applicationName,
-                                   String nodeId, String nodeLabel, String roleId, String roleName) {}
-
-    public record ChangeRoleRequestV2(String role) {}
-
-    // ------------------------------------------------------------------ liste
-
-    @GetMapping("/assignments")
-    public ResponseEntity<?> list(JwtAuthenticationToken token) {
-        if (!JwtSubject.isManager(token)) {
-            return ResponseEntity.status(403).body("Manager context required");
-        }
-        String contextNode = JwtSubject.node(token);
-
-        List<Map<String, Object>> rows = jdbc.queryForList(SQL_LIST, contextNode);
-
-        Set<String> uids = new LinkedHashSet<>();
-        for (Map<String, Object> r : rows) {
-            uids.add((String) r.get("uid"));
-        }
-        Map<String, String[]> identities = loadIdentities(uids);
-
-        List<UserAssignmentV2> result = new ArrayList<>();
-        for (Map<String, Object> r : rows) {
-            String uid = (String) r.get("uid");
-            String[] id = identities.getOrDefault(uid, new String[] {"", "", ""});
-            result.add(new UserAssignmentV2(
-                ((Number) r.get("id")).longValue(), uid, id[0], id[1], id[2],
-                (String) r.get("application_id"), (String) r.get("application_name"),
-                (String) r.get("node_id"), (String) r.get("node_label"),
-                (String) r.get("role_id"), (String) r.get("role_name")));
-        }
-        return ResponseEntity.ok(result);
-    }
-
-    // ------------------------------------------------------- changement de rôle
-
-    @PutMapping("/assignments/{id}")
-    @Transactional
-    public ResponseEntity<?> changeRole(@PathVariable long id,
-                                        @RequestBody ChangeRoleRequestV2 request,
-                                        JwtAuthenticationToken token) {
-        if (!JwtSubject.isManager(token)) {
-            return ResponseEntity.status(403).body("Manager context required");
-        }
-        if (request == null || request.role() == null || request.role().isBlank()) {
-            return ResponseEntity.badRequest().body("Role is required");
-        }
-        String newRole = request.role().trim();
-        String contextNode = JwtSubject.node(token);
-        String managerUid = JwtSubject.uid(token);
-
-        List<Map<String, Object>> current = jdbc.queryForList(SQL_CURRENT, id);
-        if (current.isEmpty()) {
-            return ResponseEntity.status(404).body("Assignment not found");
-        }
-        Map<String, Object> a = current.get(0);
-        Number userId = (Number) a.get("user_id");
-        String uid = (String) a.get("uid");
-        String nodeId = (String) a.get("node_id");
-        String applicationId = (String) a.get("application_id");
-
-        Integer inPerimeter = jdbc.queryForObject(SQL_IN_PERIMETER, Integer.class, contextNode, nodeId);
-        if (inPerimeter == null || inPerimeter == 0) {
-            return ResponseEntity.status(403).body("Node outside your scope: " + nodeId);
-        }
-
-        Integer valid = jdbc.queryForObject(SQL_ROLE_VALID, Integer.class, newRole, applicationId);
-        if (valid == null || valid == 0) {
-            return ResponseEntity.badRequest().body("Role not available for this application: " + newRole);
-        }
-
-        Integer duplicate = jdbc.queryForObject(SQL_DUPLICATE, Integer.class,
-            userId.longValue(), newRole, nodeId, id);
-        if (duplicate != null && duplicate > 0) {
-            return ResponseEntity.status(409).body("The user already has this role on this node");
-        }
-
-        // Même contrôle PingAuthorize qu'à la création. Lève une exception en cas de refus.
-        verifierDelegation(uid, newRole, nodeId, managerUid, token.getToken().getTokenValue());
-
-        jdbc.update(SQL_UPDATE, newRole, id);
-        LOG.info("[users-v2] {} changed assignment {} of {} on {} to role {}",
-            managerUid, id, uid, nodeId, newRole);
-
-        return ResponseEntity.ok(Map.of("message", "Role updated"));
-    }
-
-    /**
-     * Seul point de couplage avec le code existant : reprend le contrôle de la création.
-     * Si la signature réelle diffère, recopier ici l'appel exact de UserProvisioningService.
-     */
-    private void verifierDelegation(String uid, String role, String nodeId,
-                                    String managerUid, String bearerToken) {
-        CreateUserRequest req = new CreateUserRequest(
-            uid, null, null, null, List.of(new AssignmentDto(role, nodeId)));
-        provisioning.checkDelegation(req, managerUid, bearerToken);
-    }
-
-    // -------------------------------------------------------------------- LDAP
-
-    /** Une seule recherche pour toute la liste. En cas d'échec, le tableau garde le login seul. */
-    private Map<String, String[]> loadIdentities(Collection<String> uids) {
-        Map<String, String[]> result = new HashMap<>();
-        if (uids.isEmpty()) {
+    /** En cas d'échec, renvoie une map vide : le tableau garde alors le login seul. */
+    public Map<String, Identity> findByUids(Collection<String> uids) {
+        Map<String, Identity> result = new HashMap<>();
+        if (uids == null || uids.isEmpty()) {
             return result;
         }
 
         Hashtable<String, String> env = new Hashtable<>();
         env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
-        env.put(Context.PROVIDER_URL, ldapUrl);
+        env.put(Context.PROVIDER_URL, url);
         env.put(Context.SECURITY_AUTHENTICATION, "simple");
-        env.put(Context.SECURITY_PRINCIPAL, ldapBindDn);
-        env.put(Context.SECURITY_CREDENTIALS, ldapPassword);
+        env.put(Context.SECURITY_PRINCIPAL, bindDn);
+        env.put(Context.SECURITY_CREDENTIALS, password);
         env.put("com.sun.jndi.ldap.connect.timeout", "3000");
         env.put("com.sun.jndi.ldap.read.timeout", "3000");
 
@@ -283,15 +244,15 @@ public class UserAdminV2Controller {
         DirContext ctx = null;
         try {
             ctx = new InitialDirContext(env);
-            NamingEnumeration<SearchResult> found = ctx.search(ldapBaseDn, filter.toString(), args, controls);
+            NamingEnumeration<SearchResult> found = ctx.search(baseDn, filter.toString(), args, controls);
             while (found.hasMore()) {
                 Attributes attrs = found.next().getAttributes();
                 String uid = value(attrs.get("uid"));
                 if (uid != null) {
-                    result.put(uid.toLowerCase(), new String[] {
+                    result.put(uid.toLowerCase(), new Identity(
                         Objects.toString(value(attrs.get("givenName")), ""),
                         Objects.toString(value(attrs.get("sn")), ""),
-                        Objects.toString(value(attrs.get("mail")), "")});
+                        Objects.toString(value(attrs.get("mail")), "")));
                 }
             }
         } catch (NamingException e) {
@@ -310,7 +271,113 @@ public class UserAdminV2Controller {
 }
 ```
 
-Dans application.yml, si les valeurs par défaut ne correspondent pas, ajouter les mêmes valeurs que celles utilisées par createViaLdap :
+## `controller/UserAdminV2Controller.java`
+
+```java
+package com.poc.banking.controller;
+
+import com.poc.banking.repository.UserAdminV2Repository;
+import com.poc.banking.repository.UserAdminV2Repository.AssignmentRef;
+import com.poc.banking.repository.UserAdminV2Repository.AssignmentRow;
+import com.poc.banking.service.LdapIdentityV2Service;
+import com.poc.banking.service.LdapIdentityV2Service.Identity;
+import com.poc.banking.util.JwtSubject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+/** Liste des affectations du périmètre du manager et changement de rôle. */
+@RestController
+@RequestMapping("/api/users-v2")
+public class UserAdminV2Controller {
+
+    private static final Logger LOG = LoggerFactory.getLogger(UserAdminV2Controller.class);
+
+    public record UserAssignmentV2(long id, String uid, String firstName, String lastName,
+                                   String email, String applicationId, String applicationName,
+                                   String nodeId, String nodeLabel, String roleId, String roleName) {}
+
+    public record ChangeRoleRequestV2(String role) {}
+
+    private final UserAdminV2Repository repository;
+    private final LdapIdentityV2Service ldap;
+
+    public UserAdminV2Controller(UserAdminV2Repository repository, LdapIdentityV2Service ldap) {
+        this.repository = repository;
+        this.ldap = ldap;
+    }
+
+    @GetMapping("/assignments")
+    public ResponseEntity<?> list(JwtAuthenticationToken token) {
+        if (!JwtSubject.isManager(token)) {
+            return ResponseEntity.status(403).body("Manager context required");
+        }
+        List<AssignmentRow> rows = repository.findInSubtree(JwtSubject.node(token));
+
+        Set<String> uids = new LinkedHashSet<>();
+        rows.forEach(r -> uids.add(r.uid()));
+        Map<String, Identity> identities = ldap.findByUids(uids);
+
+        List<UserAssignmentV2> result = rows.stream().map(r -> {
+            Identity id = identities.getOrDefault(r.uid().toLowerCase(), Identity.EMPTY);
+            return new UserAssignmentV2(r.id(), r.uid(), id.firstName(), id.lastName(), id.email(),
+                r.applicationId(), r.applicationName(), r.nodeId(), r.nodeLabel(),
+                r.roleId(), r.roleName());
+        }).toList();
+
+        return ResponseEntity.ok(result);
+    }
+
+    @PutMapping("/assignments/{id}")
+    @Transactional
+    public ResponseEntity<?> changeRole(@PathVariable long id,
+                                        @RequestBody ChangeRoleRequestV2 request,
+                                        JwtAuthenticationToken token) {
+        if (!JwtSubject.isManager(token)) {
+            return ResponseEntity.status(403).body("Manager context required");
+        }
+        if (request == null || request.role() == null || request.role().isBlank()) {
+            return ResponseEntity.badRequest().body("Role is required");
+        }
+        String newRole = request.role().trim();
+        String contextNode = JwtSubject.node(token);
+
+        Optional<AssignmentRef> found = repository.findById(id);
+        if (found.isEmpty()) {
+            return ResponseEntity.status(404).body("Assignment not found");
+        }
+        AssignmentRef a = found.get();
+
+        // Contrôle SQL, pas PDP : le noeud doit être dans le sous-arbre du contexte.
+        if (!repository.isInSubtree(contextNode, a.nodeId())) {
+            return ResponseEntity.status(403).body("Node outside your scope: " + a.nodeId());
+        }
+        if (!repository.isRoleValidForApplication(newRole, a.applicationId())) {
+            return ResponseEntity.badRequest().body("Role not available for this application: " + newRole);
+        }
+        if (repository.existsOther(a.userId(), newRole, a.nodeId(), a.id())) {
+            return ResponseEntity.status(409).body("The user already has this role on this node");
+        }
+
+        repository.updateRole(a.id(), newRole);
+        LOG.info("[users-v2] {} changed assignment {} of {} on {} to role {}",
+            JwtSubject.uid(token), a.id(), a.uid(), a.nodeId(), newRole);
+
+        return ResponseEntity.ok(Map.of("message", "Role updated"));
+    }
+}
+```
+
+Dans application.yml, si les valeurs par défaut ne correspondent pas, reprendre celles déjà utilisées par createViaLdap :
 
 ```yaml
 puma:
@@ -697,7 +764,6 @@ import { RouterLink } from '@angular/router';
 | curl PUT sur une affectation hors du sous-arbre | 403 Node outside your scope |
 | curl PUT avec un rôle d'une autre application | 400 Role not available for this application |
 | Choisir un rôle que l'utilisateur a déjà sur ce noeud | 409 The user already has this role on this node |
-| Contexte d'un manager sans user.create sur le noeud | Refus de PingAuthorize, avec le même message qu'à la création |
 
 Exemple de curl, avec le token de contexte du manager :
 
