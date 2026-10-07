@@ -1,5 +1,88 @@
 sequenceDiagram
     autonumber
+    participant F as Front Rataweb
+    participant PF as PingFederate
+    participant PD as PingDirectory
+    participant DB as PostgreSQL PUMA
+    participant BR as Backend Rataweb
+    participant DBR as Base Rataweb
+    participant BP as Backend PUMA
+    participant PAZ as PingAuthorize (PDP)
+
+    rect rgb(235, 242, 250)
+    Note over F,PAZ: Authentification et choix du noeud, dans PingFederate
+    F->>PF: Demande d'autorisation (client rataweb-portal, PKCE)
+    PF->>PD: Vérifie login et mot de passe (HTMLFormAdapter)
+    PD-->>PF: Identité
+    PF->>DB: Noeuds où l'utilisateur a un rôle Rataweb (NodeSelectionAdapter)
+    DB-->>PF: Liste des noeuds
+    PF-->>F: Page de choix du noeud
+    F->>PF: Noeud choisi
+    Note over PF: Vérifie que le noeud fait partie de la liste
+    PF->>DB: Rôles Rataweb de l'utilisateur sur ce noeud, héritage compris
+    DB-->>PF: Rôles
+    PF-->>F: Code d'autorisation
+    F->>PF: Échange du code (code_verifier)
+    PF-->>F: Token portant directement le noeud et les rôles (audience Rataweb)
+    end
+
+    rect rgb(240, 248, 236)
+    Note over F,PAZ: Consultation des contrats
+    F->>BR: GET /contracts (token)
+    Note over BR: Gros grain : signature, expiration, audience Rataweb<br/>Intermédiaire : le rôle autorise-t-il cet endpoint ?
+    BR->>BP: POST /api/decisions (token, contract.read, noeud cible)
+    BP->>PAZ: Puis-je ? (utilisateur et noeud du token, noeud cible, Rataweb, contract.read)
+    Note over PAZ: Contrôle fin
+    PAZ->>DB: 1. La cible est-elle dans le périmètre du noeud du token ?
+    PAZ->>DB: 2. Un rôle hérité sur la cible porte-t-il contract.read ?
+    PAZ-->>BP: PERMIT ou DENY
+    BP-->>BR: Autorisé ou refusé
+    alt Autorisé
+        BR->>DBR: Contrats du noeud du token
+        DBR-->>BR: Liste des contrats
+        BR-->>F: Liste des contrats
+    else Refusé
+        BR-->>F: 403
+    end
+    end
+
+    rect rgb(252, 246, 234)
+    Note over F,PAZ: Approbation d'un contrat
+    F->>BR: POST /contracts/{id}/approve (token)
+    Note over BR: Gros grain et intermédiaire, comme ci-dessus
+    BR->>DBR: Lit le contrat (noeud, montant)
+    BR->>BP: POST /api/decisions (token, contract.approve, noeud du contrat, montant)
+    BP->>PAZ: Puis-je ? (utilisateur et noeud du token, noeud cible, Rataweb, contract.approve, montant)
+    Note over PAZ: Contrôle fin
+    PAZ->>DB: 1. La cible est-elle dans le périmètre du noeud du token ?
+    PAZ->>DB: 2. Un rôle hérité sur la cible porte-t-il contract.approve ?
+    Note over PAZ: 3. Règle métier Rataweb : montant sous le plafond
+    alt Une condition échoue
+        PAZ-->>BP: DENY
+        BP-->>BR: Refusé
+        BR-->>F: 403, contrat non approuvé
+    else Toutes les conditions sont remplies
+        PAZ-->>BP: PERMIT
+        BP-->>BR: Autorisé
+        BR->>DBR: Statut APPROVED, approuvé par l'utilisateur
+        BR-->>F: 200, contrat approuvé
+    end
+    end
+
+    Note over BR,BP: Dans le POC, Rataweb passe par le backend PUMA pour joindre le PDP.<br/>En cible, l'appel passe par l'API Gateway, la décision reste la même.
+
+
+
+
+
+
+
+
+
+
+
+sequenceDiagram
+    autonumber
     participant F as Front PUMA
     participant PF as PingFederate
     participant PD as PingDirectory
