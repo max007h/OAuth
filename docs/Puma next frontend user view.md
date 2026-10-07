@@ -1,3 +1,11 @@
++ "WHERE a.node_id::text IN (SELECT node_id FROM sous_arbre) "
+      + "  AND r.application_id::text <> 'A0' "
+      + "  AND u.uid <> 'thomas.martin' "
+      + "ORDER BY u.uid, ap.name, n.label";
+
+
+
+
 # PUMA : module users-v2, liste des utilisateurs et changement de rôle
 
 Écran volontairement simple : un lien dans la barre de navigation, un tableau des affectations du périmètre du manager, et un bouton pour changer le rôle d'une affectation. L'identité, l'application et le noeud sont affichés en lecture seule. Seul le rôle est modifiable.
