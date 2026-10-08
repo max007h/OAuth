@@ -1,3 +1,53 @@
+Oui, c'est mieux, et c'est cohérent avec le formulaire de création, qui a déjà son bouton Back. Je reprends exactement le même comportement : retour vers `/dashboard`.
+
+**users-v2.component.ts** : ajoute le Router et une méthode back.
+
+```typescript
+import { Router } from '@angular/router';
+
+// dans le constructeur, ajoute le Router aux paramètres existants
+constructor(private users: UserAdminV2Service,
+            private roleService: RoleV2Service,
+            private router: Router) {}
+
+back(): void {
+  this.router.navigate(['/dashboard']);
+}
+```
+
+**users-v2.component.html** : remplace le titre actuel (le h1 et le paragraphe subtitle) par un en-tête avec le bouton.
+
+```html
+<div class="page-header">
+  <div>
+    <h1>Users</h1>
+    <p class="subtitle">Assignments in your current scope.</p>
+  </div>
+  <button type="button" class="secondary" (click)="back()">Back</button>
+</div>
+```
+
+**users-v2.component.css** : ajoute ce bloc pour aligner le bouton à droite du titre.
+
+```css
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.page-header .subtitle {
+  margin-bottom: 0;
+}
+```
+
+Si ta page d'accueil n'est pas `/dashboard`, remplace la route dans back() par celle qu'utilise le bouton Back du formulaire de création.
+
+
+
+
+
 SELECT count(*) AS total
 FROM puma_user_node_roles v
 JOIN role_permission rp ON rp.role_id = v.role_id
