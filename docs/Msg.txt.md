@@ -1,3 +1,21 @@
+-- 1. Voir ses affectations actuelles et la structure exacte de la ligne
+SELECT * FROM assignment WHERE lower(uid) = 'thomas.martin';
+
+-- 2. Après ton INSERT (même rôle A0, node_id de Roller 2), vérifier
+--    exactement ce que l'adapter affichera dans la liste
+SELECT DISTINCT v.node_id, n.label
+FROM puma_user_node_roles v
+JOIN node n ON n.id = v.node_id
+WHERE v.uid = 'thomas.martin' AND v.application_id = 'A0'
+ORDER BY n.label;
+
+
+
+
+
+
+
+
 /** Codes lisibles des permissions effectives, pour l'affichage. */
 public List<String> effectivePermissionCodes(String roleId) {
     return toCodes(effectivePermissions(roleId));
