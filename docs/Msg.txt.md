@@ -1,3 +1,21 @@
+SELECT count(*) AS total
+FROM puma_user_node_roles v
+JOIN role_permission rp ON rp.role_id = v.role_id
+JOIN permission p       ON p.id = rp.permission_id
+                       AND p.application_id = v.application_id
+WHERE lower(v.uid)     = lower({{uid}})
+  AND v.node_id        = {{targetNode}}
+  AND v.application_id = {{targetApplication}}
+  AND p.code           = {{permission}}
+
+
+
+
+
+
+
+
+
 sequenceDiagram
     autonumber
     participant F as Front Rataweb
