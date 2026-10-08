@@ -1,3 +1,28 @@
+/** Codes lisibles des permissions effectives, pour l'affichage. */
+public List<String> effectivePermissionCodes(String roleId) {
+    return toCodes(effectivePermissions(roleId));
+}
+
+/** Codes lisibles des permissions retirées, pour l'affichage. */
+public List<String> removedPermissionCodes(String roleId) {
+    return toCodes(removedPermissions(roleId));
+}
+
+private List<String> toCodes(Collection<String> permissionIds) {
+    if (permissionIds == null || permissionIds.isEmpty()) {
+        return List.of();
+    }
+    return permissions.findAllById(permissionIds).stream()
+            .map(Permission::getCode)
+            .sorted()
+            .toList();
+}
+
+
+
+
+
+
 Oui, c'est mieux, et c'est cohérent avec le formulaire de création, qui a déjà son bouton Back. Je reprends exactement le même comportement : retour vers `/dashboard`.
 
 **users-v2.component.ts** : ajoute le Router et une méthode back.
