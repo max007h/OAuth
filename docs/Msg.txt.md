@@ -1,3 +1,11 @@
+JSON.parse(atob(TOKEN.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')))
+
+
+
+
+
+
+
 Voici tous les cas d'utilisation du POC, en anglais simple, regroupés par univers. J'ai ajouté le module Roles d'aujourd'hui (UC-03 à UC-05).
 
 ---
