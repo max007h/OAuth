@@ -1,3 +1,48 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>JWT Decoder</title>
+</head>
+<body>
+  <h3>JWT Token</h3>
+
+  <textarea id="token" rows="8" cols="80"
+    placeholder="Colle ton token ici"></textarea>
+
+  <br><br>
+  <button onclick="decodeToken()">Décoder token</button>
+
+  <pre id="result"></pre>
+
+  <script>
+    function decodeToken() {
+      try {
+        const token = document.getElementById('token').value.trim();
+        const payload = token.split('.')[1]
+          .replace(/-/g, '+')
+          .replace(/_/g, '/');
+
+        const bytes = Uint8Array.from(
+          atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, '=')),
+          c => c.charCodeAt(0)
+        );
+
+        const json = JSON.parse(new TextDecoder().decode(bytes));
+
+        document.getElementById('result').textContent =
+          JSON.stringify(json, null, 2);
+      } catch {
+        document.getElementById('result').textContent =
+          'Token invalide ou impossible à décoder.';
+      }
+    }
+  </script>
+</body>
+</html>
+
+
+
 
 <!DOCTYPE html>
 <html lang="fr">
