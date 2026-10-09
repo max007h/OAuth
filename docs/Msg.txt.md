@@ -1,3 +1,117 @@
+Voici tous les cas d'utilisation du POC, en anglais simple, regroupés par univers. J'ai ajouté le module Roles d'aujourd'hui (UC-03 à UC-05).
+
+---
+
+## PUMA (partner administration)
+
+**UC-01: Login and context selection**
+Actor: PUMA manager
+1. The user logs in with his login and password.
+2. PingFederate checks the password in PingDirectory.
+3. The user sees the list of business lines (nodes) where he has a role.
+4. The user selects one business line.
+5. The user gets a token with his identity, the selected business line and his roles.
+
+**UC-02: View the hierarchy**
+Actor: PUMA manager
+1. The user opens the hierarchy view.
+2. He sees the partner tree: chains, groups and vendors.
+
+**UC-03: View roles and permissions by application**
+Actor: PUMA manager
+1. The user opens the Roles page.
+2. He selects an application.
+3. He sees all the roles of this application.
+4. For each role, he sees its permissions.
+
+**UC-04: Create a role for an application**
+Actor: PUMA manager
+1. The user selects an application.
+2. He enters a code and a name for the new role.
+3. He selects the permissions of this application.
+4. He saves.
+5. The new role is created and groups these permissions.
+Rule: a role can only contain permissions of its own application.
+
+**UC-05: Change the permissions of a role**
+Actor: PUMA manager
+1. The user selects a role.
+2. He adds or removes permissions.
+3. He saves.
+4. All users with this role get the change at once, without a new login.
+
+**UC-06: Create a user**
+Actor: PUMA manager
+1. The user enters the identity data: first name, last name, email.
+2. He selects the business line where he wants to create the user.
+3. He selects the application.
+4. He selects the role for this application on this business line.
+5. He sends the request.
+6. PingAuthorize checks two things: the business line is inside the manager's scope, and the manager has the permission to create users.
+7. If yes, the user is saved in the database and his account is created in PingDirectory.
+8. The role also applies to all business lines below this one (inheritance).
+
+**UC-07: Request outside the scope**
+Actor: PUMA manager
+1. The manager tries to create a user on a business line outside his scope.
+2. PingAuthorize says no.
+3. Nothing is created.
+
+**UC-08: List users and change a role**
+Actor: PUMA manager
+1. The user opens the Users page.
+2. He sees all users in his scope, with their application, business line and role.
+3. He changes the role of a user.
+4. The new role works at once, without a new login.
+
+---
+
+## Rataweb (business application)
+
+**UC-09: Login and context selection**
+Actor: Rataweb user (for example a financing advisor)
+1. The user logs in.
+2. He selects a business line.
+3. He gets a token for Rataweb with this business line and his roles.
+
+**UC-10: View contracts**
+Actor: Rataweb user
+1. The user clicks on Contracts.
+2. PingAuthorize checks that the business line is in his scope.
+3. PingAuthorize checks that he has the permission to read contracts.
+4. The user sees only the contracts of his business line.
+
+**UC-11: Approve a contract (no permission)**
+Actor: financing advisor
+1. The user tries to approve a contract.
+2. PingAuthorize checks his permissions: he cannot approve.
+3. The request is refused.
+
+**UC-12: Approve a contract (with permission and limit)**
+Actor: financing supervisor
+1. The user clicks Approve on a contract.
+2. PingAuthorize checks that he has the permission to approve.
+3. PingAuthorize checks the amount: up to 20,000 EUR, the approval is accepted.
+4. Above 20,000 EUR, the approval is refused.
+
+**UC-13: Role change in PUMA, effect in Rataweb**
+Actors: PUMA manager, Rataweb user
+1. The manager changes the role of a user in PUMA, from advisor to supervisor.
+2. The user tries again in Rataweb, without a new login.
+3. PingAuthorize reads the new role and the approval is now accepted.
+
+---
+
+Deux points à vérifier avant la démo :
+
+- **UC-07** : on ne l'a pas encore testé en entier. Il fallait un appel curl hors périmètre. Si tu n'as pas le temps de le tester, ne le montre pas en direct, cite-le seulement.
+- **UC-08** : le contrôle de périmètre se fait en SQL dans le backend, pas par PingAuthorize. Si on te pose la question, dis-le franchement : c'est prévu pour la suite.
+
+
+
+
+
+
 SELECT id, code, name, application_id, parent_role_id, node_id
 FROM app_role
 WHERE application_id = 'A3'
