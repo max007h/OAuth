@@ -1,3 +1,30 @@
+// Dans un service ou un composant Angular
+(window as any).decodeToken = (token: string) => {
+  const payload = token.split('.')[1];
+  return JSON.parse(atob(payload));
+};
+
+
+
+(window as any).decodeToken = (token: string) => {
+  const payload = token.split('.')[1]
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+
+  const json = decodeURIComponent(
+    atob(payload)
+      .split('')
+      .map(c => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
+      .join('')
+  );
+
+  return JSON.parse(json);
+};
+
+
+
+
+
 JSON.parse(atob(TOKEN.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')))
 
 
