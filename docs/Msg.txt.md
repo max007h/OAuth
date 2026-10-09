@@ -1,3 +1,22 @@
+first policy
+----------
+The PUMA manager is logged in on a node. We call it the context node. He wants to create a user on another node. We call it the target node.
+
+This policy checks one thing: is the target node inside the manager scope? 
+
+technixally It looks at the hierarchy in the database. If the target node is the context node itself, or one of the context node descendents
+
+sexonde policy
+----------
+
+The second policy checks the permission. It gets the user's roles on the node, including the roles inherited from the nodes above. Then it checks that at least one of these roles has the permission needed for this action
+
+
+
+
+
+
+
 Voici une phrase par table du modèle de données, en anglais simple, dans l'ordre du schéma (de gauche à droite).
 
 **Applications, roles and permissions**
