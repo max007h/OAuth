@@ -1,3 +1,8 @@
+SELECT pg_get_viewdef('puma_user_node_roles', true);
+
+
+
+
 first policy
 ----------
 The PUMA manager is logged in on a node. We call it the context node. He wants to create a user on another node. We call it the target node.
