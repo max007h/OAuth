@@ -1,3 +1,17 @@
+SELECT id, code, name, application_id, parent_role_id, node_id
+FROM app_role
+WHERE application_id = 'A3'
+ORDER BY id;
+
+UPDATE app_role
+SET node_id = (SELECT node_id FROM app_role WHERE id = '<id_du_conseiller>')
+WHERE id = '<id_du_nouveau_role>';
+COMMIT;
+
+
+
+
+
 SELECT table_name, column_name, data_type
 FROM information_schema.columns
 WHERE table_schema = 'public'
