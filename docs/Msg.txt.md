@@ -1,3 +1,124 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JWT Decoder</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 850px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+    input, button, textarea {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0 16px;
+    }
+    textarea, pre { font-family: monospace; }
+    pre {
+      background: #f3f4f6;
+      padding: 16px;
+      overflow: auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    button { cursor: pointer; }
+    #error { color: #c00; }
+  </style>
+</head>
+<body>
+  <h2>JWT Decoder & Keyword Search</h2>
+
+  <label for="token">JWT Token</label>
+  <textarea id="token" rows="5"
+    placeholder="Colle ou saisis ton token ici"></textarea>
+
+  <label for="keyword">Keyword (ex. sub, email, exp)</label>
+  <input id="keyword" placeholder="Nom de la propriété">
+
+  <button id="decode">Décoder et rechercher</button>
+
+  <p id="error"></p>
+  <h3>Résultat de la recherche</h3>
+  <pre id="result">Aucun résultat.</pre>
+
+  <h3>JSON complet</h3>
+  <pre id="json">En attente du token.</pre>
+
+  <script>
+    document.getElementById('decode').addEventListener('click', () => {
+      const token = document.getElementById('token').value.trim();
+      const keyword = document.getElementById('keyword').value.trim();
+      const error = document.getElementById('error');
+      const result = document.getElementById('result');
+      const output = document.getElementById('json');
+
+      error.textContent = '';
+      result.textContent = '';
+      output.textContent = '';
+
+      try {
+        const parts = token.split('.');
+        if (parts.length !== 3) {
+          throw new Error('Le token ne semble pas être un JWT à 3 parties.');
+        }
+
+        const base64 = parts[1]
+          .replace(/-/g, '+')
+          .replace(/_/g, '/');
+        const bytes = Uint8Array.from(
+          atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')),
+          c => c.charCodeAt(0)
+        );
+
+        const payload = JSON.parse(new TextDecoder().decode(bytes));
+
+        output.textContent = JSON.stringify(payload, null, 2);
+
+        if (!keyword) {
+          result.textContent = 'Entre un keyword pour rechercher une propriété.';
+          return;
+        }
+
+        // Recherche récursive, y compris dans les objets imbriqués.
+        const matches = [];
+
+        function search(obj, path = '') {
+          if (obj === null || typeof obj !== 'object') return;
+
+          for (const [key, value] of Object.entries(obj)) {
+            const currentPath = path ? `${path}.${key}` : key;
+
+            if (key.toLowerCase().includes(keyword.toLowerCase())) {
+              matches.push({ path: currentPath, value });
+            }
+
+            search(value, currentPath);
+          }
+        }
+
+        search(payload);
+
+        result.textContent = matches.length
+          ? JSON.stringify(matches, null, 2)
+          : `Aucune propriété correspondant à "${keyword}".`;
+
+      } catch (e) {
+        error.textContent = 'Erreur : ' + e.message;
+        result.textContent = '';
+        output.textContent = '';
+      }
+    });
+  </script>
+</body>
+</html>
+
+
+
 // Dans un service ou un composant Angular
 (window as any).decodeToken = (token: string) => {
   const payload = token.split('.')[1];
