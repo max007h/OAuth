@@ -1,3 +1,31 @@
+Voici une phrase par table du modèle de données, en anglais simple, dans l'ordre du schéma (de gauche à droite).
+
+**Applications, roles and permissions**
+- **application**: the list of business applications, like PUMA and Rataweb.
+- **permission**: what a user can do in one application, like "read contract" or "approve contract".
+- **app_role**: the roles. Each role belongs to one application.
+- **role_permission**: links roles and permissions. One role groups many permissions.
+
+**Who has which role, where**
+- **puma_user**: the users. The identity itself is in PingDirectory.
+- **assignment**: the key table. One line means one user, one role, on one node.
+
+**Partner hierarchy**
+- **node**: the partner levels: chains, groups and vendors.
+- **node_parent**: the tree. It says which node is under which node.
+- **node_application**: which applications are open on which node.
+
+**And to finish**
+"A role given on a node also works on all the nodes below it. A database view does this calculation."
+
+
+
+
+
+
+
+
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
