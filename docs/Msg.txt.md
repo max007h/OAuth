@@ -1,3 +1,14 @@
+This rule makes sure that the target node is one of the descendants of the manager's node
+
+
+If the first rule is satisfied, it means that the authorization is partially granted, but this is not sufficient.
+
+The second rule checks whether, among all the descendants of the assigned nodes, there is at least one role with a permission that authorizes the requested operation or grants access to the requested functionality.
+
+
+
+
+
 SELECT pg_get_viewdef('puma_user_node_roles', true);
 
 
